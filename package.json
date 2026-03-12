@@ -33,7 +33,7 @@
     "node-ssh": "^13.2.1",
     "pg": "^8.16.3",
     "pm2": "^6.0.14",
-    "socket.io": "^4.8.1",
+    "socket.io": "^4.8.3",
     "stripe": "^8.222.0"
   },
   "devDependencies": {

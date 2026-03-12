@@ -1,0 +1,482 @@
+:global(#leftVideo)::-webkit-media-controls {
+  display: none !important;
+}
+
+.roomShell {
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 0 12px;
+}
+
+.mobileStack {
+  display: flex;
+  gap: 12px;
+}
+
+.mobileWrap {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.leftColumn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.leftColumnInner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 10px;
+}
+
+.commandDeck {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-panel) 94%, transparent),
+    color-mix(in srgb, var(--bg-surface) 86%, transparent)
+  );
+  backdrop-filter: blur(10px);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+}
+
+.commandRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.searchRow {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.searchField {
+  flex: 0 1 clamp(320px, 36vw, 520px);
+  width: clamp(320px, 36vw, 520px);
+  min-width: 260px;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.nameInput {
+  width: 170px;
+}
+
+.nameInput :global(.mantine-Input-input) {
+  height: 30px;
+  font-size: 0.76rem;
+}
+
+.topActionButton {
+  height: 30px;
+  padding-inline: 10px;
+  font-size: 0.76rem;
+  border-radius: 999px;
+}
+
+.shareButton {
+  min-width: 104px;
+  border: 1px solid var(--border-soft);
+}
+
+.queueDropdown {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.queueItem {
+  padding: 6px 8px;
+}
+
+.playerArea {
+  flex-grow: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.videoContent {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.playerContainer {
+  height: 100%;
+  min-height: 56vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      1200px 380px at 50% 0%,
+      color-mix(in srgb, var(--accent-warm) 10%, transparent),
+      transparent 70%
+    ),
+    color-mix(in srgb, var(--bg-surface) 88%, black);
+}
+
+.flexCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loaderStack {
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.84rem;
+}
+
+.emptyStateCard {
+  min-width: min(580px, calc(100vw - 34px));
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background:
+    radial-gradient(
+      1000px 360px at 50% -80%,
+      color-mix(in srgb, var(--accent-warm) 12%, transparent),
+      transparent 72%
+    ),
+    color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+
+.emptyStateTitle {
+  font-size: clamp(1rem, 1.8vw, 1.22rem);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.emptyStateSubtitle {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.emptyActionButton {
+  min-width: 170px;
+}
+
+.downloadStats {
+  color: var(--text-inverse);
+  font-weight: 400;
+  font-size: 10px;
+  line-height: 1;
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 1;
+}
+
+.chatDock {
+  position: fixed;
+  right: 16px;
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  z-index: 120;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.chatDock > * {
+  pointer-events: auto;
+}
+
+.chatToggle {
+  border-radius: 999px;
+  border: 1px solid
+    color-mix(in srgb, var(--accent-warm) 64%, var(--border-soft));
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  color: var(--accent-warm);
+}
+
+.chatToggleWrap {
+  position: relative;
+}
+
+.chatUnreadBadge {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-warm) 62%, var(--border-soft));
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.chatPanel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(360px, calc(100vw - 34px));
+  height: min(62vh, 540px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-panel) 95%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  transform-origin: bottom right;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chatPanelClosed {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.chatPanelHeader {
+  min-height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chatPanelTitle {
+  font-size: 0.84rem;
+  letter-spacing: 0.03em;
+}
+
+.chatPanelTabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+}
+
+.chatPanelTab {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.chatPanelTabActive {
+  background: color-mix(in srgb, var(--accent-warm) 28%, transparent);
+  color: var(--text-main);
+}
+
+.chatPanelActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chatPanelBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.playerArea:fullscreen,
+.playerArea:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+
+.playerArea:fullscreen .playerContainer,
+.playerArea:-webkit-full-screen .playerContainer {
+  height: 100%;
+  min-height: 100%;
+  border: none;
+}
+
+.playerArea:fullscreen :global(#leftVideo),
+.playerArea:-webkit-full-screen :global(#leftVideo),
+.playerArea:fullscreen :global(#leftYt),
+.playerArea:-webkit-full-screen :global(#leftYt) {
+  width: 100%;
+  height: 100%;
+  max-height: none !important;
+}
+
+.fullHeightColumn {
+  height: calc(100vh - var(--topbar-height) - 22px);
+}
+
+.fullHeightColumnFullscreen {
+  height: 100vh;
+}
+
+@media only screen and (max-width: 1280px) {
+  .topActionButton {
+    height: 28px;
+    padding-inline: 9px;
+    font-size: 0.72rem;
+  }
+}
+
+@media only screen and (max-width: 980px) {
+  .commandDeck {
+    width: 100%;
+  }
+
+  .searchRow {
+    width: 100%;
+  }
+
+  .shareButton {
+    min-width: 96px;
+  }
+
+  .searchField {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .nameInput {
+    width: min(260px, 100%);
+  }
+
+  .chatPanel {
+    width: min(48vw, 350px);
+    height: min(56vh, 470px);
+  }
+}
+
+@media only screen and (max-width: 760px) {
+  .roomShell {
+    width: 100%;
+    padding: 8px 0 10px;
+  }
+
+  .mobileStack {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .leftColumnInner {
+    gap: 8px;
+  }
+
+  .commandDeck {
+    padding: 8px;
+    width: 100%;
+  }
+
+  .emptyStateCard {
+    min-width: 0;
+    width: calc(100vw - 28px);
+    padding: 20px 14px;
+    gap: 12px;
+  }
+
+  .emptyActionButton {
+    min-width: 136px;
+  }
+
+  .shareButton {
+    min-width: 0;
+  }
+
+  .fullHeightColumn,
+  .fullHeightColumnFullscreen {
+    height: auto;
+  }
+
+  .playerContainer {
+    min-height: 48vh;
+  }
+
+  .chatDock {
+    right: 10px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  .chatUnreadBadge {
+    right: auto;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    font-size: 0.68rem;
+    padding: 5px 9px;
+  }
+
+  .chatPanel {
+    width: min(90vw, 340px);
+    height: min(56vh, 420px);
+  }
+
+  .nameInput {
+    width: 100%;
+  }
+}

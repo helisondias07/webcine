@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="webcineFavBg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171717"/>
+      <stop offset="1" stop-color="#090909"/>
+    </linearGradient>
+    <linearGradient id="webcineFavAccent" x1="18" y1="16" x2="46" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E1B45B"/>
+      <stop offset="1" stop-color="#C89335"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#webcineFavBg)"/>
+  <path d="M18 16L24.5 48H29L35 30.5L41 48H45.5L52 16H46L42 37.5L35.2 18H34.6L27.8 37.5L23.8 16H18Z" fill="#F4F3EF"/>
+  <circle cx="50.5" cy="13.5" r="4.5" fill="url(#webcineFavAccent)"/>
+</svg>

@@ -1,0 +1,17 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="webcinetvRing" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8F7BFF"/>
+      <stop offset="1" stop-color="#F0447D"/>
+    </linearGradient>
+    <linearGradient id="webcinetvGlow" x1="64" y1="10" x2="64" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#121A3B"/>
+      <stop offset="1" stop-color="#070D1D"/>
+    </linearGradient>
+  </defs>
+  <circle cx="64" cy="64" r="52" fill="url(#webcinetvGlow)"/>
+  <circle cx="64" cy="64" r="46" stroke="url(#webcinetvRing)" stroke-width="6"/>
+  <path d="M50 42.4C50 39.2 53.5 37.2 56.3 39L87.2 58.5C89.8 60.2 89.8 63.8 87.2 65.5L56.3 85C53.5 86.8 50 84.8 50 81.6V42.4Z" fill="#F3F6FF"/>
+  <circle cx="28" cy="28" r="4" fill="#F0447D"/>
+  <circle cx="100" cy="100" r="4" fill="#8F7BFF"/>
+</svg>

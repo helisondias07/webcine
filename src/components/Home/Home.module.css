@@ -1,0 +1,391 @@
+.container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: calc(100dvh - var(--topbar-height) - var(--app-footer-height));
+  padding: 20px var(--app-shell-gutter);
+  color: var(--text-main);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.container::before {
+  content: "";
+  position: absolute;
+  inset: -14% -8% -8%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 30%, var(--overlay-hero-a), transparent 34%),
+    radial-gradient(circle at 72% 20%, var(--overlay-hero-b), transparent 38%),
+    radial-gradient(
+      circle at 70% 74%,
+      color-mix(in srgb, var(--accent-warm) 14%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(180deg, var(--bg-surface-soft) 0%, var(--bg-app) 100%);
+  filter: blur(30px) saturate(108%);
+  transform: scale(1.08);
+}
+
+.container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-surface) 12%, transparent) 0%,
+    color-mix(in srgb, var(--bg-surface) 48%, transparent) 100%
+  );
+}
+
+.layout {
+  position: relative;
+  z-index: 1;
+  width: min(var(--app-shell-max-width), 100%);
+  height: 100%;
+  min-height: 0;
+  font-family: "Outfit", "Segoe UI", sans-serif;
+  display: grid;
+  grid-template-rows: minmax(0, 1.16fr) minmax(0, 0.84fr);
+  gap: 32px;
+}
+
+.primaryCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  min-height: 0;
+}
+
+.hero {
+  min-height: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 26px;
+  box-shadow:
+    0 28px 72px color-mix(in srgb, var(--bg-app) 76%, black),
+    inset 0 1px 0 color-mix(in srgb, var(--text-main) 12%, transparent);
+  background:
+    radial-gradient(
+      circle at 85% 12%,
+      color-mix(in srgb, var(--accent-warm) 16%, transparent),
+      transparent 44%
+    ),
+    radial-gradient(
+      circle at 22% 72%,
+      color-mix(in srgb, var(--overlay-hero-b) 78%, transparent),
+      transparent 46%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--bg-surface-soft) 92%, transparent) 0%,
+      color-mix(in srgb, var(--bg-surface) 94%, transparent) 56%,
+      color-mix(in srgb, var(--bg-app) 96%, transparent) 100%
+    );
+  overflow: hidden;
+  min-height: 392px;
+  backdrop-filter: blur(14px);
+}
+
+.heroMega {
+  grid-column: 1 / -1;
+}
+
+.heroInner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+
+.heroContent {
+  width: 100%;
+  max-width: 560px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.heroMega .heroContent {
+  max-width: 980px;
+}
+
+.heroMega .heroText {
+  font-size: clamp(2.05rem, 2.62vw, 2.95rem);
+  line-height: 1.16;
+}
+
+.heroMega .subText {
+  font-size: clamp(0.98rem, 1.2vw, 1.3rem);
+  margin-top: 14px;
+}
+
+.heroMega .heroAction {
+  margin-top: 20px;
+}
+
+.heroText {
+  font-family: "Sora", "Outfit", sans-serif;
+  font-size: clamp(2.15rem, 2.9vw, 3.3rem);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--text-main);
+  text-shadow: 0 10px 30px color-mix(in srgb, var(--bg-app) 58%, black);
+}
+
+.subText {
+  color: var(--text-muted);
+  font-size: clamp(1.08rem, 1.35vw, 1.55rem);
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
+.heroAction {
+  margin-top: 14px;
+  width: 250px;
+  max-width: 100%;
+}
+
+.carouselSection {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.carouselHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.carouselHeader h3 {
+  margin: 0;
+  font-family: "Sora", "Outfit", sans-serif;
+  font-size: clamp(1.22rem, 1.6vw, 1.6rem);
+  color: var(--text-main);
+}
+
+.carouselControls {
+  display: flex;
+  gap: 8px;
+}
+
+.carouselArrow :global(svg) {
+  color: var(--text-main);
+}
+
+.carouselViewport {
+  overflow: hidden;
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.carouselTrack {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 320ms ease;
+  background: transparent;
+  box-shadow: none;
+}
+
+.carouselPage {
+  min-width: 100%;
+  height: 100%;
+  display: grid;
+  gap: 14px;
+  align-items: stretch;
+  min-height: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.featureCard {
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
+  padding: 18px 16px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.featureTitle {
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-family: "Sora", "Outfit", sans-serif;
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--text-main);
+}
+
+.featureText {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.carouselDots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: none;
+  background: color-mix(in srgb, var(--text-muted) 44%, transparent);
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.dotActive {
+  transform: scale(1.2);
+  background: var(--accent-warm);
+}
+
+:global([data-mantine-color-scheme="light"]) .container::before {
+  filter: blur(22px) saturate(100%);
+  background:
+    radial-gradient(
+      circle at 20% 30%,
+      color-mix(in srgb, var(--accent-warm) 14%, transparent),
+      transparent 38%
+    ),
+    radial-gradient(circle at 72% 20%, rgba(0, 0, 0, 0.06), transparent 40%),
+    linear-gradient(180deg, #faf9f4 0%, #f5f3eb 100%);
+}
+
+:global([data-mantine-color-scheme="light"]) .container::after {
+  background: transparent;
+}
+
+:global([data-mantine-color-scheme="light"]) .carouselViewport,
+:global([data-mantine-color-scheme="light"]) .carouselTrack,
+:global([data-mantine-color-scheme="light"]) .carouselPage,
+:global([data-mantine-color-scheme="light"]) .featureCard {
+  box-shadow: none !important;
+}
+
+@media only screen and (max-width: 1180px) {
+  .layout {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .heroText {
+    font-size: clamp(1.75rem, 2.8vw, 2.3rem);
+  }
+
+  .featureTitle {
+    font-size: 1.24rem;
+  }
+
+  .featureText {
+    font-size: 1rem;
+  }
+}
+
+@media only screen and (max-width: 980px) {
+  .container {
+    height: auto;
+    overflow: visible;
+  }
+
+  .layout {
+    height: auto;
+    min-height: 0;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+
+  .primaryCards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .heroMega {
+    grid-column: auto;
+  }
+
+  .hero {
+    min-height: 320px;
+  }
+
+  .carouselSection {
+    min-height: 350px;
+  }
+}
+
+@media only screen and (max-width: 760px) {
+  .container {
+    --app-shell-gutter: 10px;
+    padding: 12px var(--app-shell-gutter) 12px;
+  }
+
+  .layout {
+    gap: 10px;
+  }
+
+  .heroInner {
+    padding: 18px 14px;
+  }
+
+  .heroText {
+    font-size: clamp(1.5rem, 7.2vw, 2rem);
+  }
+
+  .subText {
+    font-size: 0.98rem;
+  }
+
+  .heroAction {
+    width: 220px;
+  }
+
+  .carouselSection {
+    padding: 0;
+  }
+
+  .carouselHeader h3 {
+    font-size: 1.02rem;
+  }
+
+  .featureCard {
+    padding: 14px 10px;
+  }
+
+  .featureTitle {
+    font-size: 1.16rem;
+  }
+
+  .featureText {
+    font-size: 0.98rem;
+  }
+}

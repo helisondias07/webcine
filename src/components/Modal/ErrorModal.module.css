@@ -1,0 +1,34 @@
+.title {
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.content {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
+  border-radius: 14px;
+}
+
+.body {
+  padding-top: 12px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.actionButton {
+  flex: 1 1 180px;
+  min-height: 44px;
+}
+
+.actionButton :global(.mantine-Button-inner) {
+  justify-content: center;
+}
+
+.actionButton :global(.mantine-Button-label) {
+  white-space: nowrap;
+}

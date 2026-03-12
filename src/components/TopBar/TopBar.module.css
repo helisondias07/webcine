@@ -1,0 +1,256 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  min-height: var(--topbar-height);
+  padding: 10px 0;
+  backdrop-filter: blur(14px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-panel) 96%, transparent) 0%,
+      color-mix(in srgb, var(--bg-panel) 86%, transparent) 100%
+    );
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.topbarInner {
+  width: min(var(--app-shell-max-width), calc(100% - (var(--app-shell-gutter) * 2)));
+  margin: 0 auto;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  position: relative;
+}
+
+.leftControls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+}
+
+.brandLink {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  z-index: 1;
+}
+
+.brandText {
+  font-family: "Montserrat", "Sora", "Outfit", sans-serif;
+  font-style: italic;
+  font-weight: 800;
+  font-size: 1.8rem;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
+}
+
+.brandWord {
+  color: var(--text-main);
+  letter-spacing: 0.24em;
+}
+
+.brandTv {
+  color: var(--accent-warm);
+  font-size: 0.72em;
+  margin-left: 0.22em;
+  letter-spacing: 0.08em;
+}
+
+.actionsWrap {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.themeSwitch {
+  position: relative;
+  width: 58px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-surface-soft) 86%, transparent),
+      color-mix(in srgb, var(--bg-surface) 92%, transparent)
+    );
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.themeSwitch:hover {
+  border-color: color-mix(in srgb, var(--accent-warm) 64%, var(--border-soft));
+}
+
+.themeIconSun,
+.themeIconMoon {
+  color: var(--text-muted);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.themeThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background:
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--accent-warm) 86%, white),
+      color-mix(in srgb, var(--brand-500) 72%, white)
+    );
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  transition: transform 0.24s ease;
+}
+
+.themeSwitch[data-mode="dark"] .themeThumb {
+  transform: translateX(28px);
+}
+
+.avatarButton {
+  margin: 4px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.comingSoonButton {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+@media only screen and (max-width: 900px) {
+  .topbar {
+    padding: 8px 0;
+  }
+
+  .topbarInner {
+    min-height: 44px;
+    gap: 10px;
+  }
+
+  .brandText {
+    font-size: 1.28rem;
+  }
+
+  .brandWord {
+    letter-spacing: 0.18em;
+  }
+}
+
+@media only screen and (max-width: 700px) {
+  .brandLink {
+    position: static;
+    transform: none;
+  }
+
+  .actions {
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .brandText {
+    font-size: 1.12rem;
+  }
+
+  .brandWord {
+    letter-spacing: 0.12em;
+  }
+}
+
+@media only screen and (max-width: 639px) {
+  .topbarInner {
+    gap: 8px;
+  }
+
+  .brandText {
+    font-size: 1.04rem;
+  }
+
+  .brandWord {
+    letter-spacing: 0.1em;
+  }
+
+  .signInButton :global(.mantine-Button-label) {
+    display: none;
+  }
+
+  .signInButton :global(.mantine-Button-section) {
+    margin: 0;
+  }
+
+  .signInButton {
+    min-width: 32px;
+    padding-inline: 10px;
+  }
+}
+
+@media only screen and (max-width: 380px) {
+  .actions {
+    gap: 4px;
+  }
+
+  .actions :global(.mantine-Button-root) {
+    height: 30px;
+    padding-inline: 10px;
+    font-size: 0.8rem;
+  }
+
+  .actions :global(.mantine-Button-label) {
+    font-weight: 600;
+  }
+
+  .actions :global(.mantine-Button-section) svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .actions :global(.mantine-ActionIcon-root) {
+    width: 30px;
+    height: 30px;
+  }
+
+  .themeSwitch {
+    width: 52px;
+    height: 28px;
+  }
+
+  .themeThumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  .themeSwitch[data-mode="dark"] .themeThumb {
+    transform: translateX(24px);
+  }
+}

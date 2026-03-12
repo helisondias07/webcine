@@ -1,0 +1,60 @@
+.controlsContainer {
+  position: absolute;
+  width: 100%;
+  bottom: 0px;
+}
+
+.controls {
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  line-height: 14px;
+  padding: 8px 16px 14px;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.volumeSlider {
+  width: 120px;
+}
+
+@media only screen and (max-width: 600px) {
+  .controls {
+    padding: 8px 10px 14px;
+    gap: 10px;
+  }
+
+  .volumeSlider {
+    width: 96px;
+  }
+}
+
+.text {
+  font-weight: 700;
+  font-size: 0.8em;
+}
+
+.action {
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.pipButton {
+  cursor: pointer;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  color: var(--text-main);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  min-height: 28px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.pipButtonActive {
+  border-color: color-mix(in srgb, var(--accent-warm) 64%, var(--border-soft));
+  color: var(--accent-warm);
+}

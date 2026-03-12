@@ -1,0 +1,134 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,800;1,700;1,800&family=Outfit:wght@400;500;600;700;800;900&family=Sora:wght@500;600;700;800&display=swap");
+
+:root {
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --app-footer-height: 0px;
+  --topbar-height: 72px;
+  --app-shell-max-width: 1360px;
+  --app-shell-gutter: 18px;
+}
+
+[data-mantine-color-scheme="light"] {
+  --bg-app: #f7f6f2;
+  --bg-surface: #ffffff;
+  --bg-surface-soft: #f0efe8;
+  --bg-elevated: #ebe8dd;
+  --bg-panel: rgba(255, 255, 255, 0.84);
+  --text-main: #111111;
+  --text-primary: #111111;
+  --text-muted: #47443d;
+  --text-inverse: #f6f5f1;
+  --brand-500: #171717;
+  --brand-600: #111111;
+  --brand-700: #080808;
+  --accent-warm: #c89d46;
+  --danger-soft: #b93a3a;
+  --border-soft: rgba(0, 0, 0, 0.16);
+  --shadow-soft: 0 16px 32px rgba(0, 0, 0, 0.12);
+  --overlay-hero-a: rgba(185, 148, 78, 0.16);
+  --overlay-hero-b: rgba(0, 0, 0, 0.08);
+  --card-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(244, 241, 234, 0.92)
+  );
+}
+
+[data-mantine-color-scheme="dark"] {
+  --bg-app: #040404;
+  --bg-surface: #090909;
+  --bg-surface-soft: #111111;
+  --bg-elevated: #171717;
+  --bg-panel: rgba(8, 8, 8, 0.82);
+  --text-main: #f5f4f0;
+  --text-primary: #f5f4f0;
+  --text-muted: #b7b1a3;
+  --text-inverse: #080808;
+  --brand-500: #f2f0ea;
+  --brand-600: #dbd5c7;
+  --brand-700: #bdb7a8;
+  --accent-warm: #d0a44c;
+  --danger-soft: #b93f3f;
+  --border-soft: rgba(255, 255, 255, 0.16);
+  --shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.44);
+  --overlay-hero-a: rgba(208, 164, 76, 0.2);
+  --overlay-hero-b: rgba(255, 255, 255, 0.04);
+  --card-bg: linear-gradient(
+    180deg,
+    rgba(17, 17, 17, 0.84),
+    rgba(9, 9, 9, 0.88)
+  );
+}
+
+html {
+  color-scheme: light dark;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow-x: hidden;
+  background:
+    radial-gradient(
+      1300px 760px at 18% -18%,
+      var(--overlay-hero-a),
+      transparent 62%
+    ),
+    radial-gradient(
+      1100px 560px at 100% 0%,
+      var(--overlay-hero-b),
+      transparent 62%
+    ),
+    linear-gradient(180deg, var(--bg-surface-soft) 0%, var(--bg-app) 68%);
+  color: var(--text-main);
+  font-family: "Outfit", "Segoe UI", Tahoma, sans-serif;
+}
+
+body {
+  overflow-y: auto;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent-warm);
+}
+
+@media only screen and (min-width: 761px) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent-warm) 72%, black);
+    border-radius: 20px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-surface);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+
+@media only screen and (max-width: 760px) {
+  :root {
+    --app-shell-gutter: 10px;
+  }
+}

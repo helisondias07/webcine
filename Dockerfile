@@ -18,6 +18,7 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/public ./public
 COPY --from=build /app/server ./server
 COPY --from=build /app/global.d.ts ./global.d.ts
+COPY --from=build /app/words ./words
 
 USER node
 EXPOSE 8080

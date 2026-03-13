@@ -833,7 +833,8 @@ export class App extends React.Component<AppProps, AppState> {
       );
     });
     socket.on("REC:chat", (data: ChatMessage) => {
-      const isChatVisible = this.state.showChatColumn && !this.state.showPeopleColumn;
+      const isChatVisible =
+        this.state.showChatColumn && !this.state.showPeopleColumn;
       const shouldPlayEventSound =
         (data.cmd === "shareStarted" || data.cmd === "userJoined") &&
         data.id !== clientId;
@@ -845,16 +846,15 @@ export class App extends React.Component<AppProps, AppState> {
       ) {
         this.playChatEventSound(String(data.cmd));
       }
-      this.state.chat.push(data);
-      if (this.state.chat.length > 100) {
-        this.state.chat.shift();
-      }
-      this.setState({
-        chat: this.state.chat,
-        scrollTimestamp: Date.now(),
-        unreadCount: isChatVisible
-          ? this.state.unreadCount
-          : this.state.unreadCount + (data.system ? 0 : 1),
+      this.setState((prevState) => {
+        const nextChat = [...prevState.chat, data].slice(-100);
+        return {
+          chat: nextChat,
+          scrollTimestamp: Date.now(),
+          unreadCount: isChatVisible
+            ? prevState.unreadCount
+            : prevState.unreadCount + (data.system ? 0 : 1),
+        };
       });
     });
     socket.on("REC:tsMap", (data: NumberDict) => {
@@ -900,7 +900,7 @@ export class App extends React.Component<AppProps, AppState> {
       });
     });
     socket.on("chatinit", (data: ChatMessage[]) => {
-      this.setState({ chat: data, scrollTimestamp: Date.now() });
+      this.setState({ chat: [...data], scrollTimestamp: Date.now() });
     });
     socket.on("playlist", (data: PlaylistVideo[]) => {
       this.setState({ playlist: data });
@@ -917,9 +917,17 @@ export class App extends React.Component<AppProps, AppState> {
         const msg = data.msg;
         const from = data.from;
         // Determine whether the message came from the sharer or the sharee
-        const pc = (
-          data.sharer ? this.consumerConn : this.publisherConns[from]
-        ) as RTCPeerConnection;
+        const pc = data.sharer
+          ? this.ensureConsumerConnection(from)
+          : this.publisherConns[from];
+        if (!pc) {
+          console.warn(
+            "[signalSS] peer connection indisponivel para",
+            from,
+            data,
+          );
+          return;
+        }
         if (msg.ice !== undefined) {
           pc.addIceCandidate(new RTCIceCandidate(msg.ice));
         } else if (msg.sdp && msg.sdp.type === "offer") {
@@ -1632,7 +1640,7 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   startScreenShare = async (useMediaSoup: boolean) => {
-    if (navigator.mediaDevices.getDisplayMedia) {
+    if (navigator.mediaDevices?.getDisplayMedia) {
       try {
         const videoConstraints: MediaTrackConstraints & {
           logicalSurface?: boolean;
@@ -1668,6 +1676,11 @@ export class App extends React.Component<AppProps, AppState> {
           });
         }
       }
+    } else {
+      this.setState({
+        warningMessage:
+          "Este navegador mobile nao suporta compartilhamento de tela. Use Chrome/Edge no desktop.",
+      });
     }
   };
 
@@ -2058,6 +2071,28 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  ensureConsumerConnection = (sharerId: string) => {
+    if (this.consumerConn || this.isLocalStreamAFile) {
+      return this.consumerConn;
+    }
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
+    this.consumerConn = pc;
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        this.sendSignalSS(sharerId, { ice: event.candidate });
+      }
+    };
+    pc.ontrack = (event: RTCTrackEvent) => {
+      const leftVideo = this.HTMLInterface.getVideoEl();
+      if (leftVideo) {
+        leftVideo.src = "";
+        leftVideo.srcObject = event.streams[0];
+        this.localPlay();
+      }
+    };
+    return pc;
+  };
+
   setupRTCConnections = async () => {
     if (!this.playingScreenShare() && !this.playingFileShare()) {
       return;
@@ -2145,24 +2180,7 @@ export class App extends React.Component<AppProps, AppState> {
     // If screensharing, sharer also does this
     // If filesharing, sharer does not do this since we use leftVideo
     if (sharer && !this.consumerConn && !this.isLocalStreamAFile) {
-      const pc = new RTCPeerConnection({ iceServers: iceServers() });
-      this.consumerConn = pc;
-      pc.onicecandidate = (event) => {
-        // We generated an ICE candidate, send it to sharer
-        if (event.candidate) {
-          this.sendSignalSS(sharer.id, { ice: event.candidate });
-        }
-      };
-      pc.ontrack = (event: RTCTrackEvent) => {
-        // Mount the stream from sharer
-        // console.log(stream);
-        const leftVideo = this.HTMLInterface.getVideoEl();
-        if (leftVideo) {
-          leftVideo.src = "";
-          leftVideo.srcObject = event.streams[0];
-          this.localPlay();
-        }
-      };
+      this.ensureConsumerConnection(sharer.id);
     }
   };
 
@@ -2643,6 +2661,12 @@ export class App extends React.Component<AppProps, AppState> {
   render() {
     const sharer = this.state.participants.find((p) => p.isScreenShare);
     const selfId = getOrCreateClientId();
+    const unreadLabel =
+      this.state.unreadCount === 1 ? "mensagem nao lida" : "mensagens nao lidas";
+    const unreadAriaLabel = `${this.state.unreadCount} ${unreadLabel}`;
+    const unreadBadgeLabel = isMobile()
+      ? String(this.state.unreadCount)
+      : unreadAriaLabel;
     const canAdjustScreenShareQuality = Boolean(
       sharer &&
         sharer.id !== selfId &&
@@ -3144,11 +3168,12 @@ export class App extends React.Component<AppProps, AppState> {
                           <IconMessageCircle size={20} />
                         </ActionIcon>
                         {this.state.unreadCount > 0 && (
-                          <div className={styles.chatUnreadBadge}>
-                            {this.state.unreadCount}{" "}
-                            {this.state.unreadCount === 1
-                              ? "mensagem nao lida"
-                              : "mensagens nao lidas"}
+                          <div
+                            className={styles.chatUnreadBadge}
+                            aria-label={unreadAriaLabel}
+                            title={unreadAriaLabel}
+                          >
+                            {unreadBadgeLabel}
                           </div>
                         )}
                       </div>

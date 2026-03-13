@@ -16,7 +16,7 @@ import {
 import { UserMenu } from "../UserMenu/UserMenu";
 import { Socket } from "socket.io-client";
 import { MetadataContext } from "../../MetadataContext";
-import { IconMoodSmile } from "@tabler/icons-react";
+import { IconMoodSmile, IconSend } from "@tabler/icons-react";
 
 interface ChatProps {
   chat: ChatMessage[];
@@ -188,16 +188,35 @@ export class Chat extends React.Component<ChatProps> {
               ? "O chat foi desativado pelo dono da sala."
               : "Digite uma mensagem..."
           }
+          rightSectionWidth={78}
           rightSection={
-            <ActionIcon
-              onClick={() => {
-                const curr = this.state.isPickerOpen;
-                setTimeout(() => this.setState({ isPickerOpen: !curr }), 100);
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
-              disabled={this.props.isChatDisabled}
             >
-              <IconMoodSmile size={18} />
-            </ActionIcon>
+              <ActionIcon
+                onClick={() => {
+                  const curr = this.state.isPickerOpen;
+                  setTimeout(() => this.setState({ isPickerOpen: !curr }), 100);
+                }}
+                disabled={this.props.isChatDisabled}
+                aria-label="Abrir seletor de emojis"
+                title="Emojis"
+              >
+                <IconMoodSmile size={18} />
+              </ActionIcon>
+              <ActionIcon
+                onClick={this.sendChatMsg}
+                disabled={this.props.isChatDisabled || !this.state.chatMsg}
+                aria-label="Enviar mensagem"
+                title="Enviar"
+              >
+                <IconSend size={16} />
+              </ActionIcon>
+            </div>
           }
         />
       </div>

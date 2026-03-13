@@ -215,8 +215,8 @@
 
 .chatDock {
   position: fixed;
-  right: 16px;
-  bottom: calc(74px + env(safe-area-inset-bottom));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(68px + env(safe-area-inset-bottom));
   z-index: 120;
   display: flex;
   justify-content: flex-end;
@@ -248,6 +248,9 @@
   top: 50%;
   transform: translateY(-50%);
   white-space: nowrap;
+  max-width: min(70vw, 240px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent-warm) 62%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
@@ -263,7 +266,10 @@
   position: absolute;
   right: 0;
   bottom: 0;
-  width: min(360px, calc(100vw - 34px));
+  width: min(
+    360px,
+    calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 16px)
+  );
   height: min(62vh, 540px);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
@@ -458,22 +464,31 @@
   }
 
   .chatDock {
-    right: 10px;
-    bottom: calc(84px + env(safe-area-inset-bottom));
+    right: max(6px, env(safe-area-inset-right));
+    bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
   .chatUnreadBadge {
-    right: auto;
-    left: 50%;
-    top: calc(100% + 8px);
-    transform: translateX(-50%);
-    font-size: 0.68rem;
-    padding: 5px 9px;
+    right: -4px;
+    left: auto;
+    top: -8px;
+    transform: none;
+    min-width: 22px;
+    max-width: none;
+    height: 22px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.64rem;
   }
 
   .chatPanel {
-    width: min(90vw, 340px);
-    height: min(56vh, 420px);
+    width: min(
+      360px,
+      calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px)
+    );
+    height: min(58vh, 430px);
   }
 
   .nameInput {

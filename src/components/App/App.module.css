@@ -113,6 +113,19 @@
   min-height: 0;
 }
 
+.controlsDock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.controlsDock > * {
+  pointer-events: auto;
+}
+
 .videoContent {
   position: absolute;
   inset: 0;
@@ -465,7 +478,7 @@
 
   .chatDock {
     right: max(6px, env(safe-area-inset-right));
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(56px + env(safe-area-inset-bottom));
   }
 
   .chatUnreadBadge {

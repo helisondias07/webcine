@@ -314,6 +314,7 @@ export class App extends React.Component<AppProps, AppState> {
   progressUpdater?: number;
   heartbeat: number | undefined = undefined;
   syncUpdater: number | undefined = undefined;
+  warningMessageTimeout: number | undefined = undefined;
   authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
   YouTubeInterface: YouTube = new YouTube(
     null,
@@ -396,6 +397,7 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.heartbeat);
     window.clearInterval(this.progressUpdater);
     window.clearInterval(this.syncUpdater);
+    window.clearTimeout(this.warningMessageTimeout);
     this.authUnsubscribe?.();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
@@ -408,6 +410,14 @@ export class App extends React.Component<AppProps, AppState> {
       URL.revokeObjectURL(this.localFileObjectUrl);
       this.localFileObjectUrl = undefined;
     }
+  };
+
+  showWarningMessage = (warningMessage: string, durationMs = 3000) => {
+    window.clearTimeout(this.warningMessageTimeout);
+    this.setState({ warningMessage });
+    this.warningMessageTimeout = window.setTimeout(() => {
+      this.setState({ warningMessage: "" });
+    }, durationMs);
   };
 
   onProfileUpdated = (event: CustomEvent<{ name?: string; avatar?: string }>) => {
@@ -500,9 +510,7 @@ export class App extends React.Component<AppProps, AppState> {
         const reconnectNoise =
           /reconnect|reconect|transport close|xhr poll error|websocket error/i;
         if (!reconnectNoise.test(message)) {
-          this.setState({
-            warningMessage: message,
-          });
+          this.showWarningMessage(message);
         }
       }
     });
@@ -618,6 +626,9 @@ export class App extends React.Component<AppProps, AppState> {
             if (!(this.playingVBrowser() && !this.getVBrowserHost())) {
               // Remove the loader unless we're waiting for a vbrowser
               this.setLoadingFalse();
+            }
+            if (this.playingScreenShare() || this.playingFileShare()) {
+              await this.setupRTCConnections();
             }
             return;
           }
@@ -917,16 +928,22 @@ export class App extends React.Component<AppProps, AppState> {
         const msg = data.msg;
         const from = data.from;
         // Determine whether the message came from the sharer or the sharee
-        const pc = data.sharer
+        let pc = data.sharer
           ? this.ensureConsumerConnection(from)
           : this.publisherConns[from];
         if (!pc) {
-          console.warn(
-            "[signalSS] peer connection indisponivel para",
-            from,
-            data,
-          );
-          return;
+          await this.setupRTCConnections();
+          pc = data.sharer
+            ? this.ensureConsumerConnection(from)
+            : this.publisherConns[from];
+          if (!pc) {
+            console.warn(
+              "[signalSS] peer connection indisponivel para",
+              from,
+              data,
+            );
+            return;
+          }
         }
         if (msg.ice !== undefined) {
           pc.addIceCandidate(new RTCIceCandidate(msg.ice));
@@ -1670,17 +1687,15 @@ export class App extends React.Component<AppProps, AppState> {
         });
       } catch (e: any) {
         if (e?.name !== "NotAllowedError") {
-          this.setState({
-            warningMessage:
-              "Nao foi possivel iniciar o compartilhamento de tela.",
-          });
+          this.showWarningMessage(
+            "Nao foi possivel iniciar o compartilhamento de tela.",
+          );
         }
       }
     } else {
-      this.setState({
-        warningMessage:
-          "Este navegador mobile nao suporta compartilhamento de tela. Use Chrome/Edge no desktop.",
-      });
+      this.showWarningMessage(
+        "Compartilhar tela ainda nao e suportado em navegadores mobile.",
+      );
     }
   };
 
@@ -2475,10 +2490,7 @@ export class App extends React.Component<AppProps, AppState> {
 
   localTogglePictureInPicture = async () => {
     if (!this.isPictureInPictureSupported()) {
-      this.setState({
-        warningMessage: "Picture in Picture indisponivel neste navegador.",
-      });
-      setTimeout(() => this.setState({ warningMessage: "" }), 3000);
+      this.showWarningMessage("Picture in Picture indisponivel neste navegador.");
       return;
     }
     const doc = document as Document & {
@@ -2497,10 +2509,7 @@ export class App extends React.Component<AppProps, AppState> {
       }
     } catch (e) {
       console.warn("[picture-in-picture]", e);
-      this.setState({
-        warningMessage: "Nao foi possivel ativar Picture in Picture.",
-      });
-      setTimeout(() => this.setState({ warningMessage: "" }), 3000);
+      this.showWarningMessage("Nao foi possivel ativar Picture in Picture.");
     } finally {
       this.refreshControls();
     }
@@ -3273,8 +3282,10 @@ export class App extends React.Component<AppProps, AppState> {
                       </div>
                     </div>
                   </div>
+                  {this.state.roomMedia && (
+                    <div className={styles.controlsDock}>{controls}</div>
+                  )}
                 </div>
-                {this.state.roomMedia && controls}
               </div>
             </div>
           </div>

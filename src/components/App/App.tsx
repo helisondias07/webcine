@@ -315,6 +315,7 @@ export class App extends React.Component<AppProps, AppState> {
   heartbeat: number | undefined = undefined;
   syncUpdater: number | undefined = undefined;
   warningMessageTimeout: number | undefined = undefined;
+  suppressYouTubeStateSyncUntil = 0;
   authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
   YouTubeInterface: YouTube = new YouTube(
     null,
@@ -537,9 +538,11 @@ export class App extends React.Component<AppProps, AppState> {
       window.location.assign("/");
     });
     socket.on("REC:play", () => {
+      this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
       this.localPlay();
     });
     socket.on("REC:pause", () => {
+      this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
       this.localPause();
     });
     socket.on("REC:seek", (data: number) => {
@@ -1108,8 +1111,10 @@ export class App extends React.Component<AppProps, AppState> {
             }
             if (
               this.ytDebounce &&
+              Date.now() >= this.suppressYouTubeStateSyncUntil &&
               ((e.data === window.YT?.PlayerState?.PLAYING &&
-                this.state.roomPaused) ||
+                (this.state.roomPaused ||
+                  this.Player().getCurrentTime() <= 1)) ||
                 (e.data === window.YT?.PlayerState?.PAUSED &&
                   !this.state.roomPaused))
             ) {
@@ -2396,6 +2401,14 @@ export class App extends React.Component<AppProps, AppState> {
 
   onFullScreenChange = () => {
     this.setState({ fullScreen: Boolean(document.fullscreenElement) });
+    if (!document.fullscreenElement) {
+      const orientationApi = (
+        screen as Screen & {
+          orientation?: { unlock?: () => void };
+        }
+      ).orientation;
+      orientationApi?.unlock?.();
+    }
     setTimeout(() => this.chatRef.current?.scrollToBottom(), 100);
   };
 
@@ -2448,6 +2461,30 @@ export class App extends React.Component<AppProps, AppState> {
     if (!document.fullscreenElement) {
       // not currently in fullscreen
       await container.requestFullscreen();
+      if (isMobile()) {
+        const orientationApi = (
+          screen as Screen & {
+            orientation?: {
+              lock?: (
+                orientation:
+                  | "any"
+                  | "natural"
+                  | "landscape"
+                  | "portrait"
+                  | "portrait-primary"
+                  | "portrait-secondary"
+                  | "landscape-primary"
+                  | "landscape-secondary",
+              ) => Promise<void>;
+            };
+          }
+        ).orientation;
+        try {
+          await orientationApi?.lock?.("landscape");
+        } catch {
+          // Some mobile browsers ignore orientation lock requests.
+        }
+      }
     } else {
       // e.g. switching from video fullscreen to theater mode
       const bChangeElements = document.fullscreenElement !== container;

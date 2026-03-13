@@ -355,10 +355,12 @@ export async function openFileSelector(accept?: string) {
   return new Promise<FileList | null>((resolve) => {
     const inputElement = document.createElement("input");
     inputElement.type = "file";
+    inputElement.style.display = "none";
     if (accept) {
       inputElement.accept = accept;
     }
     let settled = false;
+    let timeoutId = 0;
     const finish = (files: FileList | null) => {
       if (settled) {
         return;
@@ -368,11 +370,15 @@ export async function openFileSelector(accept?: string) {
       resolve(files);
     };
     const cleanup = () => {
+      window.clearTimeout(timeoutId);
       inputElement.removeEventListener("change", onChange);
       inputElement.removeEventListener("cancel", onCancel);
-      window.removeEventListener("focus", onFocus, true);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       inputElement.remove();
     };
+    timeoutId = window.setTimeout(() => {
+      finish(null);
+    }, 120000);
     const onChange = () => {
       const files = inputElement.files;
       finish(files && files.length > 0 ? files : null);
@@ -380,17 +386,33 @@ export async function openFileSelector(accept?: string) {
     const onCancel = () => {
       finish(null);
     };
-    const onFocus = () => {
-      window.setTimeout(() => {
-        const files = inputElement.files;
-        finish(files && files.length > 0 ? files : null);
-      }, 0);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        window.setTimeout(() => {
+          if (settled) {
+            return;
+          }
+          const files = inputElement.files;
+          finish(files && files.length > 0 ? files : null);
+        }, 200);
+      }
     };
+    const hasNativePicker = (window as Window & { showOpenFilePicker?: unknown })
+      .showOpenFilePicker;
+    if (!hasNativePicker) {
+      // Older browsers may not fire "cancel", so we complete when the tab
+      // returns to visible and no file was selected.
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
     inputElement.addEventListener("change", onChange);
     inputElement.addEventListener("cancel", onCancel);
-    window.addEventListener("focus", onFocus, true);
     document.body.appendChild(inputElement);
-    inputElement.click();
+    window.setTimeout(() => {
+        const files = inputElement.files;
+        if (!files || files.length === 0) {
+          inputElement.click();
+        }
+      }, 0);
   });
 }
 

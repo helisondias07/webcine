@@ -74,6 +74,11 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   await openAndAssertModal(page, "empty-screenshare-button", "Compartilhar tela");
   await expect(page.getByTestId("empty-vbrowser-button")).toHaveCount(0);
   await openAndAssertModal(page, "empty-file-button", "Compartilhar arquivo");
+  await page.getByTestId("empty-surprise-button").click();
+  await expectInViewport(page, page.getByTestId("surprise-dialog"), 8);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("surprise-dialog")).toBeHidden();
+  await expectNoHorizontalOverflow(page);
 
   const playlistButton = page.getByTestId("playlist-button");
   await expectInViewport(page, playlistButton, 6);

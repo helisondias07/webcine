@@ -23,7 +23,7 @@ interface ChatProps {
   nameMap: StringDict;
   nameColorMap: StringDict;
   pictureMap: StringDict;
-  socket: Socket;
+  socket: Socket | null;
   scrollTimestamp: number;
   className?: string;
   getMediaDisplayName: (input?: string) => string;
@@ -57,12 +57,12 @@ export class Chat extends React.Component<ChatProps, ChatState> {
     this.scrollToBottom();
     this.messagesRef.current?.addEventListener("scroll", this.onScroll);
     init({});
-    this.props.socket.on("REC:typing", this.handleTypingEvent);
+    this.props.socket?.on("REC:typing", this.handleTypingEvent);
   }
 
   componentWillUnmount() {
     this.messagesRef.current?.removeEventListener("scroll", this.onScroll);
-    this.props.socket.off("REC:typing", this.handleTypingEvent);
+    this.props.socket?.off("REC:typing", this.handleTypingEvent);
     window.clearTimeout(this.typingEmitDebounce);
   }
 
@@ -86,7 +86,7 @@ export class Chat extends React.Component<ChatProps, ChatState> {
         return;
       }
       this.typingEmitLastAt = now;
-      this.props.socket.emit("CMD:typing", { isTyping: true });
+      this.props.socket?.emit("CMD:typing", { isTyping: true });
     }, 250);
   };
 
@@ -98,7 +98,7 @@ export class Chat extends React.Component<ChatProps, ChatState> {
       return;
     }
     this.setState({ chatMsg: "" });
-    this.props.socket.emit("CMD:chat", this.state.chatMsg);
+    this.props.socket?.emit("CMD:chat", this.state.chatMsg);
   };
 
   chatTooLong = () => {
@@ -315,7 +315,7 @@ const ChatMessage = ({
   nameColorMap: StringDict;
   pictureMap: StringDict;
   formatMessage: (cmd: string, msg?: string) => React.ReactNode;
-  socket: Socket;
+  socket: Socket | null;
   owner: string | undefined;
   isChatDisabled: boolean | undefined;
   className: string;
@@ -352,28 +352,42 @@ const ChatMessage = ({
             fontSize: 14,
           }}
         >
-          <UserMenu
-            displayName={nameMap[id] || id}
-            timestamp={timestamp}
-            socket={socket}
-            userToManage={id}
-            isChatMessage
-            disabled={!Boolean(owner && owner === user?.uid)}
-            trigger={
-              <div
-                style={{
-                  cursor: "pointer",
-                  fontWeight: 700,
-                  color: nameColorMap[id] || undefined,
-                }}
-                title={isSub ? "Assinante Premium" : ""}
-                className={`${isSub ? styles.subscriber : styles.light} ${styles.hoverEffect}`}
-              >
-                {Boolean(system) && "Sistema"}
-                {nameMap[id] || id}
-              </div>
-            }
-          />
+          {socket ? (
+            <UserMenu
+              displayName={nameMap[id] || id}
+              timestamp={timestamp}
+              socket={socket}
+              userToManage={id}
+              isChatMessage
+              disabled={!Boolean(owner && owner === user?.uid)}
+              trigger={
+                <div
+                  style={{
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    color: nameColorMap[id] || undefined,
+                  }}
+                  title={isSub ? "Assinante Premium" : ""}
+                  className={`${isSub ? styles.subscriber : styles.light} ${styles.hoverEffect}`}
+                >
+                  {Boolean(system) && "Sistema"}
+                  {nameMap[id] || id}
+                </div>
+              }
+            />
+          ) : (
+            <div
+              style={{
+                fontWeight: 700,
+                color: nameColorMap[id] || undefined,
+              }}
+              title={isSub ? "Assinante Premium" : ""}
+              className={`${isSub ? styles.subscriber : styles.light}`}
+            >
+              {Boolean(system) && "Sistema"}
+              {nameMap[id] || id}
+            </div>
+          )}
           <div className={styles.small + " " + styles.dark}>
             <div title={new Date(timestamp).toLocaleDateString()}>
               {new Date(timestamp).toLocaleTimeString()}

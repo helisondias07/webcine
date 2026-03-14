@@ -98,6 +98,18 @@ export class LoginModal extends React.Component<{
       await firebase.auth().signInWithPopup(provider);
       this.props.closeModal();
     } catch (e: any) {
+      const code = String(e?.code ?? "");
+      console.error("[googleSignIn]", code || "unknown_error", e);
+      if (code === "auth/popup-blocked" || code === "auth/popup-blocked-by-browser") {
+        try {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        } catch (redirectError: any) {
+          this.setState({ error: getAuthErrorMessage(redirectError) });
+          return;
+        }
+      }
       this.setState({ error: getAuthErrorMessage(e) });
     }
   };

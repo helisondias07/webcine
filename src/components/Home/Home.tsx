@@ -202,18 +202,24 @@ export const Home = () => {
         <section className={styles.howItWorks} aria-labelledby="como-funciona">
           <h3 id="como-funciona">Como funciona</h3>
           <div className={styles.howItWorksGrid}>
-            <div className={styles.howItWorksCard}>
-              <span>1</span>
-              <h4>Crie uma sala</h4>
-            </div>
-            <div className={styles.howItWorksCard}>
-              <span>2</span>
-              <h4>Convide seus amigos</h4>
-            </div>
-            <div className={styles.howItWorksCard}>
-              <span>3</span>
-              <h4>Assista junto em tempo real</h4>
-            </div>
+            {[
+              "Crie uma sala",
+              "Convide seus amigos",
+              "Assista junto em tempo real",
+            ].map((step, index, all) => (
+              <React.Fragment key={step}>
+                <div className={styles.howItWorksCard}>
+                  <span>{index + 1}</span>
+                  <h4>{step}</h4>
+                </div>
+                {index < all.length - 1 && (
+                  <div className={styles.howItWorksArrow} aria-hidden="true">
+                    <span className={styles.howItWorksArrowDesktop}>→</span>
+                    <span className={styles.howItWorksArrowMobile}>↓</span>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
           </div>
         </section>
       </div>

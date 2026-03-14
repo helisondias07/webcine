@@ -188,6 +188,32 @@
   z-index: 70;
 }
 
+.liveReactionHoverZone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 104px;
+  pointer-events: auto;
+}
+
+.liveReactionToggle {
+  position: absolute;
+  right: 12px;
+  bottom: 62px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  color: var(--text-main);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
+}
+
 .liveReactionTray {
   position: absolute;
   left: 50%;
@@ -201,7 +227,17 @@
   border-radius: 999px;
   padding: 6px 8px;
   backdrop-filter: blur(10px);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.liveReactionTrayVisible {
   pointer-events: auto;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .liveReactionButton {
@@ -365,6 +401,33 @@
   min-width: 170px;
 }
 
+.emptySurpriseButton {
+  margin-top: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent-warm) 46%, var(--border-soft));
+  background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.emptySurpriseButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent-warm);
+}
+
+.emptySurpriseButton:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.emptySurpriseButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .downloadStats {
   color: var(--text-inverse);
   font-weight: 400;
@@ -526,6 +589,29 @@
   color: var(--text-muted);
 }
 
+.preJoinColorGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preJoinColorSwatch {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text-main) 26%, transparent);
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+
+.preJoinColorSwatchSelected {
+  outline: 2px solid color-mix(in srgb, var(--accent-warm) 86%, white);
+  outline-offset: 1px;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent-warm) 36%, transparent),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+}
+
 .playerArea:fullscreen,
 .playerArea:-webkit-full-screen {
   width: 100vw;
@@ -626,6 +712,13 @@
   }
 }
 
+@media only screen and (max-width: 1024px) {
+  .fullHeightColumn,
+  .fullHeightColumnFullscreen {
+    height: auto;
+  }
+}
+
 @media only screen and (max-width: 760px) {
   .roomShell {
     width: 100%;
@@ -655,6 +748,11 @@
 
   .emptyActionButton {
     min-width: 136px;
+  }
+
+  .emptySurpriseButton {
+    width: 100%;
+    max-width: 320px;
   }
 
   .shareButton {
@@ -705,6 +803,25 @@
   .liveReactionTray {
     bottom: 48px;
   }
+
+  .liveReactionHoverZone {
+    display: none;
+  }
+
+  .liveReactionToggle {
+    display: inline-flex;
+    bottom: 52px;
+  }
+
+  .liveReactionTray {
+    left: auto;
+    right: 10px;
+    transform: translateY(6px);
+  }
+
+  .liveReactionTrayVisible {
+    transform: translateY(0);
+  }
 }
 
 @media only screen and (max-width: 375px) {
@@ -715,5 +832,9 @@
   .emptyActionButton {
     width: 100%;
     min-width: 0;
+  }
+
+  .emptySurpriseButton {
+    width: 100%;
   }
 }

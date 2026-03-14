@@ -1,12 +1,6 @@
-import React, { useCallback, useContext, useState } from "react";
+import React, { useContext, useState } from "react";
 import { serverPath, getUserImage } from "../../utils/utils";
-import {
-  Avatar,
-  Button,
-  Modal,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Avatar, Button } from "@mantine/core";
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
 import { LoginModal } from "../Modal/LoginModal";
@@ -100,103 +94,42 @@ export const NewRoomButton = (props: {
   openNewTab?: boolean;
 }) => {
   const context = useContext(MetadataContext);
-  const [opened, setOpened] = useState(false);
-  const [username, setUsername] = useState(
-    () => window.localStorage.getItem("watchparty-username") ?? "",
-  );
-  const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const submitCreateRoom = useCallback(async () => {
-    const cleanName = normalizeDisplayName(username);
-    if (cleanName.length < 2) {
-      setError("Digite seu nome para criar a sala.");
-      return;
-    }
+  const submitCreateRoom = async () => {
+    const storedName = window.localStorage.getItem("watchparty-username") ?? "";
+    const cleanName = normalizeDisplayName(storedName) || "convidado";
     const slugBase = slugify(cleanName) || "sala";
     const roomSlug = `cinema-${slugBase}`;
     window.localStorage.setItem("watchparty-username", cleanName);
-    setError("");
     setIsCreating(true);
     try {
       await createRoom(context.user, props.openNewTab, {
         username: cleanName,
         roomSlug,
       });
-      setIsCreating(false);
-      setOpened(false);
     } catch (e: any) {
       const message =
         typeof e?.message === "string" && e.message
           ? e.message
           : "Não foi possível criar a sala. Tente novamente.";
-      setError(message);
+      window.alert(message);
+    } finally {
       setIsCreating(false);
     }
-  }, [context.user, props.openNewTab, username]);
+  };
 
   return (
-    <React.Fragment>
-      <Button
-        size={props.size}
-        onClick={() => {
-          setError("");
-          setIsCreating(false);
-          setOpened(true);
-        }}
-        leftSection={<IconCirclePlusFilled />}
-      >
-        {t("newRoom")}
-      </Button>
-      <Modal
-        opened={opened}
-        onClose={() => {
-          setOpened(false);
-          setError("");
-          setIsCreating(false);
-        }}
-        centered
-        title="Criar nova sala"
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <Text size="sm" c="dimmed">
-            Informe seu nome para criar a sala e usar no chat.
-          </Text>
-          <TextInput
-            label="Seu nome"
-            placeholder="Ex: Helison"
-            autoFocus
-            value={username}
-            maxLength={40}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                void submitCreateRoom();
-              }
-            }}
-          />
-          <Text size="xs" c="dimmed">
-            Link previsto: /watch/cinema-{slugify(normalizeDisplayName(username)) || "seu-nome"}
-          </Text>
-          {Boolean(error) && (
-            <Text size="sm" c="red">
-              {error}
-            </Text>
-          )}
-          <Button
-            leftSection={<IconCirclePlusFilled />}
-            onClick={() => void submitCreateRoom()}
-            loading={isCreating}
-            color="webgold"
-          >
-            Criar sala
-          </Button>
-        </div>
-      </Modal>
-    </React.Fragment>
+    <Button
+      size={props.size}
+      onClick={() => void submitCreateRoom()}
+      leftSection={<IconCirclePlusFilled />}
+      loading={isCreating}
+    >
+      {t("newRoom")}
+    </Button>
   );
 };
-
 type SignInButtonProps = {};
 
 export class SignInButton extends React.Component<SignInButtonProps> {
@@ -336,3 +269,4 @@ export const TopBar = (props: {
     </div>
   );
 };
+

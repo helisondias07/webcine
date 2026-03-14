@@ -49,7 +49,7 @@ export const Footer = () => {
           zIndex: 80,
         }}
       >
-        Criado por Helison Dias, baseado no site de Howard Chung.
+        Criado por Helison Dias.
       </footer>
     </>
   );

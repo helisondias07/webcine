@@ -39,6 +39,7 @@ import { ErrorModal } from "../Modal/ErrorModal";
 import { PasswordModal } from "../Modal/PasswordModal";
 import { ScreenShareModal } from "../Modal/ScreenShareModal";
 import { FileShareModal } from "../Modal/FileShareModal";
+import { SurpriseModal } from "../Modal/SurpriseModal";
 import firebase from "firebase/compat/app";
 import { HTML } from "./HTML";
 import { YouTube } from "./YouTube";
@@ -51,6 +52,7 @@ import {
   IconFile,
   IconList,
   IconMessageCircle,
+  IconMoodSmile,
   IconScreenShare,
   IconSettings,
   IconUser,
@@ -64,7 +66,6 @@ import type WebTorrent from "webtorrent";
 import type Hls from "hls.js";
 import { type MediaPlayerClass } from "dashjs";
 import { type Torrent } from "webtorrent";
-import { HexColorPicker } from "react-colorful";
 
 declare global {
   interface Window {
@@ -103,6 +104,20 @@ const LIVE_REACTION_EMOJIS = [
   "\u{1F44F}",
   "\u{1F60D}",
   "\u{1F480}",
+] as const;
+const PRESET_NAME_COLORS = [
+  "#FFFFFF",
+  "#FFE100",
+  "#FF8C00",
+  "#FF2E2E",
+  "#FF1493",
+  "#D66BFF",
+  "#8A2BE2",
+  "#23D5FF",
+  "#0047FF",
+  "#39FF14",
+  "#0B6B2A",
+  "#D4A017",
 ] as const;
 
 function normalizeDisplayName(value: string) {
@@ -185,6 +200,7 @@ interface AppState {
   isVBrowserModalOpen: boolean;
   isScreenShareModalOpen: boolean;
   isFileShareModalOpen: boolean;
+  isSurpriseModalOpen: boolean;
   isMultiSelectModalOpen: boolean;
   roomLock: string;
   controller?: string;
@@ -217,6 +233,7 @@ interface AppState {
   preJoinName: string;
   preJoinColor: string;
   liveReactions: LiveReactionBubble[];
+  showLiveReactionTray: boolean;
 }
 
 type ShareQualityMode = "economy" | "auto" | "high";
@@ -294,6 +311,7 @@ export class App extends React.Component<AppProps, AppState> {
     isVBrowserModalOpen: false,
     isScreenShareModalOpen: false,
     isFileShareModalOpen: false,
+    isSurpriseModalOpen: false,
     isMultiSelectModalOpen: false,
     roomLock: "",
     controller: "",
@@ -349,6 +367,7 @@ export class App extends React.Component<AppProps, AppState> {
       window.localStorage.getItem(NAME_COLOR_STORAGE_KEY),
     ),
     liveReactions: [],
+    showLiveReactionTray: false,
   };
   socket: Socket = null!;
   mediasoupPubSocket: Socket | null = null;
@@ -366,6 +385,7 @@ export class App extends React.Component<AppProps, AppState> {
   syncUpdater: number | undefined = undefined;
   warningMessageTimeout: number | undefined = undefined;
   liveReactionCleanupTimeouts = new Map<string, number>();
+  liveReactionTrayHideTimeout: number | undefined = undefined;
   lastLiveReactionSentAt = 0;
   suppressYouTubeStateSyncUntil = 0;
   authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
@@ -450,6 +470,7 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.progressUpdater);
     window.clearInterval(this.syncUpdater);
     window.clearTimeout(this.warningMessageTimeout);
+    window.clearTimeout(this.liveReactionTrayHideTimeout);
     this.liveReactionCleanupTimeouts.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
@@ -579,15 +600,17 @@ export class App extends React.Component<AppProps, AppState> {
       this.emitViewerShareQualityPreference();
     });
     socket.on("connect_error", (err: any) => {
-      console.error(err);
-      if (err.message === "Invalid namespace") {
+      const message = String(err?.message ?? "");
+      if (message === "Invalid namespace") {
         if (this.state.state === "starting") {
           this.setState({ overlayMsg: "Não foi possível carregar esta sala." });
         }
-      } else if (err.message === "password") {
+        return;
+      }
+      console.error(err);
+      if (message === "password") {
         this.setState({ isErrorAuth: true });
-      } else if (err?.message) {
-        const message = String(err.message);
+      } else if (message) {
         const reconnectNoise =
           /reconnect|reconect|transport close|xhr poll error|websocket error/i;
         if (!reconnectNoise.test(message)) {
@@ -2713,6 +2736,30 @@ export class App extends React.Component<AppProps, AppState> {
     window.localStorage.setItem(NAME_COLOR_STORAGE_KEY, nextColor);
   };
 
+  showLiveReactionTray = (autoHideMs?: number) => {
+    window.clearTimeout(this.liveReactionTrayHideTimeout);
+    this.setState({ showLiveReactionTray: true });
+    if (autoHideMs && autoHideMs > 0) {
+      this.liveReactionTrayHideTimeout = window.setTimeout(() => {
+        this.setState({ showLiveReactionTray: false });
+      }, autoHideMs);
+    }
+  };
+
+  hideLiveReactionTray = () => {
+    window.clearTimeout(this.liveReactionTrayHideTimeout);
+    this.setState({ showLiveReactionTray: false });
+  };
+
+  toggleLiveReactionTrayMobile = () => {
+    const nextVisible = !this.state.showLiveReactionTray;
+    if (nextVisible) {
+      this.showLiveReactionTray(2600);
+      return;
+    }
+    this.hideLiveReactionTray();
+  };
+
   sendLiveReaction = (emoji: LiveReactionEmoji) => {
     const now = Date.now();
     if (now - this.lastLiveReactionSentAt < 1000) {
@@ -2723,6 +2770,9 @@ export class App extends React.Component<AppProps, AppState> {
       emoji,
       nonce: createUuid(),
     });
+    if (isMobile()) {
+      this.showLiveReactionTray(2600);
+    }
   };
 
   updatePicture = (url: string) => {
@@ -2916,6 +2966,13 @@ export class App extends React.Component<AppProps, AppState> {
             startFileShare={this.startFileShare}
           />
         )}
+        {this.state.isSurpriseModalOpen && (
+          <SurpriseModal
+            opened={this.state.isSurpriseModalOpen}
+            onClose={() => this.setState({ isSurpriseModalOpen: false })}
+            onPlayTogether={(url) => this.roomSetMedia(url)}
+          />
+        )}
         {this.state.state === "starting" && !this.state.preJoinModalOpen && (
           <Overlay className={styles.flexCenter}>
             <Title order={2}>Carregando...</Title>
@@ -2943,12 +3000,24 @@ export class App extends React.Component<AppProps, AppState> {
               />
               <div className={styles.preJoinColorBlock}>
                 <div className={styles.preJoinColorLabel}>Cor do nome</div>
-                <HexColorPicker
-                  color={this.state.preJoinColor}
-                  onChange={(color) =>
-                    this.setState({ preJoinColor: normalizeNameColor(color) })
-                  }
-                />
+                <div className={styles.preJoinColorGrid}>
+                  {PRESET_NAME_COLORS.map((color) => {
+                    const selected = this.state.preJoinColor === color;
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`${styles.preJoinColorSwatch} ${
+                          selected ? styles.preJoinColorSwatchSelected : ""
+                        }`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => this.setState({ preJoinColor: color })}
+                        aria-label={`Selecionar cor ${color}`}
+                        title={color}
+                      />
+                    );
+                  })}
+                </div>
               </div>
               <Button color="webgold" onClick={this.confirmPreJoin}>
                 Entrar na sala
@@ -3319,6 +3388,17 @@ export class App extends React.Component<AppProps, AppState> {
                                     Arquivo
                                   </Button>
                                 </div>
+                                <button
+                                  type="button"
+                                  data-testid="empty-surprise-button"
+                                  className={styles.emptySurpriseButton}
+                                  disabled={!this.haveLock()}
+                                  onClick={() =>
+                                    this.setState({ isSurpriseModalOpen: true })
+                                  }
+                                >
+                                  Não sabe o que assistir? ✦ Me surpreenda
+                                </button>
                               </div>
                             )}
                           {!this.state.loading &&
@@ -3537,7 +3617,29 @@ export class App extends React.Component<AppProps, AppState> {
                   )}
                   {Boolean(this.state.roomMedia && !this.state.roomPaused) && (
                     <div className={styles.liveReactionDock}>
-                      <div className={styles.liveReactionTray}>
+                      <div
+                        className={styles.liveReactionHoverZone}
+                        onMouseEnter={() => this.showLiveReactionTray()}
+                        onMouseMove={() => this.showLiveReactionTray()}
+                        onMouseLeave={() => this.hideLiveReactionTray()}
+                        onTouchStart={() => this.showLiveReactionTray(2600)}
+                      />
+                      <button
+                        type="button"
+                        className={styles.liveReactionToggle}
+                        onClick={this.toggleLiveReactionTrayMobile}
+                        aria-label="Mostrar reações"
+                        title="Mostrar reações"
+                      >
+                        <IconMoodSmile size={18} />
+                      </button>
+                      <div
+                        className={`${styles.liveReactionTray} ${
+                          this.state.showLiveReactionTray
+                            ? styles.liveReactionTrayVisible
+                            : ""
+                        }`}
+                      >
                         {LIVE_REACTION_EMOJIS.map((emoji) => (
                           <button
                             key={emoji}
@@ -3571,3 +3673,4 @@ export class App extends React.Component<AppProps, AppState> {
     );
   }
 }
+

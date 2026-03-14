@@ -510,18 +510,10 @@ export function calculateMedian(array: number[]): number {
 export async function getUserImage(
   user: firebase.User,
 ): Promise<string | null> {
-  // Check if user has a Gravatar
-  const hash = user.email ? MD5.hash(user.email) : "";
-  if (user.email) {
-    const gravatar = `https://www.gravatar.com/avatar/${hash}?d=404&s=256`;
-    const response = await fetch(gravatar);
-    if (response.ok) {
-      return gravatar;
-    }
-  }
   if (user.photoURL) {
     return user.photoURL + "?height=256&width=256";
   }
+  const hash = user.email ? MD5.hash(user.email) : "";
   return `https://www.gravatar.com/avatar/${hash}?d=identicon`;
 }
 

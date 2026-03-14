@@ -387,6 +387,302 @@ async function getAvailableRoomName(baseSlug: string) {
   }
   return "/" + makeRoomName(config.SHARD);
 }
+
+const YOUTUBE_SURPRISE_CATEGORIES = {
+  "tente-nao-rir": {
+    query: "try not to laugh challenge",
+    label: "Tente não rir",
+    videoCategoryId: "24",
+  },
+  gaming: {
+    query: "best gaming moments highlights",
+    label: "Gaming",
+    videoCategoryId: "20",
+  },
+  "clipe-de-musica": {
+    query: "official music video",
+    label: "Clipe de música",
+    videoCategoryId: "10",
+  },
+  "stand-up": {
+    query: "stand up comedy special full",
+    label: "Stand-up",
+    videoCategoryId: "23",
+  },
+  documentario: {
+    query: "documentary full length",
+    label: "Documentário",
+    videoCategoryId: "27",
+  },
+} as const;
+
+type SurpriseVideoCategory = keyof typeof YOUTUBE_SURPRISE_CATEGORIES;
+
+type SurpriseVideoItem = {
+  id: string;
+  url: string;
+  title: string;
+  channel: string;
+  thumbnail: string;
+  views: number;
+};
+
+function getYoutubeApiErrorInfo(error: any) {
+  const status = Number(error?.response?.status ?? 0);
+  const reason = String(
+    error?.response?.data?.error?.details?.[0]?.reason ??
+      error?.response?.data?.error?.errors?.[0]?.reason ??
+      "",
+  ).trim();
+  const message = String(error?.response?.data?.error?.message ?? "").trim();
+  return { status, reason, message };
+}
+
+type TmdbWatchProvider = {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string | null;
+};
+
+const TMDB_PLATFORM_CATALOG = [
+  {
+    key: "netflix",
+    label: "Netflix",
+    aliases: ["netflix"],
+  },
+  {
+    key: "prime-video",
+    label: "Prime Video",
+    aliases: ["prime video", "amazon prime", "primevideo"],
+  },
+  {
+    key: "disney-plus",
+    label: "Disney+",
+    aliases: ["disney+", "disney plus", "disneyplus"],
+  },
+  {
+    key: "globoplay",
+    label: "Globoplay",
+    aliases: ["globoplay"],
+  },
+  {
+    key: "paramount-plus",
+    label: "Paramount+",
+    aliases: ["paramount+", "paramount plus"],
+  },
+  {
+    key: "max",
+    label: "Max",
+    aliases: ["max", "hbo max", "hbomax"],
+  },
+] as const;
+
+type TmdbCatalogKey = (typeof TMDB_PLATFORM_CATALOG)[number]["key"];
+
+function normalizeSurpriseCategory(input: unknown): SurpriseVideoCategory {
+  const value = String(input ?? "").trim().toLowerCase();
+  if (value === "aleatorio" || value === "aleatório" || value === "random") {
+    const keys = Object.keys(
+      YOUTUBE_SURPRISE_CATEGORIES,
+    ) as SurpriseVideoCategory[];
+    return keys[Math.floor(Math.random() * keys.length)];
+  }
+  if (value in YOUTUBE_SURPRISE_CATEGORIES) {
+    return value as SurpriseVideoCategory;
+  }
+  return "tente-nao-rir";
+}
+
+async function fetchSurpriseVideos(
+  rawCategory: unknown,
+): Promise<{ category: SurpriseVideoCategory; items: SurpriseVideoItem[] }> {
+  const category = normalizeSurpriseCategory(rawCategory);
+  const categoryConfig = YOUTUBE_SURPRISE_CATEGORIES[category];
+  const key = String(config.YOUTUBE_API_KEY ?? "").trim();
+  if (!key) {
+    throw new Error("youtube_key_missing");
+  }
+  const searchResponse = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+    params: {
+      key,
+      part: "snippet",
+      type: "video",
+      maxResults: 25,
+      q: categoryConfig.query,
+      order: "viewCount",
+      videoDuration: "any",
+      regionCode: "BR",
+      relevanceLanguage: "pt",
+      videoCategoryId: categoryConfig.videoCategoryId,
+    },
+    timeout: 12000,
+  });
+  const rawItems = Array.isArray(searchResponse.data?.items)
+    ? searchResponse.data.items
+    : [];
+  const ids = rawItems
+    .map((item: any) => String(item?.id?.videoId ?? ""))
+    .filter(Boolean);
+  if (!ids.length) {
+    return { category, items: [] };
+  }
+  const videosResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
+    params: {
+      key,
+      part: "snippet,statistics",
+      id: ids.join(","),
+      maxResults: 50,
+    },
+    timeout: 12000,
+  });
+  const videos = Array.isArray(videosResponse.data?.items)
+    ? videosResponse.data.items
+    : [];
+  const result = videos
+    .map((item: any) => {
+      const id = String(item?.id ?? "");
+      const views = Number(item?.statistics?.viewCount ?? 0);
+      const thumb =
+        String(item?.snippet?.thumbnails?.high?.url ?? "") ||
+        String(item?.snippet?.thumbnails?.medium?.url ?? "") ||
+        String(item?.snippet?.thumbnails?.default?.url ?? "");
+      return {
+        id,
+        url: id ? `https://www.youtube.com/watch?v=${id}` : "",
+        title: String(item?.snippet?.title ?? ""),
+        channel: String(item?.snippet?.channelTitle ?? ""),
+        thumbnail: thumb,
+        views,
+      } as SurpriseVideoItem;
+    })
+    .filter(
+      (item: SurpriseVideoItem) =>
+        item.id && item.url && item.title && item.views > 100000,
+    );
+  return { category, items: result };
+}
+
+function getTmdbAuthConfig() {
+  const token = String(config.TMDB_READ_TOKEN ?? "").trim();
+  const apiKey = String(config.TMDB_API_KEY ?? "").trim();
+  // Prefer API key when available, because an invalid bearer token can
+  // otherwise force all requests to fail even with a valid API key configured.
+  if (apiKey) {
+    return {
+      headers: {
+        Accept: "application/json",
+      } as Record<string, string>,
+      params: {
+        api_key: apiKey,
+      } as Record<string, string>,
+    };
+  }
+  if (token) {
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      } as Record<string, string>,
+      params: {} as Record<string, string>,
+    };
+  }
+  throw new Error("tmdb_token_missing");
+}
+
+function withTmdbAuthParams(input: Record<string, string | number>) {
+  const auth = getTmdbAuthConfig();
+  return {
+    headers: auth.headers,
+    params: {
+      ...input,
+      ...auth.params,
+    },
+  };
+}
+
+function getTmdbHeaders() {
+  const token = String(config.TMDB_READ_TOKEN ?? "").trim();
+  if (!token && !String(config.TMDB_API_KEY ?? "").trim()) {
+    throw new Error("tmdb_token_missing");
+  }
+  return {
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeCatalogKey(value: unknown): TmdbCatalogKey | null {
+  const normalized = normalizeText(value).replace(/[_\s]+/g, "-");
+  const byKey = TMDB_PLATFORM_CATALOG.find((item) => item.key === normalized);
+  if (byKey) {
+    return byKey.key;
+  }
+  const byAlias = TMDB_PLATFORM_CATALOG.find((item) =>
+    item.aliases.some((alias) => normalizeText(alias).replace(/[_\s]+/g, "-") === normalized),
+  );
+  return byAlias?.key ?? null;
+}
+
+async function fetchTmdbProviders(region = "BR") {
+  const response = await axios.get("https://api.themoviedb.org/3/watch/providers/movie", {
+    ...withTmdbAuthParams({
+      language: "pt-BR",
+      watch_region: region,
+      page: 1,
+    }),
+    timeout: 12000,
+  });
+  const results = Array.isArray(response.data?.results)
+    ? (response.data.results as TmdbWatchProvider[])
+    : [];
+  const providerMap = new Map<number, TmdbWatchProvider>();
+  for (const provider of results) {
+    if (provider?.provider_id) {
+      providerMap.set(provider.provider_id, provider);
+    }
+  }
+  const catalog = TMDB_PLATFORM_CATALOG.map((platform) => {
+    const found = results.find((provider) => {
+      const providerName = normalizeText(provider.provider_name);
+      return platform.aliases.some((alias) => providerName.includes(normalizeText(alias)));
+    });
+    return {
+      key: platform.key,
+      label: platform.label,
+      providerId: found?.provider_id ?? null,
+      providerName: found?.provider_name ?? null,
+      logoPath: found?.logo_path ?? null,
+    };
+  });
+  return { catalog, providerMap };
+}
+
+function parseGenreId(value: unknown) {
+  const text = normalizeText(value);
+  if (!text || text === "qualquer" || text === "any") {
+    return null;
+  }
+  if (/^\d+$/.test(text)) {
+    return Number(text);
+  }
+  const genreByName: Record<string, number> = {
+    acao: 28,
+    "ação": 28,
+    comedia: 35,
+    "comédia": 35,
+    terror: 27,
+    romance: 10749,
+  };
+  return genreByName[text] ?? null;
+}
 // Following functions iterate over in-memory rooms
 setInterval(minuteMetrics, 60 * 1000);
 setInterval(release, releaseInterval);
@@ -514,6 +810,242 @@ app.get("/youtubePlaylist/:playlistId", async (req, res) => {
     res.json(items);
   } catch {
     res.status(500).json({ error: "youtube error" });
+  }
+});
+
+app.get("/surprise/video", async (req, res) => {
+  try {
+    redisCount("surpriseVideoSearch");
+    const response = await fetchSurpriseVideos(req.query.category);
+    res.json(response);
+  } catch (error: any) {
+    const info = getYoutubeApiErrorInfo(error);
+    const code = String(error?.message ?? "");
+    if (code === "youtube_key_missing") {
+      res.status(503).json({
+        error: "youtube_not_configured",
+        message: "A busca de vídeos está temporariamente indisponível.",
+      });
+      return;
+    }
+    if (
+      info.status === 403 &&
+      (info.reason === "API_KEY_SERVICE_BLOCKED" ||
+        info.reason === "forbidden" ||
+        /blocked/i.test(info.message))
+    ) {
+      res.status(503).json({
+        error: "youtube_api_blocked",
+        message:
+          "A chave do YouTube está bloqueada para busca. Ative YouTube Data API v3 e revise as restrições da API key.",
+      });
+      return;
+    }
+    console.warn("[surprise video error]", error?.message ?? error);
+    res.status(500).json({
+      error: "surprise_video_failed",
+      message: "Não foi possível buscar vídeos agora. Tente novamente.",
+    });
+  }
+});
+
+app.get("/surprise/providers", async (req, res) => {
+  try {
+    const region = typeof req.query.region === "string" ? req.query.region : "BR";
+    const providers = await fetchTmdbProviders(region);
+    res.json({
+      region,
+      providers: providers.catalog,
+    });
+  } catch (error: any) {
+    const code = String(error?.message ?? "");
+    if (code === "tmdb_token_missing") {
+      res.status(503).json({
+        error: "tmdb_not_configured",
+        message: "A busca de filmes está temporariamente indisponível.",
+      });
+      return;
+    }
+    console.warn("[surprise providers error]", error?.message ?? error);
+    res.status(500).json({
+      error: "surprise_providers_failed",
+      message: "Não foi possível carregar as plataformas no momento.",
+    });
+  }
+});
+
+app.get("/surprise/movies", async (req, res) => {
+  try {
+    const genreId = parseGenreId(req.query.genre);
+    const region = "BR";
+    const providersPayload = await fetchTmdbProviders(region);
+    const providerParts = String(req.query.providers ?? "")
+      .split(/[|,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const providerIds = providerParts
+      .map((part) => {
+        if (/^\d+$/.test(part)) {
+          return Number(part);
+        }
+        const key = normalizeCatalogKey(part);
+        if (!key) {
+          return NaN;
+        }
+        const found = providersPayload.catalog.find((entry) => entry.key === key);
+        return Number(found?.providerId ?? NaN);
+      })
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    const discoverParams: Record<string, string | number> = {
+      language: "pt-BR",
+      region,
+      sort_by: "popularity.desc",
+      "vote_average.gte": 7.0,
+      "vote_count.gte": 200,
+      watch_region: region,
+      page: 1,
+    };
+    if (genreId) {
+      discoverParams.with_genres = genreId;
+    }
+    if (providerIds.length > 0) {
+      discoverParams.with_watch_providers = providerIds.join("|");
+    }
+    const firstPageResponse = await axios.get("https://api.themoviedb.org/3/discover/movie", {
+      ...withTmdbAuthParams(discoverParams),
+      timeout: 12000,
+    });
+    const totalPages = Math.max(
+      1,
+      Math.min(5, Number(firstPageResponse.data?.total_pages ?? 1)),
+    );
+    const page =
+      totalPages <= 1 ? 1 : Math.floor(Math.random() * totalPages) + 1;
+    let responseData = firstPageResponse.data;
+    if (page > 1) {
+      const randomPageResponse = await axios.get(
+        "https://api.themoviedb.org/3/discover/movie",
+        {
+          ...withTmdbAuthParams({
+            ...discoverParams,
+            page,
+          }),
+          timeout: 12000,
+        },
+      );
+      responseData = randomPageResponse.data;
+    }
+    const results = Array.isArray(responseData?.results)
+      ? responseData.results
+      : [];
+    res.json({
+      page,
+      totalPages,
+      totalResults: Number(responseData?.total_results ?? results.length),
+      results: results.map((movie: any) => ({
+        id: Number(movie?.id),
+        title: String(movie?.title ?? ""),
+        release_date: String(movie?.release_date ?? ""),
+        vote_average: Number(movie?.vote_average ?? 0),
+        overview: String(movie?.overview ?? ""),
+        poster_path: movie?.poster_path ? String(movie.poster_path) : null,
+        backdrop_path: movie?.backdrop_path ? String(movie.backdrop_path) : null,
+      })),
+    });
+  } catch (error: any) {
+    const code = String(error?.message ?? "");
+    if (code === "tmdb_token_missing") {
+      res.status(503).json({
+        error: "tmdb_not_configured",
+        message: "A busca de filmes está temporariamente indisponível.",
+      });
+      return;
+    }
+    console.warn("[surprise movies error]", error?.message ?? error);
+    res.status(500).json({
+      error: "surprise_movies_failed",
+      message: "Não foi possível buscar filmes agora. Tente novamente.",
+    });
+  }
+});
+
+app.get("/surprise/movie/:id", async (req, res) => {
+  try {
+    const movieId = Number(req.params.id);
+    if (!Number.isFinite(movieId) || movieId <= 0) {
+      res.status(400).json({ error: "invalid_movie_id" });
+      return;
+    }
+    const [detailsResponse, providersResponse] = await Promise.all([
+      axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
+        ...withTmdbAuthParams({ language: "pt-BR" }),
+        timeout: 12000,
+      }),
+      axios.get(`https://api.themoviedb.org/3/movie/${movieId}/watch/providers`, {
+        ...withTmdbAuthParams({}),
+        timeout: 12000,
+      }),
+    ]);
+    const providerIdsFilter = String(req.query.providerIds ?? "")
+      .split(/[|,]/)
+      .map((item) => Number(item.trim()))
+      .filter((item) => Number.isFinite(item) && item > 0);
+    const providerKeys = String(req.query.providerKeys ?? "")
+      .split(/[|,]/)
+      .map((item) => normalizeCatalogKey(item))
+      .filter((item): item is TmdbCatalogKey => Boolean(item));
+    if (providerKeys.length > 0) {
+      const providersPayload = await fetchTmdbProviders("BR");
+      const mappedIds = providersPayload.catalog
+        .filter(
+          (provider) =>
+            provider.providerId &&
+            providerKeys.includes(provider.key as TmdbCatalogKey),
+        )
+        .map((provider) => Number(provider.providerId))
+        .filter((id) => Number.isFinite(id) && id > 0);
+      providerIdsFilter.push(...mappedIds);
+    }
+    const brData = providersResponse.data?.results?.BR;
+    const providers: TmdbWatchProvider[] = [
+      ...(Array.isArray(brData?.flatrate) ? brData.flatrate : []),
+      ...(Array.isArray(brData?.rent) ? brData.rent : []),
+      ...(Array.isArray(brData?.buy) ? brData.buy : []),
+    ];
+    const uniqueProviders = providers.filter(
+      (provider, index, arr) =>
+        arr.findIndex((entry) => entry.provider_id === provider.provider_id) === index,
+    );
+    const selectedProvider =
+      uniqueProviders.find((provider) =>
+        providerIdsFilter.includes(provider.provider_id),
+      ) ?? uniqueProviders[0] ?? null;
+    res.json({
+      movie: detailsResponse.data,
+      watchLink: typeof brData?.link === "string" ? brData.link : "",
+      platform: selectedProvider
+        ? {
+            id: selectedProvider.provider_id,
+            name: selectedProvider.provider_name,
+            logoPath: selectedProvider.logo_path ?? null,
+          }
+        : null,
+    });
+  } catch (error: any) {
+    const code = String(error?.message ?? "");
+    if (code === "tmdb_token_missing") {
+      res.status(503).json({
+        error: "tmdb_not_configured",
+        message: "A busca de filmes está temporariamente indisponível.",
+      });
+      return;
+    }
+    console.warn("[surprise movie details error]", error?.message ?? error);
+    res.status(500).json({
+      error: "surprise_movie_details_failed",
+      message: "Não foi possível carregar os detalhes desse filme agora.",
+    });
   }
 });
 

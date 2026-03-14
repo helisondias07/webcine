@@ -14,6 +14,8 @@ const defaults = {
   DATABASE_URL: "", // Optional, for permanent rooms and VBrowser management
   PG_SSL_REJECT_UNAUTHORIZED: "true", // Set to false only for local/self-signed Postgres during development
   YOUTUBE_API_KEY: "", // Optional, provide one to enable searching YouTube
+  TMDB_READ_TOKEN: "", // Optional, provide one to enable surprise movie recommendations
+  TMDB_API_KEY: "", // Optional fallback for TMDB requests when read token is not configured
   NODE_ENV: "", // Usually, you should let process.env.NODE_ENV override this
   FIREBASE_ADMIN_SDK_CONFIG: "", // Optional, for features requiring sign-in/authentication
   FIREBASE_DATABASE_URL: "", // Optional (unused)

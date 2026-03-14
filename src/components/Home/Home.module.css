@@ -3,7 +3,7 @@
   display: flex;
   justify-content: center;
   width: 100%;
-  min-height: calc(100dvh - var(--topbar-height) - var(--app-footer-height));
+  min-height: calc(100svh - var(--topbar-height) - var(--app-footer-height));
   height: auto;
   padding: 20px var(--app-shell-gutter);
   color: var(--text-main);
@@ -286,8 +286,9 @@
 
 .howItWorksGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr) 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
 }
 
 .howItWorksCard {
@@ -306,6 +307,24 @@
   margin: 8px 0 0;
   color: var(--text-main);
   font-size: 1rem;
+}
+
+.howItWorksArrow {
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--accent-warm) 88%, white);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 6px 16px rgba(0, 0, 0, 0.36);
+}
+
+.howItWorksArrowDesktop {
+  display: inline;
+}
+
+.howItWorksArrowMobile {
+  display: none;
 }
 
 :global([data-mantine-color-scheme="light"]) .container::before {
@@ -383,6 +402,15 @@
 
   .howItWorksGrid {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .howItWorksArrowDesktop {
+    display: none;
+  }
+
+  .howItWorksArrowMobile {
+    display: inline;
   }
 }
 

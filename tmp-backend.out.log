@@ -258,8 +258,6 @@ Restarting 'server/server.ts'
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
-g...
- skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
@@ -279,6 +277,7 @@ g...
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 1ms, 0 skipped
+ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 1ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
@@ -665,3 +664,5 @@ s, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
 [SAVEROOMS] 0 saved in 0ms, 0 skipped
+Restarting 'server/server.ts'
+Failed running 'server/server.ts'. Waiting for file changes before restarting...

@@ -111,11 +111,13 @@ const CreatePage = lazy(() =>
   import("./components/Create/Create").then((mod) => ({ default: mod.Create })),
 );
 
+const SEO_TITLE = "WebCineTV — Sua sala de cinema online";
+
 const firebaseConfig = config.VITE_FIREBASE_CONFIG;
 if (firebaseConfig) {
   firebase.initializeApp(JSON.parse(firebaseConfig));
 }
-document.title = config.VITE_APP_NAME || t("appName");
+document.title = SEO_TITLE;
 
 // Redirect old-style URLs
 if (window.location.hash && window.location.pathname === "/") {
@@ -301,7 +303,7 @@ const RootApp = () => {
   const [mode, setMode] = useState<ThemeMode>(getStoredThemeMode());
 
   useEffect(() => {
-    document.title = config.VITE_APP_NAME || t("appName");
+    document.title = SEO_TITLE;
   }, []);
 
   useEffect(() => {

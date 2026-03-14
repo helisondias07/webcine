@@ -21,6 +21,7 @@ import { IconMoodSmile, IconSend } from "@tabler/icons-react";
 interface ChatProps {
   chat: ChatMessage[];
   nameMap: StringDict;
+  nameColorMap: StringDict;
   pictureMap: StringDict;
   socket: Socket;
   scrollTimestamp: number;
@@ -32,24 +33,37 @@ interface ChatProps {
   ref: RefObject<Chat>;
 }
 
-export class Chat extends React.Component<ChatProps> {
+interface ChatState {
+  chatMsg: string;
+  isNearBottom: boolean;
+  isPickerOpen: boolean;
+  typingUsers: Record<string, number>;
+}
+
+export class Chat extends React.Component<ChatProps, ChatState> {
   static contextType = MetadataContext;
   declare context: React.ContextType<typeof MetadataContext>;
-  public state = {
+  public state: ChatState = {
     chatMsg: "",
     isNearBottom: true,
     isPickerOpen: false,
+    typingUsers: {},
   };
   messagesRef = React.createRef<HTMLDivElement>();
+  typingEmitDebounce: number | undefined = undefined;
+  typingEmitLastAt = 0;
 
   async componentDidMount() {
     this.scrollToBottom();
     this.messagesRef.current?.addEventListener("scroll", this.onScroll);
     init({});
+    this.props.socket.on("REC:typing", this.handleTypingEvent);
   }
 
   componentWillUnmount() {
     this.messagesRef.current?.removeEventListener("scroll", this.onScroll);
+    this.props.socket.off("REC:typing", this.handleTypingEvent);
+    window.clearTimeout(this.typingEmitDebounce);
   }
 
   componentDidUpdate(prevProps: ChatProps) {
@@ -65,6 +79,15 @@ export class Chat extends React.Component<ChatProps> {
 
   updateChatMsg = (e: any) => {
     this.setState({ chatMsg: e.target.value });
+    window.clearTimeout(this.typingEmitDebounce);
+    this.typingEmitDebounce = window.setTimeout(() => {
+      const now = Date.now();
+      if (now - this.typingEmitLastAt < 250) {
+        return;
+      }
+      this.typingEmitLastAt = now;
+      this.props.socket.emit("CMD:typing", { isTyping: true });
+    }, 250);
   };
 
   sendChatMsg = () => {
@@ -87,12 +110,14 @@ export class Chat extends React.Component<ChatProps> {
   };
 
   isChatNearBottom = () => {
+    if (!this.messagesRef.current) {
+      return true;
+    }
     return (
-      this.messagesRef.current &&
       this.messagesRef.current.scrollHeight -
         this.messagesRef.current.scrollTop -
         this.messagesRef.current.offsetHeight <
-        50
+      50
     );
   };
 
@@ -116,12 +141,51 @@ export class Chat extends React.Component<ChatProps> {
     this.setState({ chatMsg: this.state.chatMsg + emoji.native });
   };
 
+  handleTypingEvent = (payload: { user: string; timestamp: string }) => {
+    const user = String(payload?.user ?? "");
+    if (!user) {
+      return;
+    }
+    this.setState((prevState) => ({
+      typingUsers: {
+        ...prevState.typingUsers,
+        [user]: Date.now() + 3000,
+      },
+    }));
+    window.setTimeout(() => {
+      this.setState((prevState) => {
+        const expiry = prevState.typingUsers[user];
+        if (!expiry || expiry > Date.now()) {
+          return null;
+        }
+        const nextTypingUsers = { ...prevState.typingUsers };
+        delete nextTypingUsers[user];
+        return { typingUsers: nextTypingUsers };
+      });
+    }, 3050);
+  };
+
   render() {
     const pickerTheme =
       document.documentElement.getAttribute("data-mantine-color-scheme") ===
       "light"
         ? "light"
         : "dark";
+    const activeTypingUsers = (
+      Object.entries(this.state.typingUsers) as [string, number][]
+    )
+      .filter(([, expiry]) => expiry > Date.now())
+      .map(([userId]) => userId);
+    const typingLabel =
+      activeTypingUsers.length > 2
+        ? "Várias pessoas estão digitando..."
+        : activeTypingUsers.length === 2
+          ? `${activeTypingUsers
+              .map((userId) => this.props.nameMap[userId] || "Alguém")
+              .join(" e ")} estão digitando...`
+          : activeTypingUsers.length === 1
+            ? `${this.props.nameMap[activeTypingUsers[0]] || "Alguém"} está digitando...`
+            : "";
 
     return (
       <div
@@ -143,6 +207,7 @@ export class Chat extends React.Component<ChatProps> {
                 message={msg}
                 pictureMap={this.props.pictureMap}
                 nameMap={this.props.nameMap}
+                nameColorMap={this.props.nameColorMap}
                 formatMessage={this.formatMessage}
                 owner={this.props.owner}
                 socket={this.props.socket}
@@ -219,6 +284,16 @@ export class Chat extends React.Component<ChatProps> {
             </div>
           }
         />
+        {activeTypingUsers.length > 0 && (
+          <div className={styles.typingIndicator}>
+            <span>{typingLabel}</span>
+            <span className={styles.typingDots} aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -227,6 +302,7 @@ export class Chat extends React.Component<ChatProps> {
 const ChatMessage = ({
   message,
   nameMap,
+  nameColorMap,
   pictureMap,
   formatMessage,
   socket,
@@ -236,6 +312,7 @@ const ChatMessage = ({
 }: {
   message: ChatMessage;
   nameMap: StringDict;
+  nameColorMap: StringDict;
   pictureMap: StringDict;
   formatMessage: (cmd: string, msg?: string) => React.ReactNode;
   socket: Socket;
@@ -284,7 +361,11 @@ const ChatMessage = ({
             disabled={!Boolean(owner && owner === user?.uid)}
             trigger={
               <div
-                style={{ cursor: "pointer", fontWeight: 700 }}
+                style={{
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  color: nameColorMap[id] || undefined,
+                }}
                 title={isSub ? "Assinante Premium" : ""}
                 className={`${isSub ? styles.subscriber : styles.light} ${styles.hoverEffect}`}
               >

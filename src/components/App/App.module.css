@@ -68,6 +68,40 @@
   min-width: 260px;
 }
 
+.searchFieldWrap {
+  position: relative;
+  flex: 1 1 clamp(320px, 36vw, 520px);
+  min-width: 260px;
+}
+
+.searchHint {
+  position: absolute;
+  left: 10px;
+  top: calc(100% + 8px);
+  z-index: 30;
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  color: var(--text-main);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  text-align: left;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.searchHint::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-left: 1px solid var(--border-soft);
+  border-top: 1px solid var(--border-soft);
+  transform: rotate(45deg);
+}
+
 .topActions {
   display: flex;
   align-items: center;
@@ -78,6 +112,27 @@
 
 .nameInput {
   width: 170px;
+}
+
+.nameColorControl {
+  width: 34px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+}
+
+.nameColorControl input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
 }
 
 .nameInput :global(.mantine-Input-input) {
@@ -124,6 +179,72 @@
 
 .controlsDock > * {
   pointer-events: auto;
+}
+
+.liveReactionDock {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 70;
+}
+
+.liveReactionTray {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 58px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--bg-panel) 80%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 6px 8px;
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.liveReactionButton {
+  border: none;
+  border-radius: 999px;
+  min-width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
+  cursor: pointer;
+}
+
+.liveReactionButton:hover {
+  background: color-mix(in srgb, var(--accent-warm) 18%, transparent);
+}
+
+.liveReactionLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.liveReactionBubble {
+  position: absolute;
+  bottom: 70px;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  animation: liveReactionFloat 2.2s ease-out forwards;
+}
+
+@keyframes liveReactionFloat {
+  0% {
+    transform: translate(-50%, 0) scale(0.9);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -180px) scale(1.08);
+    opacity: 0;
+  }
 }
 
 .videoContent {
@@ -195,6 +316,35 @@
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.01em;
+}
+
+.emptyStatePulse {
+  display: grid;
+  place-items: center;
+}
+
+.emptyStatePulseIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent-warm) 72%, var(--border-soft));
+  display: grid;
+  place-items: center;
+  color: var(--accent-warm);
+  font-size: 1.15rem;
+  animation: emptyPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes emptyPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
 }
 
 .emptyStateSubtitle {
@@ -359,6 +509,23 @@
   overflow: hidden;
 }
 
+.preJoinContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preJoinColorBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preJoinColorLabel {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
 .playerArea:fullscreen,
 .playerArea:-webkit-full-screen {
   width: 100vw;
@@ -417,6 +584,12 @@
     min-width: 0;
   }
 
+  .searchFieldWrap {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
   .topActions {
     width: 100%;
     justify-content: flex-start;
@@ -429,6 +602,27 @@
   .chatPanel {
     width: min(48vw, 350px);
     height: min(56vh, 470px);
+  }
+}
+
+@media only screen and (max-width: 768px) {
+  .topActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .topActionButton,
+  .shareButton,
+  .nameInput {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .searchFieldWrap,
+  .searchField {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -506,5 +700,20 @@
 
   .nameInput {
     width: 100%;
+  }
+
+  .liveReactionTray {
+    bottom: 48px;
+  }
+}
+
+@media only screen and (max-width: 375px) {
+  .topActions {
+    grid-template-columns: 1fr;
+  }
+
+  .emptyActionButton {
+    width: 100%;
+    min-width: 0;
   }
 }

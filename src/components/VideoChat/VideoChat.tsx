@@ -25,6 +25,7 @@ interface VideoChatProps {
   participants: User[];
   pictureMap: StringDict;
   nameMap: StringDict;
+  nameColorMap: StringDict;
   tsMap: NumberDict;
   rosterUpdateTS: Number;
   hide?: boolean;
@@ -231,7 +232,7 @@ export class VideoChat extends React.Component<VideoChatProps> {
   };
 
   render() {
-    const { participants, pictureMap, nameMap, tsMap, socket, owner } =
+    const { participants, pictureMap, nameMap, nameColorMap, tsMap, socket, owner } =
       this.props;
     const ourStream = window.watchparty.ourStream;
     const videoRefs = window.watchparty.videoRefs;
@@ -383,6 +384,7 @@ export class VideoChat extends React.Component<VideoChatProps> {
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         display: "inline-block",
+                        color: nameColorMap[p.id] || softWhite,
                       }}
                     >
                       {nameMap[p.id] || p.id}

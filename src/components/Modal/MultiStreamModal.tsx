@@ -24,7 +24,7 @@ export const MultiStreamModal = ({
         <>
           <Checkbox
             disabled={!context.isSubscriber}
-            label="Converter midia (use se o arquivo nao tocar com audio/video)"
+            label="Converter mídia (use se o arquivo não tocar com áudio/vídeo)"
             checked={convert}
             onChange={(e) => setConvert(e.target.checked)}
           />

@@ -60,13 +60,13 @@ export class ProfileModal extends React.Component<{
           resetDisabled: true,
           resetError: "",
           resetStatus:
-            "Se o e-mail estiver cadastrado, voce recebera as instrucoes de redefinicao. Verifique tambem Spam e Lixeira.",
+            "Se o e-mail estiver cadastrado, você receberá as instruções de redefinição. Verifique também Spam e Lixeira.",
         });
       }
     } catch (e: any) {
       this.setState({
         resetError:
-          "Nao foi possivel enviar o e-mail de redefinicao agora. Tente novamente.",
+          "Não foi possível enviar o e-mail de redefinição agora. Tente novamente.",
       });
       console.warn(e);
     }
@@ -108,7 +108,7 @@ export class ProfileModal extends React.Component<{
     }
     if (!file.type.startsWith("image/")) {
       this.setState({
-        profileError: "Escolha um arquivo de imagem valido.",
+        profileError: "Escolha um arquivo de imagem válido.",
       });
       return;
     }
@@ -121,7 +121,7 @@ export class ProfileModal extends React.Component<{
     };
     reader.onerror = () => {
       this.setState({
-        profileError: "Nao foi possivel carregar essa imagem.",
+        profileError: "Não foi possível carregar essa imagem.",
       });
     };
     reader.readAsDataURL(file);

@@ -40,7 +40,7 @@ export const Home = () => {
     {
       Icon: IconBrandYoutubeFilled,
       title: "YouTube",
-      text: "Reproduza videos do YouTube atraves de links ou pesquise no WebCine.",
+      text: "Reproduza vídeos do YouTube através de links ou pesquise no WebCine.",
     },
     {
       Icon: IconScreenShare,
@@ -50,17 +50,17 @@ export const Home = () => {
     {
       Icon: IconFile,
       title: "Arquivo",
-      text: "Envie e transmita seus proprios arquivos direto do seu dispositivo.",
+      text: "Envie e transmita seus próprios arquivos direto do seu dispositivo.",
     },
     {
       Icon: IconMessageFilled,
       title: "Chat",
-      text: "Converse com a galera durante a sessao.",
+      text: "Converse com a galera durante a sessão.",
     },
     {
       Icon: IconList,
       title: t("playlist"),
-      text: "Monte a ordem dos proximos videos em colaboracao.",
+      text: "Monte a ordem dos próximos vídeos em colaboração.",
     },
     {
       Icon: IconVideo,
@@ -113,14 +113,14 @@ export const Home = () => {
               />
               <Hero
                 heroText="Assista e converse com seus amigos em tempo real!"
-                subText="Play, pause e chat no mesmo ritmo para todo mundo de graca!"
+                subText="Play, pause e chat no mesmo ritmo para todo mundo de graça!"
               />
             </>
           ) : (
             <Hero
               mega
               heroText="Sua sala de cinema online, assista e converse com seus amigos em tempo real!"
-              subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graca!"
+              subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graça!"
               action={
                 <div className={styles.heroAction}>
                   <NewRoomButton size="xl" />
@@ -141,7 +141,7 @@ export const Home = () => {
                 color="webgold"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                aria-label="Pagina anterior"
+                aria-label="Página anterior"
               >
                 <IconChevronLeft size={18} />
               </ActionIcon>
@@ -152,7 +152,7 @@ export const Home = () => {
                 color="webgold"
                 onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
                 disabled={page >= pages.length - 1}
-                aria-label="Proxima pagina"
+                aria-label="Próxima página"
               >
                 <IconChevronRight size={18} />
               </ActionIcon>
@@ -193,9 +193,27 @@ export const Home = () => {
                 key={`dot-${i}`}
                 className={`${styles.dot} ${i === page ? styles.dotActive : ""}`}
                 onClick={() => setPage(i)}
-                aria-label={`Ir para pagina ${i + 1}`}
+                aria-label={`Ir para página ${i + 1}`}
               />
             ))}
+          </div>
+        </section>
+
+        <section className={styles.howItWorks} aria-labelledby="como-funciona">
+          <h3 id="como-funciona">Como funciona</h3>
+          <div className={styles.howItWorksGrid}>
+            <div className={styles.howItWorksCard}>
+              <span>1</span>
+              <h4>Crie uma sala</h4>
+            </div>
+            <div className={styles.howItWorksCard}>
+              <span>2</span>
+              <h4>Convide seus amigos</h4>
+            </div>
+            <div className={styles.howItWorksCard}>
+              <span>3</span>
+              <h4>Assista junto em tempo real</h4>
+            </div>
           </div>
         </section>
       </div>

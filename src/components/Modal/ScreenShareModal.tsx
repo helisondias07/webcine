@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Badge, Button, Modal } from "@mantine/core";
 import styles from "./ScreenShareModal.module.css";
 
@@ -24,11 +24,11 @@ export const ScreenShareModal = ({
       }}
     >
       <div className={styles.modalLead}>
-        Escolha como deseja iniciar sua transmissao.
+        Escolha como deseja iniciar sua transmissão.
       </div>
       <ul className={styles.modalList}>
-        <li>Melhor experiencia em Chrome e Edge no desktop.</li>
-        <li>Audio funciona ao compartilhar tela inteira ou aba do navegador.</li>
+        <li>Melhor experiência em Chrome e Edge no desktop.</li>
+        <li>Áudio funciona ao compartilhar tela inteira ou aba do navegador.</li>
         <li>Qualidade ajusta automaticamente para priorizar nitidez sem sobrecarregar.</li>
       </ul>
       <div className={styles.planGrid}>
@@ -36,16 +36,16 @@ export const ScreenShareModal = ({
           <div className={styles.planHead}>
             <h3>WebCineTV Free</h3>
             <Badge variant="light" color="webgold">
-              Disponivel
+              Disponível
             </Badge>
           </div>
           <p className={styles.planText}>
-            Compartilhe direto do seu dispositivo para ate 10 pessoas na sala.
+            Compartilhe direto do seu dispositivo para até 10 pessoas na sala.
           </p>
           <ul className={styles.planSpecs}>
-            <li>Qualidade dinamica ate Full HD</li>
-            <li>Ideal para reunioes pequenas</li>
-            <li>Melhor resultado com upload estavel acima de 15 Mbps</li>
+            <li>Qualidade dinâmica até Full HD</li>
+            <li>Ideal para reuniões pequenas</li>
+            <li>Melhor resultado com upload estável acima de 15 Mbps</li>
           </ul>
           <Button
             color="webgold"
@@ -67,10 +67,10 @@ export const ScreenShareModal = ({
             </Badge>
           </div>
           <p className={styles.planText}>
-            Transmissao otimizada por relay para salas maiores e mais estaveis.
+            Transmissão otimizada por relay para salas maiores e mais estáveis.
           </p>
           <ul className={styles.planSpecs}>
-            <li>Mais pessoas simultaneas</li>
+            <li>Mais pessoas simultâneas</li>
             <li>Menor consumo de upload local</li>
             <li>Prioridade de processamento</li>
           </ul>
@@ -88,3 +88,4 @@ export const ScreenShareModal = ({
     </Modal>
   );
 };
+

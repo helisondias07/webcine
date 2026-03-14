@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Modal, Table } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 
@@ -7,22 +7,22 @@ export const PermanentRoomModal = (props: { closeModal: () => void }) => {
   return (
     <Modal opened onClose={closeModal} title="Salas permanentes">
       <div>
-        Usuarios cadastrados podem tornar uma sala permanente.
-        Assinantes podem criar varias salas permanentes.
+        Usuários cadastrados podem tornar uma sala permanente.
+        Assinantes podem criar várias salas permanentes.
       </div>
       <Table striped>
         <Table.Thead>
           <Table.Tr>
             <Table.Th />
-            <Table.Th>Temporaria</Table.Th>
+            <Table.Th>Temporária</Table.Th>
             <Table.Th>Permanente</Table.Th>
           </Table.Tr>
         </Table.Thead>
 
         <Table.Tbody>
           <Table.Tr>
-            <Table.Td>Expiracao</Table.Td>
-            <Table.Td>Apos 24 horas sem atividade</Table.Td>
+            <Table.Td>Expiração</Table.Td>
+            <Table.Td>Após 24 horas sem atividade</Table.Td>
             <Table.Td>Nunca</Table.Td>
           </Table.Tr>
           <Table.Tr>
@@ -40,7 +40,7 @@ export const PermanentRoomModal = (props: { closeModal: () => void }) => {
             </Table.Td>
           </Table.Tr>
           <Table.Tr>
-            <Table.Td>Remover usuarios</Table.Td>
+            <Table.Td>Remover usuários</Table.Td>
             <Table.Td></Table.Td>
             <Table.Td>
               <IconCheck />
@@ -63,3 +63,4 @@ export const PermanentRoomModal = (props: { closeModal: () => void }) => {
     </Modal>
   );
 };
+

@@ -71,20 +71,20 @@ export async function createRoom(
     });
   } catch {
     throw new Error(
-      "Nao foi possivel conectar ao servidor. Verifique se o backend esta online.",
+      "Não foi possível conectar ao servidor. Verifique se o backend está online.",
     );
   }
   let data: any = undefined;
   try {
     data = await response.json();
   } catch {
-    throw new Error("Resposta invalida do servidor.");
+    throw new Error("Resposta inválida do servidor.");
   }
   if (!response.ok || !data?.name) {
     throw new Error(
       typeof data?.error === "string"
         ? data.error
-        : "Nao foi possivel criar a sala.",
+        : "Não foi possível criar a sala.",
     );
   }
   const { name } = data;
@@ -129,7 +129,7 @@ export const NewRoomButton = (props: {
       const message =
         typeof e?.message === "string" && e.message
           ? e.message
-          : "Nao foi possivel criar a sala. Tente novamente.";
+          : "Não foi possível criar a sala. Tente novamente.";
       setError(message);
       setIsCreating(false);
     }

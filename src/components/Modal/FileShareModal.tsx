@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Badge, Button, Modal } from "@mantine/core";
 import styles from "./ScreenShareModal.module.css";
 
@@ -27,22 +27,22 @@ export const FileShareModal = (props: {
       <ul className={styles.modalList}>
         <li>MP4 e WebM costumam funcionar melhor em todos os navegadores.</li>
         <li>Alguns codecs de MKV/AVI podem falhar no modo direto.</li>
-        <li>Versao premium para arquivo avancado estara disponivel em breve.</li>
+        <li>Versão premium para arquivo avançado estará disponível em breve.</li>
       </ul>
       <div className={styles.planGrid}>
         <section className={styles.planCard}>
           <div className={styles.planHead}>
             <h3>WebCineTV Free</h3>
             <Badge variant="light" color="webgold">
-              Disponivel
+              Disponível
             </Badge>
           </div>
           <p className={styles.planText}>
-            Compartilha direto do seu dispositivo para ate 10 pessoas.
+            Compartilhe direto do seu dispositivo para até 10 pessoas.
           </p>
           <ul className={styles.planSpecs}>
-            <li>Latencia baixa</li>
-            <li>Sem conversao do arquivo</li>
+            <li>Latência baixa</li>
+            <li>Sem conversão do arquivo</li>
             <li>Melhor em MP4/WebM</li>
           </ul>
           <Button
@@ -65,12 +65,12 @@ export const FileShareModal = (props: {
             </Badge>
           </div>
           <p className={styles.planText}>
-            Compartilhamento premium de arquivos com relay e conversao.
+            Compartilhamento premium de arquivos com relay e conversão.
           </p>
           <ul className={styles.planSpecs}>
             <li>Mais formatos funcionando</li>
             <li>Melhor para salas maiores</li>
-            <li>Latencia aproximada de 5s</li>
+            <li>Latência aproximada de 5s</li>
           </ul>
           <Button
             variant="light"
@@ -86,3 +86,4 @@ export const FileShareModal = (props: {
     </Modal>
   );
 };
+

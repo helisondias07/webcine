@@ -125,7 +125,7 @@ export class SubscribeModal extends React.Component<{
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td>Fila colaborativa de videos</Table.Td>
+              <Table.Td>Fila colaborativa de vídeos</Table.Td>
               <Table.Td>-</Table.Td>
               <Table.Td>
                 <IconCheck />
@@ -135,13 +135,13 @@ export class SubscribeModal extends React.Component<{
               </Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td>Preco mensal</Table.Td>
+              <Table.Td>Preço mensal</Table.Td>
               <Table.Td>{t("priceFree")}</Table.Td>
               <Table.Td>{t("pricePremiumMonthly")}</Table.Td>
               <Table.Td>{t("priceFamilyMonthly")}</Table.Td>
             </Table.Tr>
             <Table.Tr>
-              <Table.Td>Preco anual</Table.Td>
+              <Table.Td>Preço anual</Table.Td>
               <Table.Td>-</Table.Td>
               <Table.Td>{t("pricePremiumAnnual")}</Table.Td>
               <Table.Td>{t("priceFamilyAnnual")}</Table.Td>
@@ -151,7 +151,7 @@ export class SubscribeModal extends React.Component<{
 
         <Group mt="md">
           <Badge color="webgreen">PIX</Badge>
-          <Badge color="webgold">Cartao</Badge>
+          <Badge color="webgold">Cartão</Badge>
           <Badge color="webgreen" variant="light">
             Boleto
           </Badge>
@@ -166,8 +166,8 @@ export class SubscribeModal extends React.Component<{
             <Group justify="flex-end" mt="sm">
               {actionButton("Premium mensal", "premium_monthly")}
               {actionButton("Premium anual", "premium_annual")}
-              {actionButton("Familia mensal", "family_monthly")}
-              {actionButton("Familia anual", "family_annual")}
+              {actionButton("Família mensal", "family_monthly")}
+              {actionButton("Família anual", "family_annual")}
             </Group>
           ) : (
             <div>

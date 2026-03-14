@@ -1,4 +1,4 @@
-import config from "./config.ts";
+﻿import config from "./config.ts";
 import axios from "axios";
 import { Server, Socket } from "socket.io";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
@@ -68,6 +68,7 @@ export class Room {
   public loop = false;
   private chat: ChatMessage[] = [];
   private nameMap: StringDict = {};
+  private nameColorMap: StringDict = {};
   private pictureMap: StringDict = {};
   public vBrowser: AssignedVM | undefined = undefined;
   public creator: string | undefined = undefined; // email of the user who created the room (just used for stats)
@@ -292,6 +293,7 @@ export class Room {
 
       socket.emit("REC:host", this.getHostState());
       socket.emit("REC:nameMap", this.nameMap);
+      socket.emit("REC:nameColorMap", this.nameColorMap);
       socket.emit("REC:pictureMap", this.pictureMap);
       socket.emit("REC:tsMap", this.tsMap);
       socket.emit("REC:lock", this.lock);
@@ -333,6 +335,9 @@ export class Room {
           });
         }
       });
+      socket.on("CMD:nameColor", (data: unknown) =>
+        this.changeUserNameColor(socket, data),
+      );
       socket.on("CMD:picture", (data: unknown) =>
         this.changeUserPicture(socket, String(data)),
       );
@@ -382,6 +387,12 @@ export class Room {
       );
       socket.on("CMD:chat", (data: unknown) =>
         this.sendChatMessage(socket, String(data)),
+      );
+      socket.on("CMD:typing", (data: unknown) =>
+        this.broadcastTyping(socket, data),
+      );
+      socket.on("CMD:liveReaction", (data: unknown) =>
+        this.sendLiveReaction(socket, data),
       );
       socket.on("CMD:addReaction", (data: unknown) =>
         this.addReaction(socket, data),
@@ -471,6 +482,12 @@ export class Room {
         abbrPictureMap[id] = this.pictureMap[id];
       }
     });
+    const abbrNameColorMap: StringDict = {};
+    Object.keys(this.nameColorMap).forEach((id) => {
+      if (chatIDs.has(id)) {
+        abbrNameColorMap[id] = this.nameColorMap[id];
+      }
+    });
     return JSON.stringify({
       video: this.video,
       videoTS: this.videoTS,
@@ -478,6 +495,7 @@ export class Room {
       paused: this.paused,
       chat: this.chat,
       nameMap: abbrNameMap,
+      nameColorMap: abbrNameColorMap,
       pictureMap: abbrPictureMap,
       vBrowser: this.vBrowser,
       lock: this.lock,
@@ -499,6 +517,9 @@ export class Room {
     }
     if (roomObj.nameMap) {
       this.nameMap = roomObj.nameMap;
+    }
+    if (roomObj.nameColorMap) {
+      this.nameColorMap = roomObj.nameColorMap;
     }
     if (roomObj.pictureMap) {
       this.pictureMap = roomObj.pictureMap;
@@ -676,6 +697,17 @@ export class Room {
     }
     this.nameMap[socket.clientId] = data;
     this.io.of(this.roomId).emit("REC:nameMap", this.nameMap);
+  };
+
+  private changeUserNameColor = (socket: Socket, raw: unknown) => {
+    const data = raw as { value?: string } | string;
+    const value =
+      typeof data === "string" ? data : typeof data?.value === "string" ? data.value : "";
+    if (!/^#([0-9a-f]{6})$/i.test(value)) {
+      return;
+    }
+    this.nameColorMap[socket.clientId] = value.toUpperCase();
+    this.io.of(this.roomId).emit("REC:nameColorMap", this.nameColorMap);
   };
 
   private changeUserPicture = (socket: Socket, data: string) => {
@@ -1000,6 +1032,40 @@ export class Room {
       match.isMuted = data.isMuted;
     }
     this.io.of(this.roomId).emit("roster", this.getRosterForApp());
+  };
+
+  private broadcastTyping = (socket: Socket, raw: unknown) => {
+    const data = raw as { isTyping?: boolean };
+    if (!data?.isTyping) {
+      return;
+    }
+    socket.broadcast.emit("REC:typing", {
+      user: socket.clientId,
+      timestamp: new Date().toISOString(),
+    });
+  };
+
+  private sendLiveReaction = (socket: Socket, raw: unknown) => {
+    const data = raw as { emoji?: string; nonce?: string };
+    const emoji = String(data?.emoji ?? "");
+    const nonce = String(data?.nonce ?? "").slice(0, 64);
+    const allowed = new Set([
+      "\u{1F602}",
+      "\u{1F525}",
+      "\u{1F631}",
+      "\u{1F44F}",
+      "\u{1F60D}",
+      "\u{1F480}",
+    ]);
+    if (!allowed.has(emoji)) {
+      return;
+    }
+    this.io.of(this.roomId).emit("REC:liveReaction", {
+      user: socket.clientId,
+      emoji,
+      timestamp: new Date().toISOString(),
+      nonce,
+    });
   };
 
   private setScreenShareQualityPreference = (socket: Socket, raw: unknown) => {
@@ -1659,3 +1725,4 @@ function isValidUUID(id: string) {
     id,
   );
 }
+

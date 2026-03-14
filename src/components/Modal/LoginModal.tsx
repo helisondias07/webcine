@@ -16,36 +16,36 @@ import styles from "./LoginModal.module.css";
 function getAuthErrorMessage(error: any) {
   const code = String(error?.code ?? "");
   if (code === "auth/invalid-email") {
-    return "E-mail invalido.";
+    return "E-mail inválido.";
   }
   if (code === "auth/missing-password" || code === "auth/wrong-password") {
     return "Senha incorreta.";
   }
   if (code === "auth/user-not-found") {
-    return "Conta nao encontrada.";
+    return "Conta não encontrada.";
   }
   if (code === "auth/email-already-in-use") {
-    return "Este e-mail ja esta em uso.";
+    return "Este e-mail já está em uso.";
   }
   if (code === "auth/weak-password") {
-    return "Use uma senha mais forte (minimo de 6 caracteres).";
+    return "Use uma senha mais forte (mínimo de 6 caracteres).";
   }
   if (code === "auth/too-many-requests") {
     return "Muitas tentativas. Aguarde e tente novamente.";
   }
   if (code === "auth/popup-closed-by-user") {
-    return "Janela de login fechada antes da confirmacao.";
+    return "Janela de login fechada antes da confirmação.";
   }
   if (code === "auth/account-exists-with-different-credential") {
-    return "Ja existe uma conta com este e-mail em outro provedor. Entre com o metodo ja existente.";
+    return "Já existe uma conta com este e-mail em outro provedor. Entre com o método já existente.";
   }
-  return "Nao foi possivel concluir a autenticacao agora. Tente novamente.";
+  return "Não foi possível concluir a autenticação agora. Tente novamente.";
 }
 
 async function getEmailLoginErrorMessage(error: any, email: string) {
   const code = String(error?.code ?? "");
   if (code === "auth/user-not-found") {
-    return "Usuario nao existe.";
+    return "Usuário não existe.";
   }
   if (code === "auth/wrong-password") {
     return "Senha incorreta.";
@@ -57,13 +57,13 @@ async function getEmailLoginErrorMessage(error: any, email: string) {
     try {
       const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
       if (!methods.length) {
-        return "Usuario nao existe.";
+        return "Usuário não existe.";
       }
       if (methods.includes("password")) {
         return "Senha incorreta.";
       }
       if (methods.includes("google.com")) {
-        return "Este e-mail esta vinculado ao login com Google.";
+        return "Este e-mail está vinculado ao login com Google.";
       }
     } catch {
       // fallback handled below
@@ -278,7 +278,7 @@ export class ResetModal extends React.Component<{
       await firebase.auth().sendPasswordResetEmail(this.state.email);
       this.setState({
         success:
-          "Se o e-mail estiver cadastrado, voce recebera as instrucoes de redefinicao em instantes. Verifique tambem as pastas Spam e Lixeira.",
+          "Se o e-mail estiver cadastrado, você receberá as instruções de redefinição em instantes. Verifique também as pastas Spam e Lixeira.",
         loading: false,
       });
     } catch (e: any) {

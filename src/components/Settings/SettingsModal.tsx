@@ -58,6 +58,8 @@ interface SettingsModalProps {
   setRoomTitleColor: (color: string) => void;
   mediaPath: string | undefined;
   setMediaPath: (path: string) => void;
+  myNameColor: string;
+  setMyNameColor: (color: string) => void;
 }
 
 export const SettingsModal = ({
@@ -81,6 +83,8 @@ export const SettingsModal = ({
   roomTitleColor,
   mediaPath,
   setMediaPath,
+  myNameColor,
+  setMyNameColor,
 }: SettingsModalProps) => {
   const { user, isSubscriber } = useContext(MetadataContext);
   const [updateTS, setUpdateTS] = useState(0);
@@ -148,10 +152,10 @@ export const SettingsModal = ({
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
         centered
-        title={"Configuracoes"}
+        title={"Configurações"}
       >
         <div>
-          <div className={styles.sectionHeader}>Configuracoes da sala</div>
+          <div className={styles.sectionHeader}>Configurações da sala</div>
           <div className={styles.settingStack}>
             <SettingRow
               toggle
@@ -165,7 +169,7 @@ export const SettingsModal = ({
             <SettingRow
               toggle
               name={`Tornar sala permanente`}
-              description="Funcao premium em breve. No momento esta opcao esta desativada."
+              description="Função premium em breve. No momento esta opção está desativada."
               helpIcon={
                 <IconHelpCircle
                   onClick={() => setPermModalOpen(true)}
@@ -180,13 +184,13 @@ export const SettingsModal = ({
           </div>
 
           <Divider my="lg" />
-          <div className={styles.sectionHeader}>Configuracoes locais</div>
+          <div className={styles.sectionHeader}>Configurações locais</div>
           <div className={styles.settingStack}>
             <SettingRow
               toggle
               updateTS={updateTS}
-              name="Desativar som de notificacao do chat"
-              description="Nao reproduz som quando chegar mensagem e a aba nao estiver em foco"
+              name="Desativar som de notificação do chat"
+              description="Não reproduz som quando chegar mensagem e a aba não estiver em foco"
               checked={Boolean(getCurrentSettings().disableChatSound)}
               disabled={false}
               onChange={(e) => {
@@ -199,16 +203,28 @@ export const SettingsModal = ({
                 setUpdateTS(Date.now());
               }}
             />
+            <SettingRow
+              content={
+                <TextInput
+                  label="Cor do meu nome"
+                  description="Aplica seu nome colorido no chat e na lista de pessoas."
+                  value={myNameColor}
+                  onChange={(e) => setMyNameColor(e.target.value)}
+                  type="color"
+                />
+              }
+              disabled={false}
+            />
           </div>
         </div>
 
         {isPermanentRoom && <Divider my="lg" />}
         {isPermanentRoom && (
-          <div className={styles.sectionHeader}>Configuracoes da sala permanente</div>
+          <div className={styles.sectionHeader}>Configurações da sala permanente</div>
         )}
         {isPermanentRoom && owner && owner !== user?.uid && (
           <Alert color="yellow" className={styles.permanentLocked}>
-            Apenas o dono da sala pode editar essas configuracoes.
+            Apenas o dono da sala pode editar essas configurações.
           </Alert>
         )}
         {isPermanentRoom && owner && owner === user?.uid && (
@@ -219,7 +235,7 @@ export const SettingsModal = ({
                 label={`Senha da sala`}
                 description="Quem entrar na sala precisara informar essa senha."
                 value={passwordInput ?? ""}
-                placeholder={hasPassword ? "Senha ja definida" : "Senha"}
+                placeholder={hasPassword ? "Senha já definida" : "Senha"}
                 onChange={(e) => {
                   setAdminSettingsChanged(true);
                   setPasswordInput(e.target.value);
@@ -234,8 +250,8 @@ export const SettingsModal = ({
           <SettingRow
             content={
               <TextInput
-                label={`Fonte de midia da sala`}
-                description="Define uma fonte de links para substituir sugestoes padrao"
+                label={`Fonte de mídia da sala`}
+                description="Define uma fonte de links para substituir sugestões padrão"
                 placeholder="Playlist do YouTube ou URL de lista de links"
                 value={mediaPath ?? ""}
                 onChange={(e) => {
@@ -322,8 +338,8 @@ export const SettingsModal = ({
                 style={{ display: "flex", flexDirection: "column", gap: "4px" }}
               >
                 <TextInput
-                  label={`Titulo, descricao e cor do titulo`}
-                  description="Essas informacoes aparecem na barra superior."
+                  label={`Título, descrição e cor do título`}
+                  description="Essas informações aparecem na barra superior."
                   value={roomTitleInput ?? roomTitle ?? ""}
                   disabled={!isSubscriber}
                   maxLength={roomTitleMaxCharLength}
@@ -331,12 +347,12 @@ export const SettingsModal = ({
                     setAdminSettingsChanged(true);
                     setRoomTitleInput(e.target.value);
                   }}
-                  placeholder={`Titulo (max. ${roomTitleMaxCharLength} caracteres)`}
+                  placeholder={`Título (max. ${roomTitleMaxCharLength} caracteres)`}
                   rightSection={
                     <Popover>
                       <Popover.Dropdown>
                         <React.Fragment>
-                          <h5>Editar cor do titulo</h5>
+                          <h5>Editar cor do título</h5>
                           <HexColorPicker
                             color={
                               roomTitleColorInput ||
@@ -378,7 +394,7 @@ export const SettingsModal = ({
                     setAdminSettingsChanged(true);
                     setRoomDescriptionInput(e.target.value);
                   }}
-                  placeholder={`Descricao (max. ${roomDescriptionMaxCharLength} caracteres)`}
+                  placeholder={`Descrição (max. ${roomDescriptionMaxCharLength} caracteres)`}
                 />
               </div>
             }
@@ -408,7 +424,7 @@ export const SettingsModal = ({
             }}
             leftSection={<IconDeviceFloppy />}
           >
-            Salvar configuracoes
+            Salvar configurações
           </Button>
         )}
       </Modal>

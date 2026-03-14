@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Badge, Button, Modal } from "@mantine/core";
 import styles from "./ScreenShareModal.module.css";
 
@@ -28,28 +28,28 @@ export const VBrowserModal = ({
       }}
     >
       <div className={styles.modalLead}>
-        Abra um navegador em nuvem dentro da sala para assistir conteudos que
-        nao funcionam por link direto.
+        Abra um navegador em nuvem dentro da sala para assistir conteúdos que
+        não funcionam por link direto.
       </div>
       <ul className={styles.modalList}>
-        <li>Ideal para plataformas com restricoes de reproducao no navegador local.</li>
-        <li>A sessao inicia na nuvem e pode ser controlada em tempo real.</li>
-        <li>Opcoes avancadas de premium ficarao disponiveis em breve.</li>
+        <li>Ideal para plataformas com restrições de reprodução no navegador local.</li>
+        <li>A sessão inicia na nuvem e pode ser controlada em tempo real.</li>
+        <li>Opções avançadas de premium ficarão disponíveis em breve.</li>
       </ul>
       <div className={styles.planGrid}>
         <section className={styles.planCard}>
           <div className={styles.planHead}>
             <h3>WebCineTV Free</h3>
             <Badge variant="light" color="webgold">
-              Disponivel
+              Disponível
             </Badge>
           </div>
           <p className={styles.planText}>
-            Inicie um navegador virtual padrao para compartilhar com a sala.
+            Inicie um navegador virtual padrão para compartilhar com a sala.
           </p>
           <ul className={styles.planSpecs}>
             <li>Controle em tempo real</li>
-            <li>Sem configuracao manual</li>
+            <li>Sem configuração manual</li>
             <li>Fluxo simples para assistir junto</li>
           </ul>
           <Button
@@ -72,12 +72,12 @@ export const VBrowserModal = ({
             </Badge>
           </div>
           <p className={styles.planText}>
-            Prioridade, sessao estendida e recursos avancados de navegacao.
+            Prioridade, sessão estendida e recursos avançados de navegação.
           </p>
           <ul className={styles.planSpecs}>
             <li>Melhor estabilidade para salas maiores</li>
-            <li>Recursos extras para sessoes longas</li>
-            <li>Prioridade de alocacao de navegador</li>
+            <li>Recursos extras para sessões longas</li>
+            <li>Prioridade de alocação de navegador</li>
           </ul>
           <Button
             variant="light"
@@ -93,3 +93,4 @@ export const VBrowserModal = ({
     </Modal>
   );
 };
+

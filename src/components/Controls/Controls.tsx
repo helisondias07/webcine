@@ -135,8 +135,8 @@ export const Controls = (props: ControlsProps) => {
               variant="subtle"
               color="gray"
               className={styles.action}
-              title="Qualidade de transmissao"
-              aria-label="Qualidade de transmissao"
+              title="Qualidade de transmissão"
+              aria-label="Qualidade de transmissão"
             >
               <IconAdjustmentsHorizontal size={18} />
             </ActionIcon>

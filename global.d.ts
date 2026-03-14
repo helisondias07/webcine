@@ -13,6 +13,13 @@ interface User {
   isScreenShare?: boolean;
 }
 
+interface LiveReactionEvent {
+  user: string;
+  emoji: string;
+  timestamp: string;
+  nonce?: string;
+}
+
 interface Reaction {
   user: string;
   value: string;

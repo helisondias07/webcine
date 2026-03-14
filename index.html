@@ -39,7 +39,16 @@
       content="https://webcinetv.com.br/screenshot_full.png"
     />
     <title>WebCineTV — Sua sala de cinema online</title>
-    <script src="/theme-init.js"></script>
+    <script>
+      (function () {
+        try {
+          // Hard-start dark to avoid any light-theme flash before React hydration.
+          document.documentElement.setAttribute("data-mantine-color-scheme", "dark");
+        } catch (_e) {
+          document.documentElement.setAttribute("data-mantine-color-scheme", "dark");
+        }
+      })();
+    </script>
     <script type="module" src="./src/index.tsx"></script>
   </head>
   <body>

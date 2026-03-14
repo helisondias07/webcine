@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: "http://127.0.0.1:5174",
     trace: "on-first-retry",
   },
   projects: [
@@ -37,28 +37,28 @@ export default defineConfig({
   webServer: [
     {
       command: "node server/server.ts",
-      url: "http://127.0.0.1:8080/ping",
-      reuseExistingServer: !process.env.CI,
+      url: "http://127.0.0.1:8091/ping",
+      reuseExistingServer: false,
       timeout: 120000,
       env: {
         ...process.env,
         NODE_ENV: "production",
         HOST: "127.0.0.1",
-        PORT: "8080",
+        PORT: "8091",
         SSL_KEY_FILE: "",
         SSL_CRT_FILE: "",
         FIREBASE_ADMIN_SDK_CONFIG: "",
-        CORS_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
+        CORS_ALLOWED_ORIGINS: "http://127.0.0.1:5174",
       },
     },
     {
-      command: "npm run ui -- --host 127.0.0.1 --port 5173",
-      url: "http://127.0.0.1:5173",
-      reuseExistingServer: !process.env.CI,
+      command: "npm run ui -- --host 127.0.0.1 --port 5174",
+      url: "http://127.0.0.1:5174",
+      reuseExistingServer: false,
       timeout: 120000,
       env: {
         ...process.env,
-        VITE_SERVER_HOST: "http://127.0.0.1:8080",
+        VITE_SERVER_HOST: "http://127.0.0.1:8091",
       },
     },
   ],

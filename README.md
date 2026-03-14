@@ -159,3 +159,10 @@ No CI (`pull_request` para `master`), os testes E2E rodam automaticamente.
 - Docker
 - Firebase Auth + Firestore
 - Stripe Brasil (PIX, boleto, cartao)
+
+## Dicas de deploy (evitar erro fora do localhost)
+
+- Nao use `VITE_SERVER_HOST=http://localhost:8080` em build de producao.
+- Se frontend e backend estao no mesmo dominio, deixe `VITE_SERVER_HOST` vazio.
+- Se estao em dominios diferentes, configure `VITE_SERVER_HOST` com a URL publica da API (ex.: `https://api.seudominio.com`).
+- Para login Google funcionar em producao, adicione o(s) dominio(s) reais em Firebase Authentication > Settings > Authorized domains.

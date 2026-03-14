@@ -11,10 +11,11 @@ test.beforeEach(async ({ page }) => {
 
 async function createRoom(page: Page) {
   await page.goto("/");
+  await page.getByPlaceholder("Nome da sala (opcional)").fill("Sala E2E");
   await page.getByRole("button", { name: "Nova sala" }).click();
-  await page.getByLabel("Seu nome").fill("E2E Tester");
-  await page.getByRole("button", { name: "Criar sala" }).click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
+  await page.getByPlaceholder("Seu apelido ou nome").fill("E2E Tester");
+  await page.getByRole("button", { name: "Entrar na sala" }).click();
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
 }
 

@@ -58,3 +58,23 @@
   border-color: color-mix(in srgb, var(--accent-warm) 64%, var(--border-soft));
   color: var(--accent-warm);
 }
+
+.countdownButton {
+  cursor: pointer;
+  border: 0.5px solid #2e2e2e;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  color: var(--text-main);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  min-height: 28px;
+  padding: 0 10px;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+
+.countdownButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

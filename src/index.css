@@ -60,7 +60,7 @@
 }
 
 html {
-  color-scheme: light dark;
+  color-scheme: dark;
   height: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
@@ -99,7 +99,7 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100%;
 }
 
 a {

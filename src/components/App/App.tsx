@@ -234,6 +234,10 @@ interface AppState {
   preJoinColor: string;
   liveReactions: LiveReactionBubble[];
   showLiveReactionTray: boolean;
+  joinToasts: JoinToast[];
+  countdownVisible: boolean;
+  countdownText: string;
+  countdownInProgress: boolean;
 }
 
 type ShareQualityMode = "economy" | "auto" | "high";
@@ -256,11 +260,38 @@ type LiveReactionBubble = {
   x: number;
 };
 
+type JoinToast = {
+  id: string;
+  userId: string;
+  name: string;
+  color: string;
+  initials: string;
+};
+
 function normalizeNameColor(value: string | null | undefined) {
   const normalized = String(value ?? "").trim().toUpperCase();
   return /^#([0-9A-F]{6})$/.test(normalized)
     ? normalized
     : DEFAULT_NAME_COLOR;
+}
+
+function getDisplayInitials(value: string) {
+  const parts = normalizeDisplayName(value).split(" ").filter(Boolean);
+  if (!parts.length) {
+    return "?";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function toRgba(hex: string, alpha: number) {
+  const normalized = normalizeNameColor(hex).replace("#", "");
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export class App extends React.Component<AppProps, AppState> {
@@ -360,14 +391,16 @@ export class App extends React.Component<AppProps, AppState> {
     showSearchHint:
       window.localStorage.getItem(SEARCH_HINT_STORAGE_KEY) !== "1",
     preJoinModalOpen: true,
-    preJoinName: normalizeDisplayName(
-      window.localStorage.getItem("watchparty-username") ?? "",
-    ),
+    preJoinName: "",
     preJoinColor: normalizeNameColor(
       window.localStorage.getItem(NAME_COLOR_STORAGE_KEY),
     ),
     liveReactions: [],
     showLiveReactionTray: false,
+    joinToasts: [],
+    countdownVisible: false,
+    countdownText: "",
+    countdownInProgress: false,
   };
   socket: Socket = null!;
   mediasoupPubSocket: Socket | null = null;
@@ -386,6 +419,8 @@ export class App extends React.Component<AppProps, AppState> {
   warningMessageTimeout: number | undefined = undefined;
   liveReactionCleanupTimeouts = new Map<string, number>();
   liveReactionTrayHideTimeout: number | undefined = undefined;
+  joinToastTimeouts = new Map<string, number>();
+  countdownTimeouts: number[] = [];
   lastLiveReactionSentAt = 0;
   suppressYouTubeStateSyncUntil = 0;
   authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
@@ -475,6 +510,11 @@ export class App extends React.Component<AppProps, AppState> {
       window.clearTimeout(timeoutId);
     });
     this.liveReactionCleanupTimeouts.clear();
+    this.joinToastTimeouts.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    this.joinToastTimeouts.clear();
+    this.clearCountdownTimers();
     this.authUnsubscribe?.();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
@@ -963,6 +1003,9 @@ export class App extends React.Component<AppProps, AppState> {
       ) {
         this.playChatEventSound(String(data.cmd));
       }
+      if (data.cmd === "userJoined" && data.id !== clientId) {
+        this.enqueueJoinToast(data.id);
+      }
       this.setState((prevState) => {
         const nextChat = [...prevState.chat, data].slice(-100);
         return {
@@ -974,6 +1017,12 @@ export class App extends React.Component<AppProps, AppState> {
         };
       });
     });
+    socket.on(
+      "REC:startCountdown",
+      (data: { startAt?: number; seconds?: number; startedBy?: string }) => {
+        this.handleStartCountdown(data);
+      },
+    );
     socket.on("REC:tsMap", (data: NumberDict) => {
       this.setState({ tsMap: data }, () => {
         // Dynamic playback rate based on timestamps
@@ -1288,7 +1337,7 @@ export class App extends React.Component<AppProps, AppState> {
     this.setHasPassword(Boolean(data.hasPassword ?? data.password));
     this.setInviteLink(this.getInviteLink(data.vanity));
     this.setIsChatDisabled(data.isChatDisabled);
-    this.setRoomTitle(data.roomTitle);
+    this.setRoomTitle(data.roomTitle || "Sala compartilhada");
     this.setRoomDescription(data.roomDescription);
     this.setRoomTitleColor(data.roomTitleColor);
     this.setMediaPath(data.mediaPath);
@@ -2891,6 +2940,100 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  enqueueJoinToast = (userId: string) => {
+    if (!userId || userId === clientId) {
+      return;
+    }
+    const name = normalizeDisplayName(this.state.nameMap[userId] || "Convidado");
+    const color = normalizeNameColor(this.state.nameColorMap[userId]);
+    const toastId = `${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const toast: JoinToast = {
+      id: toastId,
+      userId,
+      name,
+      color,
+      initials: getDisplayInitials(name),
+    };
+    this.setState((prevState) => ({
+      joinToasts: [...prevState.joinToasts, toast].slice(-4),
+    }));
+    const timeoutId = window.setTimeout(() => {
+      this.joinToastTimeouts.delete(toastId);
+      this.setState((prevState) => ({
+        joinToasts: prevState.joinToasts.filter((item) => item.id !== toastId),
+      }));
+    }, 3500);
+    this.joinToastTimeouts.set(toastId, timeoutId);
+  };
+
+  clearCountdownTimers = () => {
+    this.countdownTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    this.countdownTimeouts = [];
+  };
+
+  handleStartCountdown = (data: {
+    startAt?: number;
+    seconds?: number;
+    startedBy?: string;
+  }) => {
+    const seconds = Math.max(3, Number(data?.seconds ?? 3));
+    const baseStart = Number.isFinite(Number(data?.startAt))
+      ? Number(data.startAt)
+      : Date.now();
+    const startDelay = Math.max(0, baseStart - Date.now());
+    const sequence = Array.from({ length: seconds }, (_, index) =>
+      String(seconds - index),
+    );
+    this.clearCountdownTimers();
+    this.setState({
+      countdownVisible: true,
+      countdownInProgress: true,
+      countdownText: sequence[0] ?? "3",
+    });
+    sequence.forEach((text, index) => {
+      const timeoutId = window.setTimeout(() => {
+        this.setState({ countdownText: text });
+      }, startDelay + index * 1000);
+      this.countdownTimeouts.push(timeoutId);
+    });
+    const playTimeout = window.setTimeout(() => {
+      this.setState({ countdownText: "PLAY!" });
+    }, startDelay + sequence.length * 1000);
+    this.countdownTimeouts.push(playTimeout);
+    const hideTimeout = window.setTimeout(() => {
+      this.setState({
+        countdownVisible: false,
+        countdownText: "",
+        countdownInProgress: false,
+      });
+      this.clearCountdownTimers();
+    }, startDelay + sequence.length * 1000 + 800);
+    this.countdownTimeouts.push(hideTimeout);
+  };
+
+  startCountdown = () => {
+    if (!this.haveLock() || this.state.countdownInProgress || !this.state.roomMedia) {
+      return;
+    }
+    this.socket?.emit("CMD:startCountdown");
+  };
+
+  commitRoomTitle = (nextTitle: string) => {
+    const title = normalizeDisplayName(nextTitle).slice(0, 40);
+    this.setState({ roomTitle: title });
+    if (!this.socket?.connected || !this.state.owner || this.context.user?.uid !== this.state.owner) {
+      return;
+    }
+    this.socket.emit("CMD:setRoomState", {
+      vanity: this.state.vanity ?? "",
+      isChatDisabled: this.state.isChatDisabled,
+      roomTitle: title,
+      roomDescription: this.state.roomDescription ?? "",
+      roomTitleColor: this.state.roomTitleColor || "#888888",
+      mediaPath: this.state.mediaPath ?? "",
+    });
+  };
+
   setSettingsModalOpen = (settingsModalOpen: boolean) => {
     this.setState({ settingsModalOpen });
   };
@@ -2910,6 +3053,18 @@ export class App extends React.Component<AppProps, AppState> {
         (this.playingScreenShare() || this.playingFileShare()),
     );
     const canAdjustYouTubeQuality = Boolean(this.usingYoutube());
+    const isHostUser = Boolean(
+      (this.state.owner && this.context.user?.uid === this.state.owner) ||
+        (this.state.roomLock && this.context.user?.uid === this.state.roomLock),
+    );
+    const canTriggerCountdown = Boolean(
+      isHostUser &&
+        this.haveLock() &&
+        this.state.roomMedia &&
+        !this.playingScreenShare() &&
+        !this.playingFileShare() &&
+        !this.playingVBrowser(),
+    );
     const canStopHostedMedia = Boolean(
       this.haveLock() &&
         this.state.roomMedia &&
@@ -2936,6 +3091,9 @@ export class App extends React.Component<AppProps, AppState> {
         youtubeQualityOptions={this.getYouTubeQualityOptions()}
         setYouTubeQualityMode={this.setYouTubeQualityMode}
         showYouTubeQualityControl={canAdjustYouTubeQuality}
+        showCountdownControl={canTriggerCountdown}
+        countdownInProgress={this.state.countdownInProgress}
+        onStartCountdown={this.startCountdown}
       />
     );
     return (
@@ -2989,11 +3147,39 @@ export class App extends React.Component<AppProps, AppState> {
             title="Entrar como convidado"
           >
             <div className={styles.preJoinContent}>
+              {(() => {
+                const previewName = normalizeDisplayName(this.state.preJoinName);
+                const displayName = previewName || "Seu nome";
+                const color = normalizeNameColor(this.state.preJoinColor);
+                return (
+                  <div className={styles.preJoinPreview}>
+                    <div
+                      className={styles.preJoinPreviewAvatar}
+                      style={{
+                        background: toRgba(color, 0.22),
+                        borderColor: toRgba(color, 0.5),
+                        color,
+                      }}
+                    >
+                      {getDisplayInitials(displayName)}
+                    </div>
+                    <div
+                      className={styles.preJoinPreviewName}
+                      style={{
+                        color: previewName ? color : "var(--text-muted)",
+                      }}
+                    >
+                      {displayName}
+                    </div>
+                  </div>
+                );
+              })()}
               <TextInput
                 label="Apelido"
-                placeholder="Digite seu apelido"
+                placeholder="Seu apelido ou nome"
                 value={this.state.preJoinName}
                 maxLength={40}
+                autoFocus
                 onChange={(e) =>
                   this.setState({ preJoinName: e.target.value })
                 }
@@ -3014,7 +3200,11 @@ export class App extends React.Component<AppProps, AppState> {
                         onClick={() => this.setState({ preJoinColor: color })}
                         aria-label={`Selecionar cor ${color}`}
                         title={color}
-                      />
+                      >
+                        {selected ? (
+                          <span className={styles.preJoinColorCheck}>✓</span>
+                        ) : null}
+                      </button>
                     );
                   })}
                 </div>
@@ -3099,12 +3289,38 @@ export class App extends React.Component<AppProps, AppState> {
             {this.state.warningMessage}
           </Alert>
         )}
+        {this.state.joinToasts.length > 0 && (
+          <div className={styles.joinToastStack} aria-live="polite">
+            {this.state.joinToasts.map((toast) => (
+              <div key={toast.id} className={styles.joinToast}>
+                <div
+                  className={styles.joinToastAvatar}
+                  style={{
+                    background: toRgba(toast.color, 0.2),
+                    borderColor: toRgba(toast.color, 0.46),
+                    color: toast.color,
+                  }}
+                >
+                  {toast.initials}
+                </div>
+                <div className={styles.joinToastText}>
+                  <span style={{ color: toast.color }}>{toast.name}</span> entrou
+                  na sala
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {!this.state.fullScreen && (
           <TopBar
             hideNewRoom
             roomTitle={this.state.roomTitle}
             roomDescription={this.state.roomDescription}
             roomTitleColor={this.state.roomTitleColor}
+            roomTitleEditable={Boolean(
+              this.state.owner && this.context.user?.uid === this.state.owner,
+            )}
+            onRoomTitleCommit={this.commitRoomTitle}
           />
         )}
         {
@@ -3300,6 +3516,32 @@ export class App extends React.Component<AppProps, AppState> {
                 )}
                 <div className={styles.playerArea} id="watchPlayerShell">
                   <div className={styles.playerContainer}>
+                    {Boolean(
+                      sharer &&
+                        sharer.id !== selfId &&
+                        (this.playingScreenShare() || this.playingFileShare()),
+                    ) && (
+                      <div className={styles.liveShareBadge}>
+                        <span className={styles.liveShareDot} />
+                        <span className={styles.liveShareLabel}>AO VIVO</span>
+                        <span className={styles.liveShareOwner}>
+                          Tela de {this.state.nameMap[sharer!.id] || "Participante"}
+                        </span>
+                      </div>
+                    )}
+                    {this.state.countdownVisible && (
+                      <div className={styles.countdownOverlay}>
+                        <div
+                          className={`${styles.countdownText} ${
+                            this.state.countdownText === "PLAY!"
+                              ? styles.countdownTextPlay
+                              : ""
+                          }`}
+                        >
+                          {this.state.countdownText}
+                        </div>
+                      </div>
+                    )}
                     {!this.state.isAutoPlayable && this.state.roomMedia && (
                       <Overlay className={styles.flexCenter}>
                         <Button

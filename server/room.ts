@@ -83,6 +83,7 @@ export class Room {
   private io: Server;
   private socketIdMap: StringDict = {};
   private tsInterval: NodeJS.Timeout | undefined = undefined;
+  private countdownStartTimeout: NodeJS.Timeout | undefined = undefined;
   public isChatDisabled: boolean | undefined = undefined;
   public lastUpdateTime: Date = new Date();
   private preventTSUpdate = false;
@@ -379,6 +380,9 @@ export class Room {
       socket.on("CMD:playbackRate", (data: unknown) => {
         validateLock() && this.setPlaybackRate(socket, Number(data));
       });
+      socket.on("CMD:startCountdown", () => {
+        validateLock() && this.startCountdown(socket);
+      });
       socket.on("CMD:loop", (data: unknown) => {
         validateLock() && this.setLoop(Boolean(data));
       });
@@ -563,6 +567,10 @@ export class Room {
   public destroy = () => {
     if (this.tsInterval) {
       clearInterval(this.tsInterval);
+    }
+    if (this.countdownStartTimeout) {
+      clearTimeout(this.countdownStartTimeout);
+      this.countdownStartTimeout = undefined;
     }
   };
 
@@ -1034,6 +1042,36 @@ export class Room {
     this.io.of(this.roomId).emit("roster", this.getRosterForApp());
   };
 
+  private startCountdown = (socket: Socket) => {
+    if (!this.video) {
+      socket.emit(
+        "errorMessage",
+        "Nenhum vídeo ativo para iniciar a contagem regressiva.",
+      );
+      return;
+    }
+    const startAt = Date.now() + 200;
+    this.io.of(this.roomId).emit("REC:startCountdown", {
+      startedBy: socket.clientId,
+      startAt,
+      seconds: 3,
+    });
+    this.addChatMessage(socket, {
+      id: socket.clientId,
+      cmd: "countdownStarted",
+      msg: `🎬 ${(this.nameMap[socket.clientId] || "Host").slice(0, 40)} iniciou uma contagem regressiva!`,
+      system: true,
+    });
+    if (this.countdownStartTimeout) {
+      clearTimeout(this.countdownStartTimeout);
+    }
+    this.countdownStartTimeout = setTimeout(() => {
+      this.paused = false;
+      this.io.of(this.roomId).emit("REC:play");
+      this.countdownStartTimeout = undefined;
+    }, 3200);
+  };
+
   private broadcastTyping = (socket: Socket, raw: unknown) => {
     const data = raw as { isTyping?: boolean };
     if (!data?.isTyping) {
@@ -1471,6 +1509,10 @@ export class Room {
       roomTitleColor,
       mediaPath,
     } = data;
+    const normalizedRoomTitleColor =
+      typeof roomTitleColor === "string" && roomTitleColor
+        ? roomTitleColor
+        : "#888888";
     const hasPasswordUpdate = Object.prototype.hasOwnProperty.call(
       data,
       "password",
@@ -1494,7 +1536,7 @@ export class Room {
       return;
     }
     // check if is valid hex color representation
-    if (!/^#([0-9a-f]{3}){1,2}$/i.test(roomTitleColor)) {
+    if (!/^#([0-9a-f]{3}){1,2}$/i.test(normalizedRoomTitleColor)) {
       socket.emit("errorMessage", "Codigo de cor invalido");
       return;
     }
@@ -1512,13 +1554,13 @@ export class Room {
       roomObj.password = password ? hashRoomPassword(password) : null;
     }
     const { isSub, uid } = socket;
+    roomObj.roomTitle = roomTitle;
+    roomObj.roomTitleColor = normalizedRoomTitleColor;
     if (isSub) {
       // user must be sub to set certain properties
       // If empty vanity, reset to null
       roomObj.vanity = vanity ?? null;
-      roomObj.roomTitle = roomTitle;
       roomObj.roomDescription = roomDescription;
-      roomObj.roomTitleColor = roomTitleColor;
     }
     try {
       const query = `UPDATE room

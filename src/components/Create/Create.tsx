@@ -58,6 +58,9 @@ export const Create = () => {
               video:
                 new URLSearchParams(window.location.search).get("video") ??
                 undefined,
+              roomTitle:
+                new URLSearchParams(window.location.search).get("roomTitle") ??
+                undefined,
               username: fallbackName,
               roomSlug: username
                 ? `cinema-${slugify(username) || "sala"}`

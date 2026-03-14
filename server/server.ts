@@ -1,4 +1,4 @@
-import config from "./config.ts";
+﻿import config from "./config.ts";
 import fs from "node:fs";
 import express, { type Request, type Response } from "express";
 import bodyParser from "body-parser";
@@ -251,6 +251,13 @@ function normalizeDisplayName(value: unknown) {
   return value.trim().replace(/\s+/g, " ").slice(0, 40);
 }
 
+function normalizeRoomTitle(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().replace(/\s+/g, " ").slice(0, 40);
+}
+
 function slugify(value: string) {
   return value
     .normalize("NFD")
@@ -390,29 +397,68 @@ async function getAvailableRoomName(baseSlug: string) {
 
 const YOUTUBE_SURPRISE_CATEGORIES = {
   "tente-nao-rir": {
-    query: "try not to laugh challenge",
-    label: "Tente não rir",
-    videoCategoryId: "24",
+    queries: [
+      "tente não rir brasil",
+      "try not to laugh challenge brasil",
+      "não rir challenge brasileiro",
+    ],
+    label: "Tente nÃ£o rir",
   },
   gaming: {
-    query: "best gaming moments highlights",
+    queries: [
+      "alanzoka gameplay",
+      "gaules melhores momentos",
+      "cellbit gameplay",
+      "jazzghost gameplay",
+      "loud gameplay",
+    ],
     label: "Gaming",
-    videoCategoryId: "20",
   },
   "clipe-de-musica": {
-    query: "official music video",
-    label: "Clipe de música",
-    videoCategoryId: "10",
+    queries: [
+      "clipe oficial brasil",
+      "música brasileira oficial",
+      "top hits brasil clipe",
+    ],
+    label: "Clipe de mÃºsica",
   },
   "stand-up": {
-    query: "stand up comedy special full",
+    queries: [
+      "whindersson nunes stand up completo",
+      "thiago ventura stand up",
+      "afonso padilha stand up",
+      "bruna louise stand up",
+      "rafinha bastos stand up",
+    ],
     label: "Stand-up",
-    videoCategoryId: "23",
   },
   documentario: {
-    query: "documentary full length",
-    label: "Documentário",
-    videoCategoryId: "27",
+    queries: [
+      "documentário completo brasil",
+      "documentário nacional completo",
+      "documentário história do brasil",
+      "documentário investigação brasil",
+      "documentário natureza brasil",
+    ],
+    label: "DocumentÃ¡rio",
+  },
+  culinaria: {
+    queries: [
+      "rita lobo receita",
+      "panelinha receita",
+      "ana maria braga receitas",
+      "tastemade brasil receitas",
+      "receita brasileira passo a passo",
+    ],
+    label: "CulinÃ¡ria",
+  },
+  "viral-trending": {
+    queries: [
+      "viral brasil trending",
+      "vídeos virais brasileiros",
+      "most viral videos 2024 compilation brasil",
+    ],
+    label: "Viral / Trending",
   },
 } as const;
 
@@ -466,14 +512,14 @@ const TMDB_PLATFORM_CATALOG = [
     aliases: ["globoplay"],
   },
   {
-    key: "paramount-plus",
-    label: "Paramount+",
-    aliases: ["paramount+", "paramount plus"],
+    key: "hbo-max",
+    label: "HBO Max",
+    aliases: ["hbo max", "hbomax", "max"],
   },
   {
-    key: "max",
-    label: "Max",
-    aliases: ["max", "hbo max", "hbomax"],
+    key: "appletv",
+    label: "Apple TV+",
+    aliases: ["apple tv", "apple tv+", "appletv", "apple tv plus"],
   },
 ] as const;
 
@@ -481,7 +527,13 @@ type TmdbCatalogKey = (typeof TMDB_PLATFORM_CATALOG)[number]["key"];
 
 function normalizeSurpriseCategory(input: unknown): SurpriseVideoCategory {
   const value = String(input ?? "").trim().toLowerCase();
-  if (value === "aleatorio" || value === "aleatório" || value === "random") {
+  if (value === "gameplay") {
+    return "gaming";
+  }
+  if (value === "musicas" || value === "música" || value === "musica") {
+    return "clipe-de-musica";
+  }
+  if (value === "aleatorio" || value === "aleatÃ³rio" || value === "random") {
     const keys = Object.keys(
       YOUTUBE_SURPRISE_CATEGORIES,
     ) as SurpriseVideoCategory[];
@@ -502,27 +554,35 @@ async function fetchSurpriseVideos(
   if (!key) {
     throw new Error("youtube_key_missing");
   }
-  const searchResponse = await axios.get("https://www.googleapis.com/youtube/v3/search", {
-    params: {
-      key,
-      part: "snippet",
-      type: "video",
-      maxResults: 25,
-      q: categoryConfig.query,
-      order: "viewCount",
-      videoDuration: "any",
-      regionCode: "BR",
-      relevanceLanguage: "pt",
-      videoCategoryId: categoryConfig.videoCategoryId,
-    },
-    timeout: 12000,
-  });
-  const rawItems = Array.isArray(searchResponse.data?.items)
-    ? searchResponse.data.items
-    : [];
-  const ids = rawItems
-    .map((item: any) => String(item?.id?.videoId ?? ""))
-    .filter(Boolean);
+  const searchResponses = await Promise.all(
+    categoryConfig.queries.map((query) =>
+      axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: {
+          key,
+          part: "snippet",
+          type: "video",
+          maxResults: 12,
+          q: query,
+          order: "relevance",
+          videoDuration: "any",
+          regionCode: "BR",
+          relevanceLanguage: "pt-BR",
+          safeSearch: "moderate",
+        },
+        timeout: 12000,
+      }),
+    ),
+  );
+  const ids = Array.from(
+    new Set(
+      searchResponses
+        .flatMap((response) =>
+          Array.isArray(response.data?.items) ? response.data.items : [],
+        )
+        .map((item: any) => String(item?.id?.videoId ?? ""))
+        .filter(Boolean),
+    ),
+  ).slice(0, 50);
   if (!ids.length) {
     return { category, items: [] };
   }
@@ -556,8 +616,7 @@ async function fetchSurpriseVideos(
       } as SurpriseVideoItem;
     })
     .filter(
-      (item: SurpriseVideoItem) =>
-        item.id && item.url && item.title && item.views > 100000,
+      (item: SurpriseVideoItem) => item.id && item.url && item.title,
     );
   return { category, items: result };
 }
@@ -631,6 +690,171 @@ function normalizeCatalogKey(value: unknown): TmdbCatalogKey | null {
   return byAlias?.key ?? null;
 }
 
+type WatchLinkType = "direct" | "tmdb_fallback";
+
+type WatchmodeSource = {
+  source_id?: number;
+  name?: string;
+  web_url?: string;
+  region?: string;
+};
+
+type DirectWatchLinkResult = {
+  url: string;
+  providerName: string;
+};
+
+const WATCHMODE_DIRECT_TTL_MS = 30 * 60 * 1000;
+const watchmodeDirectCache = new Map<
+  string,
+  { expiresAt: number; value: DirectWatchLinkResult | null }
+>();
+
+function getWatchmodeBaseUrl() {
+  return String(config.WATCHMODE_BASE_URL || "https://api.watchmode.com").replace(/\/+$/, "");
+}
+
+function getWatchmodeApiKey() {
+  return String(config.WATCHMODE_API_KEY || "").trim();
+}
+
+function normalizeProviderToken(value: unknown) {
+  return normalizeText(value).replace(/[^a-z0-9]+/g, "");
+}
+
+const WATCHMODE_PROVIDER_ALIASES: Record<string, string[]> = {
+  netflix: ["netflix", "netflixbr", "nfx"],
+  "prime-video": ["primevideo", "amazonprime", "prime"],
+  "disney-plus": ["disneyplus", "disney+"],
+  globoplay: ["globoplay", "globo"],
+  "hbo-max": ["hbomax", "max", "hbo"],
+  appletv: ["appletv+", "appletvplus", "appletv", "appletv"],
+};
+
+function matchesWatchmodeProvider(
+  catalogKey: TmdbCatalogKey | null,
+  sourceName: string,
+  tmdbProviderName: string,
+) {
+  const source = normalizeProviderToken(sourceName);
+  const tmdb = normalizeProviderToken(tmdbProviderName);
+  if (!source) {
+    return false;
+  }
+  const aliases = catalogKey ? WATCHMODE_PROVIDER_ALIASES[catalogKey] ?? [] : [];
+  return aliases.some((alias) => source.includes(normalizeProviderToken(alias))) || source.includes(tmdb);
+}
+
+async function resolveWatchmodeTitleId(
+  movieId: number,
+  imdbId: string,
+): Promise<number | null> {
+  const apiKey = getWatchmodeApiKey();
+  if (!apiKey) {
+    return null;
+  }
+  const baseUrl = getWatchmodeBaseUrl();
+  const candidates = [
+    { search_field: "tmdb_id", search_value: String(movieId) },
+    ...(imdbId ? [{ search_field: "imdb_id", search_value: imdbId }] : []),
+  ];
+  for (const candidate of candidates) {
+    try {
+      const response = await axios.get(`${baseUrl}/v1/search/`, {
+        params: {
+          apiKey,
+          search_field: candidate.search_field,
+          search_value: candidate.search_value,
+          types: "movie",
+          limit: 5,
+        },
+        timeout: 10000,
+      });
+      const title = Array.isArray(response.data?.title_results)
+        ? response.data.title_results[0]
+        : Array.isArray(response.data)
+          ? response.data[0]
+          : null;
+      const id = Number(title?.id);
+      if (Number.isFinite(id) && id > 0) {
+        return id;
+      }
+    } catch {
+      // ignore and try next strategy
+    }
+  }
+  return null;
+}
+
+async function resolveDirectWatchLink(params: {
+  movieId: number;
+  imdbId: string;
+  catalogKey: TmdbCatalogKey | null;
+  tmdbProviderName: string;
+  region: string;
+}): Promise<DirectWatchLinkResult | null> {
+  const apiKey = getWatchmodeApiKey();
+  if (!apiKey) {
+    return null;
+  }
+  const region = (params.region || "BR").toUpperCase();
+  const cacheKey = `${params.movieId}:${params.catalogKey || "unknown"}:${region}`;
+  const cached = watchmodeDirectCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const baseUrl = getWatchmodeBaseUrl();
+  const titleId = await resolveWatchmodeTitleId(params.movieId, params.imdbId);
+  if (!titleId) {
+    watchmodeDirectCache.set(cacheKey, {
+      expiresAt: Date.now() + WATCHMODE_DIRECT_TTL_MS,
+      value: null,
+    });
+    return null;
+  }
+
+  try {
+    const response = await axios.get(`${baseUrl}/v1/title/${titleId}/sources/`, {
+      params: {
+        apiKey,
+        regions: region,
+      },
+      timeout: 10000,
+    });
+    const rawSources = Array.isArray(response.data) ? response.data : [];
+    const sources = rawSources as WatchmodeSource[];
+    const selected =
+      sources.find(
+        (source) =>
+          (!source.region || String(source.region).toUpperCase() === region) &&
+          source.web_url &&
+          matchesWatchmodeProvider(
+            params.catalogKey,
+            String(source.name || ""),
+            params.tmdbProviderName,
+          ),
+      ) ?? null;
+    const result = selected?.web_url
+      ? {
+          url: selected.web_url,
+          providerName: String(selected.name || params.tmdbProviderName),
+        }
+      : null;
+    watchmodeDirectCache.set(cacheKey, {
+      expiresAt: Date.now() + WATCHMODE_DIRECT_TTL_MS,
+      value: result,
+    });
+    return result;
+  } catch {
+    watchmodeDirectCache.set(cacheKey, {
+      expiresAt: Date.now() + WATCHMODE_DIRECT_TTL_MS,
+      value: null,
+    });
+    return null;
+  }
+}
+
 async function fetchTmdbProviders(region = "BR") {
   const response = await axios.get("https://api.themoviedb.org/3/watch/providers/movie", {
     ...withTmdbAuthParams({
@@ -675,13 +899,73 @@ function parseGenreId(value: unknown) {
   }
   const genreByName: Record<string, number> = {
     acao: 28,
-    "ação": 28,
+    "aÃ§Ã£o": 28,
     comedia: 35,
-    "comédia": 35,
+    "comÃ©dia": 35,
     terror: 27,
     romance: 10749,
+    animacao: 16,
+    "animaÃ§Ã£o": 16,
+    suspense: 53,
   };
   return genreByName[text] ?? null;
+}
+
+function shouldKeepMovieForGenre(movie: any, genreId: number | null) {
+  if (!genreId) {
+    return true;
+  }
+  const ids = Array.isArray(movie?.genre_ids)
+    ? movie.genre_ids
+        .map((id: unknown) => Number(id))
+        .filter((id: number) => Number.isFinite(id))
+    : [];
+  if (!ids.length) {
+    return true;
+  }
+  if (!ids.includes(genreId)) {
+    return false;
+  }
+  // "Comédia" deve trazer humor, não comédia romântica.
+  if (genreId === 35 && ids.includes(10749)) {
+    return false;
+  }
+  return true;
+}
+
+type MovieHistoryPayload = {
+  movieId: number;
+  title: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  rating?: number | null;
+  platform?: string | null;
+  watchedAt?: string | null;
+};
+
+let movieHistoryTableReady = false;
+async function ensureMovieHistoryTable() {
+  if (!postgres || movieHistoryTableReady) {
+    return;
+  }
+  await postgres.query(`
+    CREATE TABLE IF NOT EXISTS movie_history (
+      uid text NOT NULL,
+      movie_id bigint NOT NULL,
+      title text NOT NULL,
+      poster_path text,
+      backdrop_path text,
+      rating double precision,
+      platform text,
+      watched_at timestamp with time zone NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (uid, movie_id)
+    );
+  `);
+  await postgres.query(`
+    CREATE INDEX IF NOT EXISTS movie_history_uid_watched_at_idx
+    ON movie_history (uid, watched_at DESC);
+  `);
+  movieHistoryTableReady = true;
 }
 // Following functions iterate over in-memory rooms
 setInterval(minuteMetrics, 60 * 1000);
@@ -824,7 +1108,7 @@ app.get("/surprise/video", async (req, res) => {
     if (code === "youtube_key_missing") {
       res.status(503).json({
         error: "youtube_not_configured",
-        message: "A busca de vídeos está temporariamente indisponível.",
+        message: "A busca de vÃ­deos estÃ¡ temporariamente indisponÃ­vel.",
       });
       return;
     }
@@ -837,14 +1121,14 @@ app.get("/surprise/video", async (req, res) => {
       res.status(503).json({
         error: "youtube_api_blocked",
         message:
-          "A chave do YouTube está bloqueada para busca. Ative YouTube Data API v3 e revise as restrições da API key.",
+          "A chave do YouTube estÃ¡ bloqueada para busca. Ative YouTube Data API v3 e revise as restriÃ§Ãµes da API key.",
       });
       return;
     }
     console.warn("[surprise video error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_video_failed",
-      message: "Não foi possível buscar vídeos agora. Tente novamente.",
+      message: "NÃ£o foi possÃ­vel buscar vÃ­deos agora. Tente novamente.",
     });
   }
 });
@@ -862,14 +1146,14 @@ app.get("/surprise/providers", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes está temporariamente indisponível.",
+        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
       });
       return;
     }
     console.warn("[surprise providers error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_providers_failed",
-      message: "Não foi possível carregar as plataformas no momento.",
+      message: "NÃ£o foi possÃ­vel carregar as plataformas no momento.",
     });
   }
 });
@@ -937,7 +1221,9 @@ app.get("/surprise/movies", async (req, res) => {
       responseData = randomPageResponse.data;
     }
     const results = Array.isArray(responseData?.results)
-      ? responseData.results
+      ? responseData.results.filter((movie: any) =>
+          shouldKeepMovieForGenre(movie, genreId),
+        )
       : [];
     res.json({
       page,
@@ -958,14 +1244,14 @@ app.get("/surprise/movies", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes está temporariamente indisponível.",
+        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
       });
       return;
     }
     console.warn("[surprise movies error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_movies_failed",
-      message: "Não foi possível buscar filmes agora. Tente novamente.",
+      message: "NÃ£o foi possÃ­vel buscar filmes agora. Tente novamente.",
     });
   }
 });
@@ -977,9 +1263,10 @@ app.get("/surprise/movie/:id", async (req, res) => {
       res.status(400).json({ error: "invalid_movie_id" });
       return;
     }
+    const region = typeof req.query.region === "string" ? req.query.region : "BR";
     const [detailsResponse, providersResponse] = await Promise.all([
       axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
-        ...withTmdbAuthParams({ language: "pt-BR" }),
+        ...withTmdbAuthParams({ language: "pt-BR", append_to_response: "external_ids" }),
         timeout: 12000,
       }),
       axios.get(`https://api.themoviedb.org/3/movie/${movieId}/watch/providers`, {
@@ -1007,11 +1294,11 @@ app.get("/surprise/movie/:id", async (req, res) => {
         .filter((id) => Number.isFinite(id) && id > 0);
       providerIdsFilter.push(...mappedIds);
     }
-    const brData = providersResponse.data?.results?.BR;
+    const regionData = providersResponse.data?.results?.[region];
     const providers: TmdbWatchProvider[] = [
-      ...(Array.isArray(brData?.flatrate) ? brData.flatrate : []),
-      ...(Array.isArray(brData?.rent) ? brData.rent : []),
-      ...(Array.isArray(brData?.buy) ? brData.buy : []),
+      ...(Array.isArray(regionData?.flatrate) ? regionData.flatrate : []),
+      ...(Array.isArray(regionData?.rent) ? regionData.rent : []),
+      ...(Array.isArray(regionData?.buy) ? regionData.buy : []),
     ];
     const uniqueProviders = providers.filter(
       (provider, index, arr) =>
@@ -1021,9 +1308,29 @@ app.get("/surprise/movie/:id", async (req, res) => {
       uniqueProviders.find((provider) =>
         providerIdsFilter.includes(provider.provider_id),
       ) ?? uniqueProviders[0] ?? null;
+    const selectedCatalogKey = normalizeCatalogKey(selectedProvider?.provider_name ?? "");
+    const imdbId = String(detailsResponse.data?.external_ids?.imdb_id ?? "").trim();
+    const directWatchLink = selectedProvider
+      ? await resolveDirectWatchLink({
+          movieId,
+          imdbId,
+          catalogKey: selectedCatalogKey,
+          tmdbProviderName: selectedProvider.provider_name,
+          region,
+        })
+      : null;
+    const fallbackWatchLink = typeof regionData?.link === "string" ? regionData.link : "";
+    const watchLink = directWatchLink?.url || fallbackWatchLink;
+    const watchLinkType: WatchLinkType = directWatchLink?.url ? "direct" : "tmdb_fallback";
+    const watchLinkProvider =
+      directWatchLink?.providerName ||
+      selectedProvider?.provider_name ||
+      "";
     res.json({
       movie: detailsResponse.data,
-      watchLink: typeof brData?.link === "string" ? brData.link : "",
+      watchLink,
+      watchLinkType,
+      watchLinkProvider,
       platform: selectedProvider
         ? {
             id: selectedProvider.provider_id,
@@ -1037,14 +1344,14 @@ app.get("/surprise/movie/:id", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes está temporariamente indisponível.",
+        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
       });
       return;
     }
     console.warn("[surprise movie details error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_movie_details_failed",
-      message: "Não foi possível carregar os detalhes desse filme agora.",
+      message: "NÃ£o foi possÃ­vel carregar os detalhes desse filme agora.",
     });
   }
 });
@@ -1057,6 +1364,9 @@ app.post("/createRoom", async (req, res) => {
 
     const requestedSlug = normalizeSlug(req.body?.roomSlug);
     const displayName = normalizeDisplayName(req.body?.username);
+    const roomTitle = normalizeRoomTitle(req.body?.roomTitle);
+    const effectiveRoomTitle =
+      roomTitle || (displayName ? `Sala de ${displayName}`.slice(0, 40) : "Sala compartilhada");
     const displaySlug = slugify(displayName);
     const baseRoomSlug =
       requestedSlug ||
@@ -1072,6 +1382,8 @@ app.post("/createRoom", async (req, res) => {
         lastUpdateTime: now,
         creationTime: now,
         isSubRoom: isSubscriberRoom,
+        roomTitle: effectiveRoomTitle,
+        roomTitleColor: "#888888",
       };
       try {
         await insertObject(postgres, "room", roomObj);
@@ -1229,7 +1541,8 @@ app.get("/metadata", async (req, res) => {
       )
     ).data.isFull;
   } catch (e: any) {
-    console.warn("[WARNING]: free pool check failed: %s", e.code);
+    // Optional vmWorker endpoint; default to "not full" when unavailable.
+    isFreePoolFull = false;
   }
   const beta =
     decoded?.email != null &&
@@ -1314,6 +1627,148 @@ app.delete("/deleteRoom", async (req, res) => {
     [decoded.uid, req.query.roomId],
   );
   res.json(result?.rows);
+});
+
+app.post("/history/movie", async (req, res) => {
+  const { uid, token } = getAuthCredentials(req);
+  const decoded = await validateUserToken(uid, token);
+  if (!decoded?.uid) {
+    res.status(401).json({ error: "invalid_user_token" });
+    return;
+  }
+  if (!postgres) {
+    res.status(503).json({ error: "history_unavailable" });
+    return;
+  }
+  const payload = req.body as MovieHistoryPayload;
+  const movieId = Number(payload?.movieId);
+  const title = String(payload?.title ?? "").trim().slice(0, 250);
+  if (!Number.isFinite(movieId) || movieId <= 0 || !title) {
+    res.status(400).json({ error: "invalid_payload" });
+    return;
+  }
+  const watchedAt = payload?.watchedAt
+    ? new Date(String(payload.watchedAt))
+    : new Date();
+  if (Number.isNaN(watchedAt.getTime())) {
+    res.status(400).json({ error: "invalid_watched_at" });
+    return;
+  }
+  try {
+    await ensureMovieHistoryTable();
+    await postgres.query(
+      `
+      INSERT INTO movie_history
+        (uid, movie_id, title, poster_path, backdrop_path, rating, platform, watched_at)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (uid, movie_id)
+      DO UPDATE SET
+        title = EXCLUDED.title,
+        poster_path = EXCLUDED.poster_path,
+        backdrop_path = EXCLUDED.backdrop_path,
+        rating = EXCLUDED.rating,
+        platform = EXCLUDED.platform,
+        watched_at = EXCLUDED.watched_at
+      `,
+      [
+        decoded.uid,
+        movieId,
+        title,
+        payload?.poster_path ? String(payload.poster_path).slice(0, 300) : null,
+        payload?.backdrop_path
+          ? String(payload.backdrop_path).slice(0, 300)
+          : null,
+        Number.isFinite(Number(payload?.rating)) ? Number(payload?.rating) : null,
+        payload?.platform ? String(payload.platform).slice(0, 120) : null,
+        watchedAt.toISOString(),
+      ],
+    );
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[history movie save error]", e?.message ?? e);
+    res.status(500).json({ error: "history_save_failed" });
+  }
+});
+
+app.get("/history/movies", async (req, res) => {
+  const { uid, token } = getAuthCredentials(req);
+  const decoded = await validateUserToken(uid, token);
+  if (!decoded?.uid) {
+    res.status(401).json({ error: "invalid_user_token" });
+    return;
+  }
+  if (!postgres) {
+    res.status(503).json({ error: "history_unavailable" });
+    return;
+  }
+  try {
+    await ensureMovieHistoryTable();
+    const result = await postgres.query<{
+      movie_id: number;
+      title: string;
+      poster_path: string | null;
+      backdrop_path: string | null;
+      rating: number | null;
+      platform: string | null;
+      watched_at: Date;
+    }>(
+      `
+      SELECT movie_id, title, poster_path, backdrop_path, rating, platform, watched_at
+      FROM movie_history
+      WHERE uid = $1
+      ORDER BY watched_at DESC
+      LIMIT 20
+      `,
+      [decoded.uid],
+    );
+    res.json({
+      items: result.rows.map((row) => ({
+        movieId: Number(row.movie_id),
+        title: row.title,
+        poster_path: row.poster_path,
+        backdrop_path: row.backdrop_path,
+        rating: row.rating,
+        platform: row.platform,
+        watchedAt:
+          row.watched_at instanceof Date
+            ? row.watched_at.toISOString()
+            : new Date(row.watched_at).toISOString(),
+      })),
+    });
+  } catch (e: any) {
+    console.error("[history movie list error]", e?.message ?? e);
+    res.status(500).json({ error: "history_list_failed" });
+  }
+});
+
+app.delete("/history/movie/:movieId", async (req, res) => {
+  const { uid, token } = getAuthCredentials(req);
+  const decoded = await validateUserToken(uid, token);
+  if (!decoded?.uid) {
+    res.status(401).json({ error: "invalid_user_token" });
+    return;
+  }
+  if (!postgres) {
+    res.status(503).json({ error: "history_unavailable" });
+    return;
+  }
+  const movieId = Number(req.params.movieId);
+  if (!Number.isFinite(movieId) || movieId <= 0) {
+    res.status(400).json({ error: "invalid_movie_id" });
+    return;
+  }
+  try {
+    await ensureMovieHistoryTable();
+    await postgres.query(
+      `DELETE FROM movie_history WHERE uid = $1 AND movie_id = $2`,
+      [decoded.uid, movieId],
+    );
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[history movie delete error]", e?.message ?? e);
+    res.status(500).json({ error: "history_delete_failed" });
+  }
 });
 
 app.get("/generateName", async (req, res) => {

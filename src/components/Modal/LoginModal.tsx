@@ -39,6 +39,9 @@ function getAuthErrorMessage(error: any) {
   if (code === "auth/account-exists-with-different-credential") {
     return "Já existe uma conta com este e-mail em outro provedor. Entre com o método já existente.";
   }
+  if (code === "auth/unauthorized-domain") {
+    return "Este dominio nao esta autorizado no Firebase Auth. Adicione o dominio de producao em Authentication > Settings > Authorized domains.";
+  }
   return "Não foi possível concluir a autenticação agora. Tente novamente.";
 }
 
@@ -100,7 +103,11 @@ export class LoginModal extends React.Component<{
     } catch (e: any) {
       const code = String(e?.code ?? "");
       console.error("[googleSignIn]", code || "unknown_error", e);
-      if (code === "auth/popup-blocked" || code === "auth/popup-blocked-by-browser") {
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/popup-blocked-by-browser" ||
+        code === "auth/operation-not-supported-in-this-environment"
+      ) {
         try {
           const provider = new firebase.auth.GoogleAuthProvider();
           await firebase.auth().signInWithRedirect(provider);

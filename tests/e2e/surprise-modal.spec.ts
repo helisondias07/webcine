@@ -3,10 +3,9 @@
 async function createRoom(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Nova sala" }).first().click();
-  await expect(page.getByRole("dialog", { name: "Criar nova sala" })).toBeVisible();
-  await page.getByLabel("Seu nome").fill("Surprise QA");
-  await page.getByRole("button", { name: "Criar sala" }).click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
+  await page.getByPlaceholder("Seu apelido ou nome").fill("Surprise QA");
+  await page.getByRole("button", { name: "Entrar na sala" }).click();
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
 }
 
@@ -118,14 +117,11 @@ test("abre modal, sugere video e permite iniciar assistir junto", async ({ page 
   await expect(page.getByTestId("surprise-dialog")).toBeHidden();
 });
 
-test("filme exige plataforma antes de continuar", async ({ page }) => {
+test("filme retorna sugestao ao selecionar plataforma", async ({ page }) => {
   await createRoom(page);
 
   await page.getByTestId("empty-surprise-button").click();
   await page.getByRole("button", { name: "Filme" }).click();
-
-  await page.getByRole("button", { name: "Me surpreenda ✦" }).click();
-  await expect(page.getByText("Selecione ao menos uma plataforma para continuar.")).toBeVisible();
 
   await page.getByRole("button", { name: "Netflix" }).click();
   await page.getByRole("button", { name: "Me surpreenda ✦" }).click();

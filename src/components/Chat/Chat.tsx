@@ -1,4 +1,5 @@
 import React, { RefObject, useContext } from "react";
+import { createPortal } from "react-dom";
 import { ActionIcon, Avatar, Button, TextInput } from "@mantine/core";
 import Picker from "@emoji-mart/react";
 import { init } from "emoji-mart";
@@ -50,6 +51,7 @@ export class Chat extends React.Component<ChatProps, ChatState> {
     typingUsers: {},
   };
   messagesRef = React.createRef<HTMLDivElement>();
+  emojiButtonRef = React.createRef<HTMLButtonElement>();
   typingEmitDebounce: number | undefined = undefined;
   typingEmitLastAt = 0;
 
@@ -187,6 +189,14 @@ export class Chat extends React.Component<ChatProps, ChatState> {
             ? `${this.props.nameMap[activeTypingUsers[0]] || "Alguém"} está digitando...`
             : "";
 
+    const emojiButtonRect = this.emojiButtonRef.current?.getBoundingClientRect();
+    const pickerBottom = emojiButtonRect
+      ? Math.max(window.innerHeight - emojiButtonRect.top + 8, 12)
+      : 76;
+    const pickerRight = emojiButtonRect
+      ? Math.max(window.innerWidth - emojiButtonRect.right, 8)
+      : 8;
+
     return (
       <div
         className={`${styles.chatRoot} ${this.props.className || ""}`}
@@ -230,17 +240,28 @@ export class Chat extends React.Component<ChatProps, ChatState> {
             </Button>
           )}
         </div>
-        {this.state.isPickerOpen && (
-          <div style={{ position: "absolute", bottom: "60px" }}>
-            <Picker
-              theme={pickerTheme}
-              previewPosition="none"
-              maxFrequentRows={1}
-              onEmojiSelect={this.addEmoji}
-              onClickOutside={() => this.setState({ isPickerOpen: false })}
-            />
-          </div>
-        )}
+        {this.state.isPickerOpen &&
+          createPortal(
+            <div
+              style={{
+                position: "fixed",
+                right: `${pickerRight}px`,
+                bottom: `${pickerBottom}px`,
+                zIndex: 1000,
+                width: "min(352px, calc(100vw - 16px))",
+                maxHeight: "58vh",
+              }}
+            >
+              <Picker
+                theme={pickerTheme}
+                previewPosition="none"
+                maxFrequentRows={1}
+                onEmojiSelect={this.addEmoji}
+                onClickOutside={() => this.setState({ isPickerOpen: false })}
+              />
+            </div>,
+            document.body,
+          )}
         <TextInput
           className={styles.chatInput}
           onKeyDown={(e: any) => e.key === "Enter" && this.sendChatMsg()}
@@ -263,10 +284,11 @@ export class Chat extends React.Component<ChatProps, ChatState> {
               }}
             >
               <ActionIcon
-                onClick={() => {
-                  const curr = this.state.isPickerOpen;
-                  setTimeout(() => this.setState({ isPickerOpen: !curr }), 100);
-                }}
+                ref={this.emojiButtonRef}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() =>
+                  this.setState((prev) => ({ isPickerOpen: !prev.isPickerOpen }))
+                }
                 disabled={this.props.isChatDisabled}
                 aria-label="Abrir seletor de emojis"
                 title="Emojis"

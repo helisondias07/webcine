@@ -128,15 +128,7 @@ if (window.location.hash && window.location.pathname === "/") {
 const THEME_STORAGE_KEY = "webcinetv-theme-preference";
 
 function getStoredThemeMode(): ThemeMode {
-  const value = (window.localStorage.getItem(
-    THEME_STORAGE_KEY,
-  ) ??
-    window.localStorage.getItem(
-      "webcinema-theme-preference",
-    )) as ThemeMode | null;
-  if (value === "light" || value === "dark") {
-    return value;
-  }
+  // Keep startup deterministic to avoid a light->dark flicker on first paint.
   return "dark";
 }
 

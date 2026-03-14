@@ -28,6 +28,9 @@ interface ControlsProps {
   youtubeQualityOptions: YouTubeQualityMode[];
   setYouTubeQualityMode: (mode: YouTubeQualityMode) => void;
   showYouTubeQualityControl: boolean;
+  showCountdownControl: boolean;
+  countdownInProgress: boolean;
+  onStartCountdown: () => void;
 }
 
 export const Controls = (props: ControlsProps) => {
@@ -47,6 +50,9 @@ export const Controls = (props: ControlsProps) => {
     youtubeQualityOptions,
     setYouTubeQualityMode,
     showYouTubeQualityControl,
+    showCountdownControl,
+    countdownInProgress,
+    onStartCountdown,
   } = props;
 
   const getYouTubeQualityLabel = (value: YouTubeQualityMode) => {
@@ -192,6 +198,17 @@ export const Controls = (props: ControlsProps) => {
           }
         >
           Picture in Picture
+        </button>
+      )}
+      {showCountdownControl && (
+        <button
+          type="button"
+          onClick={onStartCountdown}
+          className={styles.countdownButton}
+          disabled={countdownInProgress}
+          title="Iniciar contagem regressiva sincronizada"
+        >
+          ▶ Contagem regressiva
         </button>
       )}
       <IconMaximize

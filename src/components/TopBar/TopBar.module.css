@@ -14,6 +14,10 @@
   border-bottom: 1px solid var(--border-soft);
 }
 
+.topbar[data-has-room-title="true"] {
+  padding-bottom: 16px;
+}
+
 .topbarInner {
   width: min(var(--app-shell-max-width), calc(100% - (var(--app-shell-gutter) * 2)));
   margin: 0 auto;
@@ -77,6 +81,55 @@
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: nowrap;
+}
+
+.roomTitleWrap {
+  position: absolute;
+  left: 50%;
+  top: calc(100% - 4px);
+  transform: translateX(-50%);
+  width: min(62vw, 420px);
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+}
+
+.roomTitleText {
+  border: none;
+  background: transparent;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.roomTitleEditable {
+  cursor: pointer;
+  transition: opacity 0.18s ease;
+}
+
+.roomTitleEditable:hover {
+  opacity: 0.9;
+}
+
+.roomTitleInput {
+  width: min(62vw, 420px);
+  height: 28px;
+  border-radius: 999px;
+  border: 0.5px solid #2e2e2e;
+  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0 12px;
+  text-align: center;
+  outline: none;
 }
 
 .themeSwitch {
@@ -185,6 +238,14 @@
 
   .brandWord {
     letter-spacing: 0.12em;
+  }
+
+  .roomTitleWrap {
+    width: min(74vw, 340px);
+  }
+
+  .roomTitleInput {
+    width: min(74vw, 340px);
   }
 }
 

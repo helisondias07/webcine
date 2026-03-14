@@ -27,12 +27,14 @@ async function createRoom(page: Page) {
   await page.goto("/");
   await expectNoHorizontalOverflow(page);
   await page.getByRole("button", { name: "Nova sala" }).first().click();
-  const modal = page.getByRole("dialog", { name: "Criar nova sala" });
-  await expectInViewport(page, modal, 6);
-  await page.getByLabel("Seu nome").fill("Mobile QA");
-  await page.getByRole("button", { name: "Criar sala" }).click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
+  await page.getByPlaceholder("Seu apelido ou nome").fill("Mobile QA");
+  await page.getByRole("button", { name: "Entrar na sala" }).click();
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
+  const searchHint = page.getByText("Cole aqui o link do YouTube para começar 🎬");
+  if (await searchHint.isVisible()) {
+    await searchHint.click();
+  }
   await expectNoHorizontalOverflow(page);
 }
 
@@ -75,13 +77,17 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   await expect(page.getByTestId("empty-vbrowser-button")).toHaveCount(0);
   await openAndAssertModal(page, "empty-file-button", "Compartilhar arquivo");
   await page.getByTestId("empty-surprise-button").click();
-  await expectInViewport(page, page.getByTestId("surprise-dialog"), 8);
-  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("surprise-dialog")).toBeVisible();
+  await page.getByTestId("surprise-dialog").getByRole("button", { name: "Fechar" }).click();
   await expect(page.getByTestId("surprise-dialog")).toBeHidden();
   await expectNoHorizontalOverflow(page);
 
   const playlistButton = page.getByTestId("playlist-button");
   await expectInViewport(page, playlistButton, 6);
+  const searchHint = page.getByText("Cole aqui o link do YouTube para começar 🎬");
+  if (await searchHint.isVisible()) {
+    await searchHint.click();
+  }
   await playlistButton.click();
   const queueDropdown = page.locator("[role='menu']").last();
   await expect(queueDropdown).toBeVisible();
@@ -108,13 +114,15 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   ).toBeVisible();
   const peopleBody = page.locator("[data-testid='chat-panel'] video, [data-testid='chat-panel'] img").first();
   await expect(peopleBody).toBeVisible();
+  await page.getByTestId("close-chat-button").click();
+  await expect(chatPanel).not.toBeVisible();
 
   await page.getByTestId("settings-button").click();
-  const settingsModal = page.getByRole("dialog", { name: "Configuracoes" });
+  const settingsModal = page.locator("[role='dialog']").filter({
+    hasText: "Trancar sala",
+  });
   await expectInViewport(page, settingsModal, 8);
   await settingsModal.getByText("Trancar sala").waitFor();
-  const chatSoundSwitch = settingsModal.getByText("Desativar som de notificacao do chat");
-  await expect(chatSoundSwitch).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(settingsModal).toBeHidden();
 

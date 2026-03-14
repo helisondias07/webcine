@@ -7,6 +7,8 @@
 .modalBody {
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 0;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--accent-warm) 70%, black) transparent;
@@ -70,7 +72,7 @@
 .typeButton {
   border: 1px solid var(--border-soft);
   border-radius: 12px;
-  padding: 13px 12px;
+  padding: 10px 12px;
   background: #121212;
   color: var(--text-primary);
   font-weight: 600;
@@ -117,8 +119,8 @@
   color: var(--text-primary);
   padding: 8px 12px;
   cursor: pointer;
-  animation: chipFade 240ms ease backwards;
-  transition: transform 120ms ease, border-color 120ms ease;
+  animation: fadeIn 0.3s ease both;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
 .chip:hover,
@@ -301,6 +303,23 @@
   justify-content: flex-end;
 }
 
+.loadingButton {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.selectionClosing {
+  animation: selectionClose 0.2s ease forwards;
+}
+
+.resultFooterCounter {
+  margin-top: 10px;
+  border-top: 0.5px solid #2e2e2e;
+  padding-top: 8px;
+  color: #555;
+  font-size: 12px;
+}
+
 .shake {
   animation: shakeX 280ms ease;
 }
@@ -351,14 +370,54 @@
 @keyframes popIn {
   0% {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.93);
   }
-  70% {
-    opacity: 1;
-    transform: scale(1.03);
+  60% {
+    transform: scale(1.02);
   }
   100% {
+    opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes bannerFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes posterPop {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes selectionClose {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
   }
 }
 
@@ -388,6 +447,293 @@
   80% {
     transform: translateX(4px);
   }
+}
+
+.immersiveContent {
+  background: #111;
+  border: 0.5px solid #2e2e2e;
+  border-radius: 14px;
+  max-width: min(1100px, calc(100vw - 32px));
+  width: min(1100px, calc(100vw - 32px));
+  overflow: hidden;
+}
+
+.immersiveBody {
+  padding: 0;
+  overflow: hidden;
+}
+
+.immersiveRoot {
+  position: relative;
+  min-height: 620px;
+  color: #fff;
+  animation: popIn 0.42s ease both;
+}
+
+.immersiveBackgroundLayers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.immersiveBanner {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center center;
+  filter: blur(1.5px) brightness(0.34) saturate(1.08);
+  transform: scale(1.06);
+  animation: bannerFade 0.8s ease both;
+}
+
+.immersiveOverlayHorizontal {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(5, 5, 5, 0.88) 0%,
+    rgba(5, 5, 5, 0.5) 50%,
+    rgba(5, 5, 5, 0.16) 100%
+  );
+}
+
+.immersiveOverlayVertical {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(5, 5, 5, 0.42) 0%,
+    rgba(5, 5, 5, 0.2) 36%,
+    transparent 74%
+  );
+}
+
+.immersiveMain {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 2rem;
+  padding: 2.5rem;
+  align-items: flex-start;
+}
+
+.immersivePoster {
+  width: 220px;
+  height: 320px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+  animation: posterPop 0.5s ease 0.1s both;
+  transition: transform 0.2s ease;
+}
+
+.immersivePoster:hover {
+  transform: scale(1.04) rotate(-1deg);
+}
+
+.immersivePosterPlaceholder {
+  width: 220px;
+  height: 320px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #1a1a1a;
+  border: 0.5px solid #2e2e2e;
+}
+
+.immersiveInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.immersiveTag {
+  color: #d4a017;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.immersiveInfo h3 {
+  margin: 8px 0 0;
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.immersiveMeta {
+  margin: 8px 0 0;
+  font-size: 16px;
+  color: #888;
+}
+
+.immersiveRating {
+  margin: 8px 0 0;
+  color: #d4a017;
+  font-size: 20px;
+}
+
+.immersiveSynopsisDesktop,
+.immersiveSynopsisMobile {
+  margin: 14px 0;
+  font-size: 16px;
+  color: #bbb;
+  line-height: 1.6;
+  max-width: 640px;
+}
+
+.immersiveSynopsisMobile {
+  display: none;
+}
+
+.immersivePlatformBadge {
+  background: #0f2a12;
+  border: 0.5px solid #1e5d2a;
+  color: #67d77f;
+}
+
+.immersiveButtons {
+  margin-top: 18px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.immersiveButtons :global(button) {
+  border: 0.5px solid #2e2e2e;
+}
+
+.immersiveButtons :global(button[data-variant='default']) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+}
+
+.immersivePrimaryButton {
+  background: #d4a017;
+  color: #0d0d0d;
+  border-color: transparent;
+}
+
+.immersivePrimaryButton:disabled {
+  opacity: 0.6;
+}
+
+.immersiveSecondaryButton {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ccc;
+  border: 0.5px solid #2e2e2e;
+}
+
+.immersiveCloseButton {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.immersiveFooter {
+  position: relative;
+  z-index: 2;
+  border-top: 0.5px solid #2e2e2e;
+  padding: 1rem 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #555;
+  font-size: 14px;
+}
+
+.historyContent {
+  background: #111;
+  border: 0.5px solid #2e2e2e;
+}
+
+.historyBody {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.historyLoginBanner {
+  margin-bottom: 10px;
+  background: #1a1a1a;
+  border: 0.5px solid #2e2e2e;
+  color: #d0d0d0;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+}
+
+.historyPosterWrap {
+  width: 38px;
+  height: 54px;
+  flex: 0 0 auto;
+}
+
+.historyItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #111;
+  border: 0.5px solid #222;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.historyPoster {
+  width: 38px;
+  height: 54px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.historyPosterFallback {
+  width: 38px;
+  height: 54px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  border: 0.5px solid #2e2e2e;
+}
+
+.historyMeta {
+  flex: 1;
+  min-width: 0;
+}
+
+.historyMeta strong {
+  display: block;
+  font-size: 13px;
+}
+
+.historyMeta span {
+  display: block;
+  color: #888;
+  font-size: 12px;
+}
+
+.historyRating {
+  color: #d4a017;
+  font-size: 13px;
+}
+
+.historyEmpty {
+  color: #888;
+  font-size: 13px;
+  padding: 12px 0;
+}
+
+.historyFooter {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 @media only screen and (max-width: 768px) {
@@ -420,6 +766,49 @@
   .actionsRight :global(button),
   .actionsRight :global(a) {
     flex: 1;
+  }
+
+  .immersiveMain {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 1rem;
+  }
+
+  .immersiveContent {
+    width: min(100vw - 14px, 100%);
+    max-width: min(100vw - 14px, 100%);
+  }
+
+  .immersivePoster,
+  .immersivePosterPlaceholder {
+    width: 90px;
+    height: 130px;
+  }
+
+  .immersiveSynopsisDesktop {
+    display: none;
+  }
+
+  .immersiveSynopsisMobile {
+    display: block;
+  }
+
+  .immersiveButtons {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .immersiveButtons :global(button) {
+    width: 100%;
+  }
+
+  .immersiveFooter {
+    padding: 0.75rem 1rem;
+  }
+
+  .immersiveBanner {
+    filter: blur(2px) brightness(0.18);
   }
 }
 

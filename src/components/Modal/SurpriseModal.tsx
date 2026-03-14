@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Badge, Button, Group, Modal, Text } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -8,6 +8,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { serverPath } from "../../utils/utils";
+import { MetadataContext } from "../../MetadataContext";
 import styles from "./SurpriseModal.module.css";
 
 type SurpriseType = "video" | "movie";
@@ -19,6 +20,8 @@ type VideoCategoryKey =
   | "clipe-de-musica"
   | "stand-up"
   | "documentario"
+  | "culinaria"
+  | "viral-trending"
   | "aleatorio";
 
 type VideoResult = {
@@ -53,6 +56,8 @@ type MovieDetailsResponse = {
     genres?: { id: number; name: string }[];
   };
   watchLink: string;
+  watchLinkType?: "direct" | "tmdb_fallback";
+  watchLinkProvider?: string;
   platform: {
     id: number;
     name: string;
@@ -60,21 +65,37 @@ type MovieDetailsResponse = {
   } | null;
 };
 
+type ErrorKind = "none" | "no_results" | "api" | "network";
+
+type HistoryItem = {
+  movieId: number;
+  title: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  rating: number | null;
+  platform: string | null;
+  watchedAt: string;
+};
+
 const VIDEO_CATEGORIES: { key: VideoCategoryKey; label: string }[] = [
-  { key: "tente-nao-rir", label: "Tente não rir" },
-  { key: "gaming", label: "Gaming" },
-  { key: "clipe-de-musica", label: "Clipe de música" },
-  { key: "stand-up", label: "Stand-up" },
-  { key: "documentario", label: "Documentário" },
-  { key: "aleatorio", label: "Aleatório" },
+  { key: "tente-nao-rir", label: "😂 Tente não rir" },
+  { key: "gaming", label: "🎮 Gameplay" },
+  { key: "clipe-de-musica", label: "🎵 Clipe de música" },
+  { key: "stand-up", label: "🎤 Stand-up" },
+  { key: "documentario", label: "🌍 Documentário" },
+  { key: "culinaria", label: "🍳 Culinária" },
+  { key: "viral-trending", label: "🔥 Viral / Trending" },
+  { key: "aleatorio", label: "🎲 Aleatório" },
 ];
 
 const MOVIE_GENRES = [
-  { key: "28", label: "Ação" },
-  { key: "35", label: "Comédia" },
-  { key: "27", label: "Terror" },
-  { key: "10749", label: "Romance" },
-  { key: "any", label: "Qualquer" },
+  { key: "28", label: "⚔️ Ação" },
+  { key: "35", label: "😂 Comédia" },
+  { key: "27", label: "👻 Terror" },
+  { key: "10749", label: "💕 Romance" },
+  { key: "any", label: "🎲 Qualquer" },
+  { key: "16", label: "🎭 Animação" },
+  { key: "53", label: "🔪 Suspense" },
 ] as const;
 
 const MOVIE_PLATFORMS = [
@@ -82,8 +103,8 @@ const MOVIE_PLATFORMS = [
   { key: "prime-video", label: "Prime Video" },
   { key: "disney-plus", label: "Disney+" },
   { key: "globoplay", label: "Globoplay" },
-  { key: "paramount-plus", label: "Paramount+" },
-  { key: "max", label: "Max" },
+  { key: "hbo-max", label: "HBO Max" },
+  { key: "appletv", label: "Apple TV+" },
 ] as const;
 
 const LOADING_MESSAGES = [
@@ -93,6 +114,8 @@ const LOADING_MESSAGES = [
 ];
 
 const PLATFORMS_STORAGE_KEY = "wc_platforms";
+const GENRE_STORAGE_KEY = "wc_surprise_genre";
+const LOCAL_HISTORY_STORAGE_KEY = "wc_movie_history";
 
 function shuffle<T>(list: T[]) {
   const copy = [...list];
@@ -122,23 +145,56 @@ function formatStars(voteAverage: number) {
   return `${"\u2605".repeat(full)}${half ? "½" : ""}${"\u2606".repeat(empty)}`;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(`${serverPath}${url}`);
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${serverPath}${url}`, init);
+  } catch {
+    throw new Error("network_error");
+  }
   const contentType = response.headers.get("content-type") || "";
   const raw = await response.text();
   if (!contentType.includes("application/json")) {
-    throw new Error("Servidor indisponível no momento. Tente novamente.");
+    throw new Error("api_error");
   }
   let data: any = null;
   try {
     data = raw ? JSON.parse(raw) : {};
   } catch {
-    throw new Error("Resposta inválida do servidor. Tente novamente.");
+    throw new Error("api_error");
   }
   if (!response.ok) {
-    throw new Error(String(data?.message ?? "Erro ao carregar dados."));
+    throw new Error(String(data?.message ?? data?.error ?? "api_error"));
   }
   return data as T;
+}
+
+function formatRelativeDate(input: string) {
+  const value = new Date(input);
+  if (Number.isNaN(value.getTime())) {
+    return "Data indisponível";
+  }
+  const now = new Date();
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startValue = new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate(),
+  );
+  const diffDays = Math.round(
+    (startNow.getTime() - startValue.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  const timeText = value.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (diffDays <= 0) {
+    return `Hoje às ${timeText}`;
+  }
+  if (diffDays === 1) {
+    return `Ontem às ${timeText}`;
+  }
+  return `${diffDays} dias atrás`;
 }
 
 export const SurpriseModal = ({
@@ -150,34 +206,55 @@ export const SurpriseModal = ({
   onClose: () => void;
   onPlayTogether: (url: string) => void;
 }) => {
+  const metadata = useContext(MetadataContext);
+  const user = metadata.user;
   const [surpriseType, setSurpriseType] = useState<SurpriseType>("video");
   const [flowState, setFlowState] = useState<FlowState>("setup");
+  const [errorKind, setErrorKind] = useState<ErrorKind>("none");
   const [errorMessage, setErrorMessage] = useState("");
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [validationShake, setValidationShake] = useState(false);
 
   const [videoCategory, setVideoCategory] = useState<VideoCategoryKey>("aleatorio");
   const [videoResult, setVideoResult] = useState<VideoResult | null>(null);
+  const [videoCounter, setVideoCounter] = useState({ current: 0, total: 0 });
 
   const [movieGenre, setMovieGenre] = useState<string>("any");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [movieResult, setMovieResult] = useState<MovieDetailsResponse | null>(null);
+  const [movieCounter, setMovieCounter] = useState({ current: 0, total: 0 });
+
+  const [selectionOpen, setSelectionOpen] = useState(false);
+  const [selectionClosing, setSelectionClosing] = useState(false);
+  const [movieModalOpen, setMovieModalOpen] = useState(false);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const lastClickRef = useRef(0);
   const runningRef = useRef(false);
   const videoCacheRef = useRef<Record<string, VideoResult[]>>({});
   const videoUsedRef = useRef<Record<string, Set<string>>>({});
   const moviePoolCacheRef = useRef<Record<string, MovieListItem[]>>({});
+  const movieTotalRef = useRef<Record<string, number>>({});
   const movieUsedRef = useRef<Record<string, Set<number>>>({});
   const movieDetailsCacheRef = useRef<Record<number, MovieDetailsResponse>>({});
 
   useEffect(() => {
     if (!opened) {
+      setSelectionOpen(false);
+      setMovieModalOpen(false);
+      setHistoryOpen(false);
       setFlowState("setup");
+      setErrorKind("none");
       setErrorMessage("");
       setValidationShake(false);
+      setSelectionClosing(false);
+      runningRef.current = false;
       return;
     }
+    setSelectionOpen(true);
     try {
       const saved = JSON.parse(window.localStorage.getItem(PLATFORMS_STORAGE_KEY) || "[]");
       if (Array.isArray(saved)) {
@@ -188,12 +265,42 @@ export const SurpriseModal = ({
     } catch {
       setSelectedPlatforms([]);
     }
+    const savedGenre = window.localStorage.getItem(GENRE_STORAGE_KEY) || "any";
+    setMovieGenre(savedGenre);
   }, [opened]);
+
+  const closeAllSurprise = () => {
+    setSelectionClosing(false);
+    setSelectionOpen(false);
+    setMovieModalOpen(false);
+    setHistoryOpen(false);
+    setHistoryLoading(false);
+    setFlowState("setup");
+    setErrorKind("none");
+    setErrorMessage("");
+    setValidationShake(false);
+    runningRef.current = false;
+    onClose();
+  };
 
   const setLoadingState = () => {
     setFlowState("loading");
+    setErrorKind("none");
     setErrorMessage("");
     setLoadingMessageIndex((prev) => (prev + 1) % LOADING_MESSAGES.length);
+  };
+
+  const mapError = (error: any) => {
+    if (!window.navigator.onLine || String(error?.message ?? "") === "network_error") {
+      return {
+        kind: "network" as ErrorKind,
+        message: "Verifique sua conexão e tente novamente.",
+      };
+    }
+    return {
+      kind: "api" as ErrorKind,
+      message: "Serviço temporariamente indisponível. Tente novamente em instantes.",
+    };
   };
 
   const getMovieCacheKey = () => {
@@ -203,6 +310,21 @@ export const SurpriseModal = ({
 
   const pickVideoResult = async () => {
     const category = videoCategory;
+    if (category === "aleatorio") {
+      const payload = await fetchJson<{ category: string; items: VideoResult[] }>(
+        `/surprise/video?category=${encodeURIComponent(category)}`,
+      );
+      const pool = shuffle(payload.items || []);
+      if (!pool.length) {
+        return null;
+      }
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      setVideoCounter({
+        current: 1,
+        total: pool.length,
+      });
+      return picked;
+    }
     if (!videoCacheRef.current[category]) {
       const payload = await fetchJson<{ category: string; items: VideoResult[] }>(
         `/surprise/video?category=${encodeURIComponent(category)}`,
@@ -226,22 +348,28 @@ export const SurpriseModal = ({
       }
       const picked = refreshed[Math.floor(Math.random() * refreshed.length)];
       videoUsedRef.current[category].add(picked.id);
+      setVideoCounter({
+        current: videoUsedRef.current[category].size,
+        total: refreshed.length,
+      });
       return picked;
     }
     const picked = available[Math.floor(Math.random() * available.length)];
     usedSet.add(picked.id);
     videoUsedRef.current[category] = usedSet;
+    setVideoCounter({ current: usedSet.size, total: pool.length });
     return picked;
   };
 
   const fetchMoviePool = async () => {
     const providers = selectedPlatforms.join("|");
     const genre = movieGenre === "any" ? "any" : movieGenre;
-    const payload = await fetchJson<{ results: MovieListItem[] }>(
+    const payload = await fetchJson<{ results: MovieListItem[]; totalResults?: number }>(
       `/surprise/movies?genre=${encodeURIComponent(genre)}&providers=${encodeURIComponent(providers)}`,
     );
     const key = getMovieCacheKey();
     moviePoolCacheRef.current[key] = shuffle(payload.results || []);
+    movieTotalRef.current[key] = Number(payload.totalResults ?? payload.results?.length ?? 0);
     movieUsedRef.current[key] = movieUsedRef.current[key] || new Set<number>();
   };
 
@@ -263,6 +391,10 @@ export const SurpriseModal = ({
     const selected = available[Math.floor(Math.random() * available.length)];
     used.add(selected.id);
     movieUsedRef.current[key] = used;
+    setMovieCounter({
+      current: used.size,
+      total: movieTotalRef.current[key] || (moviePoolCacheRef.current[key]?.length ?? 0),
+    });
     return selected;
   };
 
@@ -278,18 +410,121 @@ export const SurpriseModal = ({
     return payload;
   };
 
+  const openMovieResultModal = (details: MovieDetailsResponse) => {
+    setMovieResult(details);
+    setSelectionClosing(true);
+    window.setTimeout(() => {
+      setSelectionOpen(false);
+      setSelectionClosing(false);
+      setMovieModalOpen(true);
+      setFlowState("setup");
+    }, 200);
+  };
+
+  const handleGenreSelect = (value: string) => {
+    setMovieGenre(value);
+    window.localStorage.setItem(GENRE_STORAGE_KEY, value);
+  };
+
+  const getAuthHeaders = async () => {
+    if (!user) {
+      return null;
+    }
+    const token = await user.getIdToken();
+    return {
+      Authorization: `Bearer ${token}`,
+      "X-User-Uid": user.uid,
+      "Content-Type": "application/json",
+    };
+  };
+
+  const readLocalHistory = (): HistoryItem[] => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_HISTORY_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveLocalHistory = (item: HistoryItem) => {
+    const current = readLocalHistory().filter((entry) => entry.movieId !== item.movieId);
+    const next = [item, ...current].slice(0, 20);
+    window.localStorage.setItem(LOCAL_HISTORY_STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const persistMovieHistory = async () => {
+    if (!movieResult?.movie) {
+      return;
+    }
+    const payload: HistoryItem = {
+      movieId: movieResult.movie.id,
+      title: movieResult.movie.title,
+      poster_path: movieResult.movie.poster_path,
+      backdrop_path: movieResult.movie.backdrop_path,
+      rating: Number(movieResult.movie.vote_average?.toFixed(1) || 0),
+      platform: movieResult.platform?.name ?? null,
+      watchedAt: new Date().toISOString(),
+    };
+    if (!user) {
+      saveLocalHistory(payload);
+      return;
+    }
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers) {
+        saveLocalHistory(payload);
+        return;
+      }
+      await fetchJson<{ ok: boolean }>("/history/movie", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      saveLocalHistory(payload);
+    }
+  };
+
+  const openHistory = async () => {
+    setHistoryLoading(true);
+    setHistoryOpen(true);
+    try {
+      if (!user) {
+        setHistoryItems(readLocalHistory());
+        return;
+      }
+      const headers = await getAuthHeaders();
+      if (!headers) {
+        setHistoryItems(readLocalHistory());
+        return;
+      }
+      const payload = await fetchJson<{ items: HistoryItem[] }>("/history/movies", {
+        headers,
+      });
+      setHistoryItems(Array.isArray(payload.items) ? payload.items : []);
+    } catch {
+      setHistoryItems(readLocalHistory());
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const runSurprise = async () => {
     const now = Date.now();
     if (runningRef.current || now - lastClickRef.current < 650) {
       return;
     }
     lastClickRef.current = now;
+    setErrorKind("none");
     setErrorMessage("");
 
     if (surpriseType === "movie" && selectedPlatforms.length === 0) {
       setValidationShake(true);
       window.setTimeout(() => setValidationShake(false), 360);
-      setErrorMessage("Selecione ao menos uma plataforma para continuar.");
+      setErrorKind("no_results");
+      setErrorMessage("Nenhum filme encontrado. Tente outro gênero ou plataforma.");
       return;
     }
     runningRef.current = true;
@@ -301,6 +536,8 @@ export const SurpriseModal = ({
         if (!picked) {
           setFlowState("empty");
           setVideoResult(null);
+          setErrorKind("no_results");
+          setErrorMessage("Nenhum vídeo encontrado com esses filtros.");
           return;
         }
         setVideoResult(picked);
@@ -312,14 +549,17 @@ export const SurpriseModal = ({
       if (!movie) {
         setFlowState("empty");
         setMovieResult(null);
+        setErrorKind("no_results");
+        setErrorMessage("Nenhum filme encontrado. Tente outro gênero ou plataforma.");
         return;
       }
       const details = await resolveMovieDetails(movie.id);
-      setMovieResult(details);
-      setFlowState("result");
+      openMovieResultModal(details);
     } catch (error: any) {
       setFlowState("setup");
-      setErrorMessage(String(error?.message ?? "Não foi possível buscar sugestões agora."));
+      const mapped = mapError(error);
+      setErrorKind(mapped.kind);
+      setErrorMessage(mapped.message);
     } finally {
       runningRef.current = false;
     }
@@ -327,6 +567,7 @@ export const SurpriseModal = ({
 
   const resetToStepOne = () => {
     setFlowState("setup");
+    setErrorKind("none");
     setErrorMessage("");
   };
 
@@ -342,15 +583,25 @@ export const SurpriseModal = ({
   const movieMainGenre = currentMovie?.genres?.[0]?.name ?? "-";
   const movieYear = currentMovie?.release_date?.slice(0, 4) || "-";
   const movieDuration = currentMovie?.runtime ? `${currentMovie.runtime} min` : "Duração n/d";
+  const canShowRetry = errorKind === "api" || errorKind === "network";
+  const movieOverview = useMemo(
+    () => truncate(currentMovie?.overview || "Sem sinopse disponível.", 160),
+    [currentMovie?.overview],
+  );
+  const movieOverviewMobile = useMemo(
+    () => truncate(currentMovie?.overview || "Sem sinopse disponível.", 100),
+    [currentMovie?.overview],
+  );
 
   return (
+    <>
     <Modal
-      opened={opened}
-      onClose={onClose}
+      opened={selectionOpen}
+      onClose={closeAllSurprise}
       centered
       withCloseButton={false}
-      closeOnClickOutside
-      closeOnEscape
+      closeOnClickOutside={false}
+      closeOnEscape={false}
       transitionProps={{
         transition: "fade",
         duration: 180,
@@ -358,7 +609,7 @@ export const SurpriseModal = ({
       }}
       overlayProps={{ opacity: 0.82, blur: 0 }}
       classNames={{
-        content: styles.modalContent,
+        content: `${styles.modalContent} ${selectionClosing ? styles.selectionClosing : ""}`,
         body: styles.modalBody,
       }}
       size={surpriseType === "movie" ? 860 : 760}
@@ -371,7 +622,12 @@ export const SurpriseModal = ({
         aria-modal="true"
         aria-label="Descobrir conteúdo"
       >
-        <button type="button" className={styles.closeButton} onClick={onClose} aria-label="Fechar">
+        <button
+          type="button"
+          className={styles.closeButton}
+          onClick={closeAllSurprise}
+          aria-label="Fechar"
+        >
           <IconX size={18} />
         </button>
 
@@ -389,7 +645,7 @@ export const SurpriseModal = ({
               setFlowState("setup");
             }}
           >
-            <IconVideo size={20} />
+            <IconVideo size={18} />
             Vídeo
           </button>
           <button
@@ -400,7 +656,7 @@ export const SurpriseModal = ({
               setFlowState("setup");
             }}
           >
-            <IconMovie size={20} />
+            <IconMovie size={18} />
             Filme
           </button>
         </div>
@@ -414,7 +670,7 @@ export const SurpriseModal = ({
                   key={item.key}
                   type="button"
                   className={`${styles.chip} ${videoCategory === item.key ? styles.chipActive : ""}`}
-                  style={{ animationDelay: `${index * 0.04}s` }}
+                  style={{ animationDelay: `${index * 0.05}s` }}
                   onClick={() => setVideoCategory(item.key)}
                 >
                   {item.label}
@@ -433,8 +689,8 @@ export const SurpriseModal = ({
                   key={genre.key}
                   type="button"
                   className={`${styles.chip} ${movieGenre === genre.key ? styles.chipActive : ""}`}
-                  style={{ animationDelay: `${index * 0.04}s` }}
-                  onClick={() => setMovieGenre(genre.key)}
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                  onClick={() => handleGenreSelect(genre.key)}
                 >
                   {genre.label}
                 </button>
@@ -451,7 +707,7 @@ export const SurpriseModal = ({
                   key={platform.key}
                   type="button"
                   className={`${styles.platformChip} ${selectedPlatforms.includes(platform.key) ? styles.platformChipActive : ""}`}
-                  style={{ animationDelay: `${index * 0.04}s` }}
+                  style={{ animationDelay: `${index * 0.05}s` }}
                   onClick={() => togglePlatform(platform.key)}
                 >
                   {platform.label}
@@ -481,6 +737,11 @@ export const SurpriseModal = ({
               <small>{formatViews(videoResult.views)} visualizações</small>
             </div>
           </article>
+        )}
+        {flowState === "result" && surpriseType === "video" && videoResult && (
+          <footer className={styles.resultFooterCounter}>
+            Sugestão {videoCounter.current} de {videoCounter.total || "-"}
+          </footer>
         )}
 
         {flowState === "result" && surpriseType === "movie" && currentMovie && (
@@ -540,6 +801,11 @@ export const SurpriseModal = ({
             {errorMessage}
           </Alert>
         )}
+        {canShowRetry && (
+          <Button variant="light" color="gray" onClick={runSurprise}>
+            Tentar novamente
+          </Button>
+        )}
 
         <Group justify="space-between" className={styles.actionsRow}>
           <Button
@@ -549,7 +815,7 @@ export const SurpriseModal = ({
             onClick={resetToStepOne}
             disabled={flowState === "loading"}
           >
-            Voltar
+            {surpriseType === "video" ? "Alterar categoria" : "Alterar filtros"}
           </Button>
 
           <div className={styles.actionsRight}>
@@ -581,20 +847,199 @@ export const SurpriseModal = ({
               </Button>
             )}
 
-            {flowState !== "loading" && (
-              <Button
-                variant={flowState === "setup" ? "filled" : "light"}
-                color="webgold"
-                onClick={runSurprise}
-                disabled={runningRef.current}
-              >
-                {flowState === "setup" ? "Me surpreenda ✦" : "Outro"}
-              </Button>
-            )}
+            <Button
+              variant={flowState === "setup" ? "filled" : "light"}
+              color="webgold"
+              onClick={runSurprise}
+              disabled={runningRef.current || flowState === "loading"}
+              className={runningRef.current || flowState === "loading" ? styles.loadingButton : ""}
+            >
+              {flowState === "loading"
+                ? "Buscando..."
+                : flowState === "setup"
+                  ? "Me surpreenda ✦"
+                  : "Outro"}
+            </Button>
           </div>
         </Group>
       </section>
     </Modal>
+    <Modal
+      opened={movieModalOpen}
+      onClose={closeAllSurprise}
+      centered
+      size={1100}
+      withCloseButton={false}
+      closeOnClickOutside={false}
+      closeOnEscape={false}
+      classNames={{ content: styles.immersiveContent, body: styles.immersiveBody }}
+    >
+      {currentMovie && (
+        <section className={styles.immersiveRoot}>
+          <button
+            type="button"
+            className={styles.immersiveCloseButton}
+            onClick={closeAllSurprise}
+            aria-label="Fechar"
+          >
+            <IconX size={18} />
+          </button>
+          <div className={styles.immersiveBackgroundLayers}>
+            {currentMovie.backdrop_path && (
+              <div
+                className={styles.immersiveBanner}
+                style={{
+                  backgroundImage: `url(https://image.tmdb.org/t/p/w1280${currentMovie.backdrop_path})`,
+                }}
+              />
+            )}
+            <div className={styles.immersiveOverlayHorizontal} />
+            <div className={styles.immersiveOverlayVertical} />
+          </div>
+          <div className={styles.immersiveMain}>
+            {currentMovie.poster_path ? (
+              <img
+                src={`https://image.tmdb.org/t/p/w342${currentMovie.poster_path}`}
+                alt={currentMovie.title}
+                className={styles.immersivePoster}
+              />
+            ) : (
+              <div className={styles.immersivePosterPlaceholder}>Sem poster</div>
+            )}
+            <div className={styles.immersiveInfo}>
+              <div className={styles.immersiveTag}>Sugestão para você</div>
+              <h3>{currentMovie.title}</h3>
+              <p className={styles.immersiveMeta}>
+                {movieYear} • {movieDuration} • {movieMainGenre}
+              </p>
+              <p className={styles.immersiveRating}>
+                {formatStars(currentMovie.vote_average)} {currentMovie.vote_average.toFixed(1)}/10
+              </p>
+              <p className={styles.immersiveSynopsisDesktop}>{movieOverview}</p>
+              <p className={styles.immersiveSynopsisMobile}>{movieOverviewMobile}</p>
+              {movieResult?.platform ? (
+                <Badge className={styles.immersivePlatformBadge}>{movieResult.platform.name}</Badge>
+              ) : (
+                <Badge color="gray">Disponibilidade não encontrada</Badge>
+              )}
+              <div className={styles.immersiveButtons}>
+                <Button
+                  color="webgold"
+                  className={styles.immersivePrimaryButton}
+                  disabled={!movieResult?.watchLink || !movieResult.platform}
+                  onClick={async () => {
+                    if (movieResult?.watchLink) {
+                      window.open(movieResult.watchLink, "_blank", "noopener,noreferrer");
+                    }
+                    await persistMovieHistory();
+                  }}
+                >
+                  {movieResult?.platform ? `Assistir na ${movieResult.platform.name} ↗` : "Assistir indisponível"}
+                </Button>
+                <Button variant="default" className={styles.immersiveSecondaryButton} onClick={runSurprise}>
+                  Outro filme
+                </Button>
+                <Button
+                  variant="default"
+                  className={styles.immersiveSecondaryButton}
+                  onClick={() => {
+                    setMovieModalOpen(false);
+                    setSelectionOpen(true);
+                    setFlowState("setup");
+                  }}
+                >
+                  Alterar filtros
+                </Button>
+              </div>
+            </div>
+          </div>
+          <footer className={styles.immersiveFooter}>
+            <span>Sugestão {movieCounter.current} de {movieCounter.total || "-"}</span>
+            {user && (
+              <Button variant="subtle" color="gray" onClick={() => void openHistory()}>
+                🕐 Ver histórico
+              </Button>
+            )}
+          </footer>
+        </section>
+      )}
+    </Modal>
+    <Modal
+      opened={historyOpen}
+      onClose={() => setHistoryOpen(false)}
+      centered
+      size={460}
+      closeOnClickOutside={false}
+      closeOnEscape={false}
+      title="🕐 Histórico de filmes"
+      classNames={{ content: styles.historyContent, body: styles.historyBody }}
+    >
+      {!user && (
+        <Alert color="yellow" className={styles.historyLoginBanner}>
+          Faça login para salvar seu histórico permanentemente.
+          <div>
+            <Button
+              size="xs"
+              variant="light"
+              mt={8}
+              onClick={() => {
+                setHistoryOpen(false);
+                window.dispatchEvent(new CustomEvent("webcinetv-open-login"));
+              }}
+            >
+              Entrar
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {historyLoading ? (
+        <Text c="dimmed">Carregando histórico...</Text>
+      ) : historyItems.length === 0 ? (
+        <div className={styles.historyEmpty}>
+          Nenhum filme assistido ainda. Clique em &quot;Me surpreenda&quot; para começar!
+        </div>
+      ) : (
+        <div className={styles.historyList}>
+          {historyItems.map((item) => (
+            <article key={`${item.movieId}-${item.watchedAt}`} className={styles.historyItem}>
+              <div className={styles.historyPosterWrap}>
+                {item.poster_path ? (
+                  <img
+                    src={`https://image.tmdb.org/t/p/w154${item.poster_path}`}
+                    alt={item.title}
+                    className={styles.historyPoster}
+                  />
+                ) : (
+                  <div className={styles.historyPosterFallback}>—</div>
+                )}
+              </div>
+              <div className={styles.historyMeta}>
+                <strong>{item.title}</strong>
+                <span>
+                  {formatRelativeDate(item.watchedAt)} • {item.platform || "Plataforma n/d"}
+                </span>
+              </div>
+              <div className={styles.historyRating}>★ {item.rating?.toFixed(1) ?? "-"}</div>
+            </article>
+          ))}
+        </div>
+      )}
+      <div className={styles.historyFooter}>
+        <Button
+          variant="light"
+          color="webgold"
+          onClick={() => {
+            setHistoryOpen(false);
+            setMovieModalOpen(false);
+            setSelectionOpen(true);
+            setFlowState("setup");
+          }}
+        >
+          Nova sugestão ✦
+        </Button>
+      </div>
+    </Modal>
+    </>
   );
 };
 

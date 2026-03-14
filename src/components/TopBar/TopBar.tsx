@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { serverPath, getUserImage } from "../../utils/utils";
 import { Avatar, Button } from "@mantine/core";
 import firebase from "firebase/compat/app";
@@ -40,6 +40,7 @@ export async function createRoom(
     video?: string;
     username?: string;
     roomSlug?: string;
+    roomTitle?: string;
   },
 ) {
   const uid = user?.uid;
@@ -48,6 +49,7 @@ export async function createRoom(
     options?.roomSlug && roomSlugPattern.test(options.roomSlug)
       ? options.roomSlug
       : "";
+  const roomTitle = normalizeDisplayName(options?.roomTitle ?? "").slice(0, 40);
   let response: Response;
   try {
     response = await fetch(serverPath + "/createRoom", {
@@ -61,6 +63,7 @@ export async function createRoom(
         video: options?.video ?? "",
         username: options?.username ?? "",
         roomSlug,
+        roomTitle,
       }),
     });
   } catch {
@@ -92,6 +95,7 @@ export async function createRoom(
 export const NewRoomButton = (props: {
   size?: string;
   openNewTab?: boolean;
+  roomTitle?: string;
 }) => {
   const context = useContext(MetadataContext);
   const [isCreating, setIsCreating] = useState(false);
@@ -107,6 +111,7 @@ export const NewRoomButton = (props: {
       await createRoom(context.user, props.openNewTab, {
         username: cleanName,
         roomSlug,
+        roomTitle: props.roomTitle,
       });
     } catch (e: any) {
       const message =
@@ -157,9 +162,16 @@ export class SignInButton extends React.Component<SignInButtonProps> {
     }
   };
 
+  onOpenLoginRequested = () => {
+    if (!this.context.user) {
+      this.setState({ isLoginOpen: true });
+    }
+  };
+
   componentDidMount() {
     void this.loadUserImage();
     window.addEventListener("watchparty-profile-updated", this.onProfileUpdated);
+    window.addEventListener("webcinetv-open-login", this.onOpenLoginRequested);
   }
 
   componentWillUnmount() {
@@ -167,6 +179,7 @@ export class SignInButton extends React.Component<SignInButtonProps> {
       "watchparty-profile-updated",
       this.onProfileUpdated,
     );
+    window.removeEventListener("webcinetv-open-login", this.onOpenLoginRequested);
   }
 
   async componentDidUpdate(prevProps: SignInButtonProps) {
@@ -246,9 +259,36 @@ export const TopBar = (props: {
   roomTitle?: string;
   roomDescription?: string;
   roomTitleColor?: string;
+  roomTitleEditable?: boolean;
+  onRoomTitleCommit?: (nextTitle: string) => void;
 }) => {
+  const titleText = useMemo(
+    () => normalizeDisplayName(props.roomTitle ?? "").slice(0, 40),
+    [props.roomTitle],
+  );
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(titleText);
+
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setTitleDraft(titleText);
+    }
+  }, [isEditingTitle, titleText]);
+
+  const commitRoomTitle = () => {
+    const next = normalizeDisplayName(titleDraft).slice(0, 40);
+    setIsEditingTitle(false);
+    if (next !== titleText) {
+      props.onRoomTitleCommit?.(next);
+    }
+  };
+
   return (
-    <div className={styles.topbar} data-testid="topbar">
+    <div
+      className={styles.topbar}
+      data-testid="topbar"
+      data-has-room-title={titleText ? "true" : "false"}
+    >
       <div className={styles.topbarInner}>
         <div className={styles.leftControls}>
           <ThemeToggle />
@@ -265,6 +305,52 @@ export const TopBar = (props: {
             {!props.hideSignin && <SignInButton />}
           </div>
         </div>
+        {titleText && (
+          <div className={styles.roomTitleWrap}>
+            {isEditingTitle ? (
+              <input
+                className={styles.roomTitleInput}
+                value={titleDraft}
+                maxLength={40}
+                autoFocus
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={commitRoomTitle}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitRoomTitle();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    setTitleDraft(titleText);
+                    setIsEditingTitle(false);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                className={`${styles.roomTitleText} ${
+                  props.roomTitleEditable ? styles.roomTitleEditable : ""
+                }`}
+                style={{ color: props.roomTitleColor || undefined }}
+                title={
+                  props.roomTitleEditable
+                    ? "Clique para editar o nome da sala"
+                    : titleText
+                }
+                onClick={() => {
+                  if (!props.roomTitleEditable) {
+                    return;
+                  }
+                  setTitleDraft(titleText);
+                  setIsEditingTitle(true);
+                }}
+              >
+                {titleText}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

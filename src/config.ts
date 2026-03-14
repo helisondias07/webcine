@@ -13,9 +13,32 @@ const firebaseFromSplitVars = (() => {
   });
 })();
 
+const sanitizedServerHost = (() => {
+  const raw = String(import.meta.env.VITE_SERVER_HOST ?? "").trim();
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    const isLoopback =
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+    // Prevent production builds from accidentally calling localhost on user devices.
+    if (!import.meta.env.DEV && isLoopback) {
+      return "";
+    }
+    return parsed.origin;
+  } catch {
+    return "";
+  }
+})();
+
 export default {
   VITE_APP_NAME: import.meta.env.VITE_APP_NAME ?? "WebCineTV",
-  VITE_SERVER_HOST: import.meta.env.VITE_SERVER_HOST,
+  VITE_SERVER_HOST: sanitizedServerHost,
   VITE_OAUTH_REDIRECT_HOSTNAME:
     import.meta.env.VITE_OAUTH_REDIRECT_HOSTNAME ?? window.location.origin,
   VITE_FIREBASE_CONFIG:

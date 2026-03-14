@@ -185,10 +185,11 @@ export const STREAMING_DOMAINS = [
   "netflix.com",
   "primevideo.com",
   "globoplay.globo.com",
-  "crunchyroll.com",
+  "play.hbomax.com",
   "hbomax.com",
   "max.com",
   "disneyplus.com",
+  "tv.apple.com",
 ];
 
 export const isStreamingPlatformUrl = (input: string) => {

@@ -74,6 +74,7 @@ export const Home = () => {
     shouldSplitHeroOnMobile(),
   );
   const [page, setPage] = useState(0);
+  const [roomTitle, setRoomTitle] = useState("");
 
   useEffect(() => {
     const onResize = () => {
@@ -107,7 +108,15 @@ export const Home = () => {
                 subText="Sem precisar instalar nada nem criar contas."
                 action={
                   <div className={styles.heroAction}>
-                    <NewRoomButton size="xl" />
+                    <input
+                      type="text"
+                      className={styles.roomTitleInput}
+                      value={roomTitle}
+                      maxLength={40}
+                      placeholder="Nome da sala (opcional)"
+                      onChange={(event) => setRoomTitle(event.target.value)}
+                    />
+                    <NewRoomButton size="xl" roomTitle={roomTitle} />
                   </div>
                 }
               />
@@ -123,7 +132,15 @@ export const Home = () => {
               subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graça!"
               action={
                 <div className={styles.heroAction}>
-                  <NewRoomButton size="xl" />
+                  <input
+                    type="text"
+                    className={styles.roomTitleInput}
+                    value={roomTitle}
+                    maxLength={40}
+                    placeholder="Nome da sala (opcional)"
+                    onChange={(event) => setRoomTitle(event.target.value)}
+                  />
+                  <NewRoomButton size="xl" roomTitle={roomTitle} />
                 </div>
               }
             />

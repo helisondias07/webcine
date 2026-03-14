@@ -16,6 +16,8 @@ const defaults = {
   YOUTUBE_API_KEY: "", // Optional, provide one to enable searching YouTube
   TMDB_READ_TOKEN: "", // Optional, provide one to enable surprise movie recommendations
   TMDB_API_KEY: "", // Optional fallback for TMDB requests when read token is not configured
+  WATCHMODE_API_KEY: "", // Optional, provide one to resolve direct streaming links
+  WATCHMODE_BASE_URL: "https://api.watchmode.com", // Optional base URL override for Watchmode API
   NODE_ENV: "", // Usually, you should let process.env.NODE_ENV override this
   FIREBASE_ADMIN_SDK_CONFIG: "", // Optional, for features requiring sign-in/authentication
   FIREBASE_DATABASE_URL: "", // Optional (unused)

@@ -297,6 +297,31 @@ export const SurpriseModal = ({
         message: "Verifique sua conexão e tente novamente.",
       };
     }
+    const rawMessage = String(error?.message ?? "").trim();
+    const normalized = rawMessage.toLowerCase();
+    if (normalized === "tmdb_not_configured" || normalized === "youtube_not_configured") {
+      return {
+        kind: "api" as ErrorKind,
+        message: "Recurso indisponível no momento. Configure as credenciais da API no servidor.",
+      };
+    }
+    if (normalized === "tmdb_token_missing" || normalized === "youtube_key_missing") {
+      return {
+        kind: "api" as ErrorKind,
+        message: "Recurso indisponível no momento. Configure as credenciais da API no servidor.",
+      };
+    }
+    if (
+      rawMessage &&
+      normalized !== "api_error" &&
+      !normalized.endsWith("_failed") &&
+      !normalized.includes("network_error")
+    ) {
+      return {
+        kind: "api" as ErrorKind,
+        message: rawMessage,
+      };
+    }
     return {
       kind: "api" as ErrorKind,
       message: "Serviço temporariamente indisponível. Tente novamente em instantes.",

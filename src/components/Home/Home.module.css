@@ -112,6 +112,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 20px;
 }
 
 .heroMega .heroContent {
@@ -126,7 +127,6 @@
 
 .heroMega .subText {
   font-size: clamp(0.98rem, 1.2vw, 1.3rem);
-  margin-top: 14px;
   text-wrap: balance;
 }
 
@@ -148,7 +148,6 @@
   color: var(--text-muted);
   font-size: clamp(1.08rem, 1.35vw, 1.55rem);
   line-height: 1.45;
-  margin-top: 10px;
 }
 
 .heroAction {

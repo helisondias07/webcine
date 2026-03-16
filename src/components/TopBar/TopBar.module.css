@@ -202,6 +202,16 @@
   cursor: not-allowed;
 }
 
+.newRoomButton,
+.newRoomButton :global(.mantine-Button-root),
+.newRoomButton :global(.mantine-Button-inner),
+.newRoomButton :global(.mantine-Button-label),
+.newRoomButton :global(.mantine-Button-section) {
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+}
+
 @media only screen and (max-width: 900px) {
   .topbar {
     padding: 8px 0;

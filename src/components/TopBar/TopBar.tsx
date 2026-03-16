@@ -126,10 +126,11 @@ export const NewRoomButton = (props: {
 
   return (
     <Button
+      className={styles.newRoomButton}
       size={props.size}
       onClick={() => void submitCreateRoom()}
       leftSection={<IconCirclePlusFilled />}
-      loading={isCreating}
+      disabled={isCreating}
     >
       {t("newRoom")}
     </Button>

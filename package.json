@@ -50,7 +50,7 @@
   "devDependencies": {
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
-    "@mantine/core": "^8.3.16",
+    "@mantine/core": "^8.3.17",
     "@playwright/test": "^1.58.2",
     "@stripe/stripe-js": "^1.54.2",
     "@tabler/icons-react": "^3.40.0",

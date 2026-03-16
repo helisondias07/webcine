@@ -128,12 +128,22 @@ if (window.location.hash && window.location.pathname === "/") {
 const THEME_STORAGE_KEY = "webcinetv-theme-preference";
 
 function getStoredThemeMode(): ThemeMode {
-  // Keep startup deterministic to avoid a light->dark flicker on first paint.
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
   return "dark";
 }
 
 class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
+  private authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
+
+  componentWillUnmount() {
+    if (this.authUnsubscribe) {
+      this.authUnsubscribe();
+    }
+  }
 
   async componentDidMount() {
     runWhenIdle(() => {
@@ -147,7 +157,7 @@ class WebCineTVApp extends React.Component {
     if (firebaseConfig) {
       const bootstrapAuth = async () => {
         await import("firebase/auth");
-        firebase.auth().onAuthStateChanged(async (user: firebase.User | null) => {
+        this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user: firebase.User | null) => {
         if (user) {
           // console.log(user);
           this.setState({ user });

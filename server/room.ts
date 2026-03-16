@@ -112,6 +112,9 @@ export class Room {
       this.deserialize(roomData);
     }
 
+    if (this.tsInterval) {
+      clearInterval(this.tsInterval);
+    }
     this.tsInterval = setInterval(async () => {
       // console.log(roomId, this.video, this.roster, this.tsMap, this.nameMap);
       // Clean up the data of users who aren't in the room anymore
@@ -343,26 +346,30 @@ export class Room {
         this.changeUserPicture(socket, String(data)),
       );
       socket.on("CMD:uid", async (raw: unknown) => {
-        let data = raw as { uid: string; token: string };
-        // Called when the user logs in, sets the socket's auth state
-        if (!data || !data.uid || !data.token) {
-          return;
-        }
-        const decoded = await validateUserToken(data.uid, data.token);
-        if (decoded?.uid) {
-          // This socket is now confirmed to be this UID
-          socket.uid = decoded?.uid;
-        }
-        if (decoded?.uid) {
-          const profile = await getUserBillingProfile(decoded.uid);
-          socket.plan = profile.plan;
-          socket.entitlements = profile.entitlements;
-          socket.isSub = isSubscriberPlan(profile.plan);
-        } else {
-          const isSubscriber = await getIsSubscriberByEmail(decoded?.email);
-          socket.isSub = isSubscriber;
-          socket.plan = isSubscriber ? "premium" : "free";
-          socket.entitlements = getEntitlementsForPlan(socket.plan);
+        try {
+          let data = raw as { uid: string; token: string };
+          // Called when the user logs in, sets the socket's auth state
+          if (!data || !data.uid || !data.token) {
+            return;
+          }
+          const decoded = await validateUserToken(data.uid, data.token);
+          if (decoded?.uid) {
+            // This socket is now confirmed to be this UID
+            socket.uid = decoded?.uid;
+          }
+          if (decoded?.uid) {
+            const profile = await getUserBillingProfile(decoded.uid);
+            socket.plan = profile.plan;
+            socket.entitlements = profile.entitlements;
+            socket.isSub = isSubscriberPlan(profile.plan);
+          } else {
+            const isSubscriber = await getIsSubscriberByEmail(decoded?.email);
+            socket.isSub = isSubscriber;
+            socket.plan = isSubscriber ? "premium" : "free";
+            socket.entitlements = getEntitlementsForPlan(socket.plan);
+          }
+        } catch (e) {
+          console.error("[CMD:uid] Erro ao processar autenticação do socket:", e);
         }
       });
       socket.on("CMD:host", (data: unknown) => {
@@ -426,19 +433,31 @@ export class Room {
         validateLock() && this.changeController(String(data));
       });
       socket.on("CMD:lock", async (data: unknown) => {
-        const hasLock = validateLock();
-        const isOwner = await validateOwner();
-        (hasLock || isOwner) && this.lockRoom(socket, data);
+        try {
+          const hasLock = validateLock();
+          const isOwner = await validateOwner();
+          (hasLock || isOwner) && this.lockRoom(socket, data);
+        } catch (e) {
+          console.error("[CMD:lock] Erro:", e);
+        }
       });
       socket.on("CMD:askHost", () => {
         socket.emit("REC:host", this.getHostState());
       });
       socket.on("CMD:getRoomState", () => this.getRoomState(socket));
       socket.on("CMD:setRoomState", async (data: unknown) => {
-        (await validateOwner()) && this.setRoomState(socket, data);
+        try {
+          (await validateOwner()) && this.setRoomState(socket, data);
+        } catch (e) {
+          console.error("[CMD:setRoomState] Erro:", e);
+        }
       });
       socket.on("CMD:setRoomOwner", async (data: unknown) => {
-        (await validateOwner()) && this.setRoomOwner(socket, data);
+        try {
+          (await validateOwner()) && this.setRoomOwner(socket, data);
+        } catch (e) {
+          console.error("[CMD:setRoomOwner] Erro:", e);
+        }
       });
       socket.on("CMD:playlistNext", (data: unknown) => {
         validateLock() && this.playlistNext(data);
@@ -453,10 +472,18 @@ export class Room {
         validateLock() && this.playlistDelete(Number(data));
       });
       socket.on("CMD:kickUser", async (data: unknown) => {
-        (await validateOwner()) && this.kickUser(data);
+        try {
+          (await validateOwner()) && this.kickUser(data);
+        } catch (e) {
+          console.error("[CMD:kickUser] Erro:", e);
+        }
       });
       socket.on("CMD:deleteChatMessages", async (data: unknown) => {
-        (await validateOwner()) && this.deleteChatMessages(data);
+        try {
+          (await validateOwner()) && this.deleteChatMessages(data);
+        } catch (e) {
+          console.error("[CMD:deleteChatMessages] Erro:", e);
+        }
       });
 
       socket.on("signal", (data: unknown) =>
@@ -510,7 +537,13 @@ export class Room {
   };
 
   private deserialize = (roomData: string) => {
-    const roomObj = JSON.parse(roomData);
+    let roomObj: any;
+    try {
+      roomObj = JSON.parse(roomData);
+    } catch (e) {
+      console.error("[deserialize] Falha ao parsear roomData:", e);
+      return;
+    }
     this.video = roomObj.video;
     this.videoTS = roomObj.videoTS;
     if (roomObj.paused) {
@@ -1628,20 +1661,27 @@ export class Room {
       this.io.of(this.roomId).emit("roster", this.getRosterForApp());
       delete this.tsMap[clientId];
       delete this.socketIdMap[clientId];
+      // Cleanup nameMap/pictureMap for users with no chat messages to avoid unbounded growth
+      const hasMessages = this.chat.some((msg) => msg.id === clientId);
+      if (!hasMessages) {
+        delete this.nameMap[clientId];
+        delete this.pictureMap[clientId];
+      }
     }
-    // Keep namemap/picturemap so old chat messages still render correctly after disconnect
-    // When serializing we only write values with messages in chat
-    // This will keep growing in memory until the room is unloaded
   };
 
   private kickUser = async (raw: unknown) => {
     const data = raw as { userToBeKicked: string };
-    if (!data) {
+    if (!data || !data.userToBeKicked) {
+      return;
+    }
+    const socketId = this.socketIdMap[data.userToBeKicked];
+    if (!socketId) {
       return;
     }
     const userToBeKickedSocket = this.io
       .of(this.roomId)
-      .sockets.get(this.socketIdMap[data.userToBeKicked]);
+      .sockets.get(socketId);
     if (userToBeKickedSocket) {
       userToBeKickedSocket.emit("kicked");
       userToBeKickedSocket.disconnect();

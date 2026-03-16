@@ -417,6 +417,8 @@ export class App extends React.Component<AppProps, AppState> {
   heartbeat: number | undefined = undefined;
   syncUpdater: number | undefined = undefined;
   warningMessageTimeout: number | undefined = undefined;
+  errorMessageTimeout: number | undefined = undefined;
+  successMessageTimeout: number | undefined = undefined;
   liveReactionCleanupTimeouts = new Map<string, number>();
   liveReactionTrayHideTimeout: number | undefined = undefined;
   joinToastTimeouts = new Map<string, number>();
@@ -463,7 +465,9 @@ export class App extends React.Component<AppProps, AppState> {
     // Send heartbeat to the server
     this.heartbeat = window.setInterval(
       () => {
-        fetch(serverPath + "/ping");
+        fetch(serverPath + "/ping").catch((e) => {
+          console.warn("[heartbeat] Falha ao enviar ping:", e);
+        });
       },
       10 * 60 * 1000,
     );
@@ -624,6 +628,7 @@ export class App extends React.Component<AppProps, AppState> {
     });
     this.socket = socket;
     window.watchparty.socket = socket;
+    socket.removeAllListeners();
     socket.on("connect", async () => {
       this.setState({
         state: "connected",
@@ -667,13 +672,15 @@ export class App extends React.Component<AppProps, AppState> {
     });
     socket.on("errorMessage", (err: string) => {
       this.setState({ errorMessage: err });
-      setTimeout(() => {
+      window.clearTimeout(this.errorMessageTimeout);
+      this.errorMessageTimeout = window.setTimeout(() => {
         this.setState({ errorMessage: "" });
       }, 3000);
     });
     socket.on("successMessage", (success: string) => {
       this.setState({ successMessage: success });
-      setTimeout(() => {
+      window.clearTimeout(this.successMessageTimeout);
+      this.successMessageTimeout = window.setTimeout(() => {
         this.setState({ successMessage: "" });
       }, 3000);
     });
@@ -974,6 +981,7 @@ export class App extends React.Component<AppProps, AppState> {
             }, 1000);
           }
           if (isMagnet(currentMedia)) {
+            window.clearInterval(this.progressUpdater);
             this.progressUpdater = window.setInterval(async () => {
               const client = window.watchparty.webtorrent;
               if (client) {
@@ -1426,27 +1434,40 @@ export class App extends React.Component<AppProps, AppState> {
       // Same URL but GET
       this.roomSetMedia(convertUrl);
     };
-    poll();
+    poll().catch((e) => {
+      console.error("[poll] Falha ao aguardar playlist:", e);
+    });
     const reader = stream.getReader();
     const start = Date.now();
     let bytes = 0;
     const ws = new WebSocket(convertUrl.replace("http", "ws"));
     ws.onmessage = async (_ev) => {
-      // Server sends a message whenever it wants next chunk
-      const { done, value } = await reader.read();
-      if (value) {
-        ws.send(value);
-      }
-      if (done) {
+      try {
+        // Server sends a message whenever it wants next chunk
+        const { done, value } = await reader.read();
+        if (value) {
+          ws.send(value);
+        }
+        if (done) {
+          ws.close();
+        }
+        const end = Date.now();
+        bytes += value?.length ?? 0;
+        this.setState({
+          downloaded: bytes,
+          total: file?.size,
+          speed: done ? 0 : bytes / ((end - start) / 1000),
+          connections: 1,
+        });
+      } catch (e) {
+        console.error("[ws.onmessage] Erro ao ler chunk:", e);
         ws.close();
       }
-      const end = Date.now();
-      bytes += value?.length ?? 0;
+    };
+    ws.onerror = (ev) => {
+      console.error("[ws] Erro na conexão WebSocket de conversão:", ev);
       this.setState({
-        downloaded: bytes,
-        total: file?.size,
-        speed: done ? 0 : bytes / ((end - start) / 1000),
-        connections: 1,
+        errorMessage: "Erro na conexão de upload. Tente novamente.",
       });
     };
     ws.onclose = () => {

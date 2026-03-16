@@ -217,25 +217,35 @@ io.engine.use(async (req: any, res: Response, next: () => void) => {
       [key],
     )
   )?.rows?.[0];
-  // Don't await after this because we may have a race condition where 2 rquests both try to load the room
   if (isCorrectShard && !rooms.has(key)) {
-    const data = persistedRoom?.data
-      ? JSON.stringify(persistedRoom.data)
-      : undefined;
-    if (data) {
-      const room = new Room(io, key, data);
-      rooms.set(key, room);
-      console.log(
-        "loading room %s into memory on shard %s",
-        roomId,
-        config.SHARD,
-      );
+    // Use a pending-load map to prevent duplicate Room creation under concurrent requests
+    if (!pendingRoomLoads.has(key)) {
+      const loadPromise = (async () => {
+        if (rooms.has(key)) return;
+        const data = persistedRoom?.data
+          ? JSON.stringify(persistedRoom.data)
+          : undefined;
+        if (data) {
+          const room = new Room(io, key, data);
+          rooms.set(key, room);
+          console.log(
+            "loading room %s into memory on shard %s",
+            roomId,
+            config.SHARD,
+          );
+        }
+      })().finally(() => {
+        pendingRoomLoads.delete(key);
+      });
+      pendingRoomLoads.set(key, loadPromise);
     }
+    await pendingRoomLoads.get(key);
   }
   next();
 });
 
 const rooms = new Map<string, Room>();
+const pendingRoomLoads = new Map<string, Promise<void>>();
 const roomSlugPattern = /^[a-z0-9-]{3,80}$/;
 const proxyAllowedHostSuffixes = [
   ".ttvnw.net",
@@ -970,7 +980,7 @@ async function ensureMovieHistoryTable() {
 // Following functions iterate over in-memory rooms
 setInterval(minuteMetrics, 60 * 1000);
 setInterval(release, releaseInterval);
-setInterval(saveRooms, 1000);
+setInterval(saveRooms, 30000);
 if (process.env.NODE_ENV === "development") {
   try {
     import("./vmWorker.ts");
@@ -1859,6 +1869,7 @@ app.use("/*splat", (_req, res) => {
 });
 
 async function saveRooms() {
+  try {
   // Unload rooms that are empty and idle
   // Frees up some JS memory space when process is long-running
   // On reconnect, we'll attempt to reload the room
@@ -1879,10 +1890,17 @@ async function saveRooms() {
         );
         await room.saveRoom();
         room.destroy();
+        // Unregister the namespace to avoid dupes on reload
+        // Use public API: remove all listeners before deleting the namespace
+        const nsp = io.of(key);
+        nsp.removeAllListeners();
+        nsp.sockets.forEach((s) => s.disconnect(true));
+        // Delete from the internal map using the public _nsps if available, with fallback
+        if ((io as any)._nsps?.has(key)) {
+          (io as any)._nsps.delete(key);
+        }
         rooms.delete(key);
         saveCount += 1;
-        // Unregister the namespace to avoid dupes on reload
-        io._nsps.delete(key);
       } else if (room.roster.length) {
         room.lastUpdateTime = new Date();
         await room.saveRoom();
@@ -1899,6 +1917,9 @@ async function saveRooms() {
     end - start,
     skipCount,
   );
+  } catch (e) {
+    console.error("[SAVEROOMS] Erro durante execução:", e);
+  }
 }
 
 async function release() {
@@ -1935,6 +1956,7 @@ async function release() {
 }
 
 async function minuteMetrics() {
+  try {
   const roomArr = Array.from(rooms.values());
   let vbWaiting = 0;
   for (let room of roomArr) {
@@ -1987,4 +2009,7 @@ async function minuteMetrics() {
     120,
     JSON.stringify(obj),
   );
+  } catch (e) {
+    console.error("[MINUTEMETRICS] Erro durante execução:", e);
+  }
 }

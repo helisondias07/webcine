@@ -80,17 +80,25 @@ export const Controls = (props: ControlsProps) => {
   return (
     <div className={styles.controls}>
       {muted ? (
-        <IconVolumeOff
+        <button
+          type="button"
           onClick={localToggleMute}
           className={styles.action}
+          aria-label="Desmutar"
           title="Ativar volume"
-        />
+        >
+          <IconVolumeOff />
+        </button>
       ) : (
-        <IconVolume
+        <button
+          type="button"
           onClick={localToggleMute}
           className={styles.action}
+          aria-label="Mutar"
           title="Silenciar"
-        />
+        >
+          <IconVolume />
+        </button>
       )}
       <div className={styles.volumeSlider}>
         <Slider

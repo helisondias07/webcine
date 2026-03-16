@@ -178,6 +178,7 @@ export class LoginModal extends React.Component<{
               className={styles.formStack}
             >
               <TextInput
+                type="email"
                 label={t("email")}
                 placeholder={t("email")}
                 value={this.state.email}
@@ -262,6 +263,7 @@ export class CreateModal extends React.Component<{
             </Alert>
           )}
           <TextInput
+            type="email"
             label={t("email")}
             placeholder={t("email")}
             value={this.state.email}
@@ -339,6 +341,7 @@ export class ResetModal extends React.Component<{
             </Alert>
           )}
           <TextInput
+            type="email"
             label={t("email")}
             placeholder={t("email")}
             value={this.state.email}

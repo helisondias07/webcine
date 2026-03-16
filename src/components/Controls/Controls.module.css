@@ -38,6 +38,14 @@
 .action {
   cursor: pointer;
   color: var(--text-main);
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .pipButton {
@@ -49,7 +57,7 @@
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  min-height: 28px;
+  min-height: 44px;
   padding: 0 8px;
   white-space: nowrap;
 }
@@ -61,14 +69,14 @@
 
 .countdownButton {
   cursor: pointer;
-  border: 0.5px solid #2e2e2e;
+  border: 0.5px solid var(--border-soft);
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
   color: var(--text-main);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  min-height: 28px;
+  min-height: 44px;
   padding: 0 10px;
   white-space: nowrap;
   transition: opacity 0.2s ease;

@@ -118,7 +118,7 @@ export const NewRoomButton = (props: {
         typeof e?.message === "string" && e.message
           ? e.message
           : "Não foi possível criar a sala. Tente novamente.";
-      window.alert(message);
+      console.warn("[createRoom]", message);
     } finally {
       setIsCreating(false);
     }

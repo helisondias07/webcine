@@ -1,5 +1,5 @@
 ﻿.modalContent {
-  background: #0a0a0a;
+  background: var(--bg-surface);
   border: 1px solid color-mix(in srgb, var(--accent-warm) 30%, var(--border-soft));
   border-radius: 16px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);}
@@ -73,7 +73,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   padding: 10px 12px;
-  background: #121212;
+  background: var(--bg-panel);
   color: var(--text-primary);
   font-weight: 600;
   display: inline-flex;
@@ -115,7 +115,7 @@
 .platformChip {
   border: 1px solid var(--border-soft);
   border-radius: 999px;
-  background: #121212;
+  background: var(--bg-panel);
   color: var(--text-primary);
   padding: 8px 12px;
   cursor: pointer;
@@ -174,7 +174,7 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: #d4a017;
+  background: var(--accent-warm);
   animation: dotPulse 1s ease-in-out infinite;
 }
 
@@ -190,7 +190,7 @@
   margin-top: 16px;
   border: 1px solid var(--border-soft);
   border-radius: 14px;
-  background: #101010;
+  background: var(--bg-panel);
   display: grid;
   grid-template-columns: 180px 1fr;
   gap: 14px;
@@ -274,7 +274,7 @@
 }
 
 .ratingText {
-  color: #d4a017;
+  color: var(--accent-warm);
 }
 
 .emptyState {
@@ -314,9 +314,9 @@
 
 .resultFooterCounter {
   margin-top: 10px;
-  border-top: 0.5px solid #2e2e2e;
+  border-top: 0.5px solid var(--border-soft);
   padding-top: 8px;
-  color: #555;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -450,8 +450,8 @@
 }
 
 .immersiveContent {
-  background: #111;
-  border: 0.5px solid #2e2e2e;
+  background: var(--bg-surface);
+  border: 0.5px solid var(--border-soft);
   border-radius: 14px;
   max-width: min(1100px, calc(100vw - 32px));
   width: min(1100px, calc(100vw - 32px));
@@ -466,7 +466,7 @@
 .immersiveRoot {
   position: relative;
   min-height: 620px;
-  color: #fff;
+  color: var(--text-main);
   animation: popIn 0.42s ease both;
 }
 
@@ -537,8 +537,8 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: #1a1a1a;
-  border: 0.5px solid #2e2e2e;
+  background: var(--bg-panel);
+  border: 0.5px solid var(--border-soft);
 }
 
 .immersiveInfo {
@@ -547,7 +547,7 @@
 }
 
 .immersiveTag {
-  color: #d4a017;
+  color: var(--accent-warm);
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -563,12 +563,12 @@
 .immersiveMeta {
   margin: 8px 0 0;
   font-size: 16px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .immersiveRating {
   margin: 8px 0 0;
-  color: #d4a017;
+  color: var(--accent-warm);
   font-size: 20px;
 }
 
@@ -576,7 +576,7 @@
 .immersiveSynopsisMobile {
   margin: 14px 0;
   font-size: 16px;
-  color: #bbb;
+  color: var(--text-muted);
   line-height: 1.6;
   max-width: 640px;
 }
@@ -599,16 +599,16 @@
 }
 
 .immersiveButtons :global(button) {
-  border: 0.5px solid #2e2e2e;
+  border: 0.5px solid var(--border-soft);
 }
 
 .immersiveButtons :global(button[data-variant='default']) {
   background: rgba(255, 255, 255, 0.08);
-  color: #ccc;
+  color: var(--text-muted);
 }
 
 .immersivePrimaryButton {
-  background: #d4a017;
+  background: var(--accent-warm);
   color: #0d0d0d;
   border-color: transparent;
 }
@@ -619,8 +619,8 @@
 
 .immersiveSecondaryButton {
   background: rgba(255, 255, 255, 0.08);
-  color: #ccc;
-  border: 0.5px solid #2e2e2e;
+  color: var(--text-muted);
+  border: 0.5px solid var(--border-soft);
 }
 
 .immersiveCloseButton {
@@ -633,24 +633,24 @@
   border-radius: 999px;
   border: 0.5px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.5);
-  color: #fff;
+  color: var(--text-main);
 }
 
 .immersiveFooter {
   position: relative;
   z-index: 2;
-  border-top: 0.5px solid #2e2e2e;
+  border-top: 0.5px solid var(--border-soft);
   padding: 1rem 2.5rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #555;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .historyContent {
-  background: #111;
-  border: 0.5px solid #2e2e2e;
+  background: var(--bg-surface);
+  border: 0.5px solid var(--border-soft);
 }
 
 .historyBody {
@@ -660,9 +660,9 @@
 
 .historyLoginBanner {
   margin-bottom: 10px;
-  background: #1a1a1a;
-  border: 0.5px solid #2e2e2e;
-  color: #d0d0d0;
+  background: var(--bg-panel);
+  border: 0.5px solid var(--border-soft);
+  color: var(--text-muted);
 }
 
 .historyList {
@@ -680,8 +680,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #111;
-  border: 0.5px solid #222;
+  background: var(--bg-surface);
+  border: 0.5px solid var(--border-soft);
   border-radius: 10px;
   padding: 10px;
   margin-bottom: 8px;
@@ -700,7 +700,7 @@
   border-radius: 6px;
   display: grid;
   place-items: center;
-  border: 0.5px solid #2e2e2e;
+  border: 0.5px solid var(--border-soft);
 }
 
 .historyMeta {
@@ -715,17 +715,17 @@
 
 .historyMeta span {
   display: block;
-  color: #888;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .historyRating {
-  color: #d4a017;
+  color: var(--accent-warm);
   font-size: 13px;
 }
 
 .historyEmpty {
-  color: #888;
+  color: var(--text-muted);
   font-size: 13px;
   padding: 12px 0;
 }
@@ -739,6 +739,8 @@
 @media only screen and (max-width: 768px) {
   .root {
     padding: 14px;
+    display: flex;
+    flex-direction: column;
   }
 
   .platformGrid {
@@ -757,6 +759,17 @@
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-surface);
+    padding: 10px 0 4px;
+    margin-top: 12px;
+    z-index: 1;
+  }
+
+  .actionsRow :global(button) {
+    width: 100%;
+    min-height: 44px;
   }
 
   .actionsRight {

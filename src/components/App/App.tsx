@@ -3165,7 +3165,14 @@ export class App extends React.Component<AppProps, AppState> {
             closeOnClickOutside={false}
             closeOnEscape={false}
             centered
+            size={400}
             title="Entrar como convidado"
+            classNames={{
+              content: styles.preJoinModalContent,
+              header: styles.preJoinModalHeader,
+              title: styles.preJoinModalTitle,
+              body: styles.preJoinModalBody,
+            }}
           >
             <div className={styles.preJoinContent}>
               {(() => {

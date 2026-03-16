@@ -78,15 +78,17 @@
   position: absolute;
   left: 10px;
   top: calc(100% + 8px);
-  z-index: 30;
+  z-index: 200;
   border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
+  background: color-mix(in srgb, var(--bg-panel) 98%, transparent);
+  backdrop-filter: blur(10px);
   color: var(--text-main);
   border-radius: 10px;
   padding: 8px 10px;
   font-size: 0.76rem;
   text-align: left;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
 }
 
 .searchHint::before {
@@ -297,6 +299,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow-y: auto;
   border-top: 1px solid var(--border-soft);
   border-bottom: 1px solid var(--border-soft);
   border-left: none;
@@ -570,6 +573,34 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.preJoinModalContent {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background:
+    radial-gradient(
+      600px 200px at 18% -20%,
+      color-mix(in srgb, var(--accent-warm) 8%, transparent),
+      transparent 70%
+    ),
+    color-mix(in srgb, var(--bg-panel) 97%, transparent);
+}
+
+.preJoinModalHeader {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.preJoinModalTitle {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.preJoinModalBody {
+  padding-top: 14px;
+  overflow-y: auto;
+  max-height: calc(100dvh - 160px);
 }
 
 .preJoinContent {
@@ -895,6 +926,10 @@
     width: 100%;
   }
 
+  .nameColorControl {
+    display: none;
+  }
+
   .topActionButton,
   .shareButton,
   .nameInput {
@@ -939,8 +974,18 @@
   .emptyStateCard {
     min-width: 0;
     width: calc(100vw - 28px);
-    padding: 20px 14px;
-    gap: 12px;
+    max-width: 100%;
+    padding: 18px 14px;
+    gap: 10px;
+  }
+
+  .emptyStateTitle {
+    font-size: 1rem;
+  }
+
+  .emptyStatePulseIcon {
+    width: 44px;
+    height: 44px;
   }
 
   .emptyActionButton {

@@ -7,7 +7,8 @@
   height: auto;
   padding: 20px var(--app-shell-gutter);
   color: var(--text-main);
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: visible;
   isolation: isolate;
 }
 
@@ -114,17 +115,19 @@
 }
 
 .heroMega .heroContent {
-  max-width: 980px;
+  max-width: min(1140px, calc(100% - 48px));
 }
 
 .heroMega .heroText {
   font-size: clamp(2.05rem, 2.62vw, 2.95rem);
   line-height: 1.16;
+  text-wrap: balance;
 }
 
 .heroMega .subText {
   font-size: clamp(0.98rem, 1.2vw, 1.3rem);
   margin-top: 14px;
+  text-wrap: balance;
 }
 
 .heroMega .heroAction {

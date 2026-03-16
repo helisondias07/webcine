@@ -4,8 +4,6 @@ import {
   useVideoConfig,
   interpolate,
   spring,
-  Img,
-  staticFile,
 } from 'remotion';
 import { GOLD, DARK_BG, BLUE_DARK } from './constants';
 
@@ -19,8 +17,7 @@ export const CTA: React.FC = () => {
   });
   const opacity = Math.min(fadeIn, fadeOut);
 
-  const logoScale = spring({ frame, fps, config: { damping: 14, stiffness: 110 }, from: 0.6, to: 1 });
-  const titleY    = spring({ frame: Math.max(0, frame - 8), fps, config: { damping: 18, stiffness: 100 }, from: 20, to: 0 });
+  const titleY = spring({ frame: Math.max(0, frame - 8), fps, config: { damping: 18, stiffness: 100 }, from: 20, to: 0 });
   const urlOpacity = interpolate(frame, [22, 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const tagOpacity = interpolate(frame, [36, 54], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
@@ -67,11 +64,6 @@ export const CTA: React.FC = () => {
           background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`,
         }}
       />
-
-      {/* Logo */}
-      <div style={{ opacity: fadeIn, transform: `scale(${logoScale})`, marginBottom: 24 }}>
-        <Img src={staticFile('logo-webcinema.svg')} style={{ width: 88, height: 88 }} />
-      </div>
 
       {/* Título */}
       <div style={{ transform: `translateY(${titleY}px)`, opacity: fadeIn }}>

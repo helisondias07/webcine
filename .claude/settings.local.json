@@ -6,7 +6,9 @@
       "Bash(netstat:*)",
       "Bash(tasklist:*)",
       "Bash(powershell -Command \"Get-Process -Id 17180 | Select-Object Name,Id,Path\" 2>&1)",
-      "Bash(powershell -Command \"Stop-Process -Id 17180 -Force -ErrorAction SilentlyContinue; Write-Host 'Processo 17180 encerrado'\" 2>&1)"
+      "Bash(powershell -Command \"Stop-Process -Id 17180 -Force -ErrorAction SilentlyContinue; Write-Host 'Processo 17180 encerrado'\" 2>&1)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ]
   }
 }

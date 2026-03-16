@@ -1022,6 +1022,7 @@ app.use(
         "object-src": ["'none'"],
         "script-src": [
           "'self'",
+          "'unsafe-inline'",
           "https://www.googletagmanager.com",
           "https://www.youtube.com",
           "https://apis.google.com",

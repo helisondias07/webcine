@@ -150,11 +150,6 @@
 
 .heroAction {
   margin-top: 14px;
-  width: 250px;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .roomTitleInput {

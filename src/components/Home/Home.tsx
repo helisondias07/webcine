@@ -74,7 +74,6 @@ export const Home = () => {
     shouldSplitHeroOnMobile(),
   );
   const [page, setPage] = useState(0);
-  const [roomTitle, setRoomTitle] = useState("");
 
   useEffect(() => {
     const onResize = () => {
@@ -106,19 +105,7 @@ export const Home = () => {
               <Hero
                 heroText="Sua sala de cinema online."
                 subText="Sem precisar instalar nada nem criar contas."
-                action={
-                  <div className={styles.heroAction}>
-                    <input
-                      type="text"
-                      className={styles.roomTitleInput}
-                      value={roomTitle}
-                      maxLength={40}
-                      placeholder="Nome da sala (opcional)"
-                      onChange={(event) => setRoomTitle(event.target.value)}
-                    />
-                    <NewRoomButton size="xl" roomTitle={roomTitle} />
-                  </div>
-                }
+                action={<NewRoomButton size="xl" roomTitle="" />}
               />
               <Hero
                 heroText="Assista e converse com seus amigos em tempo real!"
@@ -130,19 +117,7 @@ export const Home = () => {
               mega
               heroText="Sua sala de cinema online, assista e converse com seus amigos em tempo real!"
               subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graça!"
-              action={
-                <div className={styles.heroAction}>
-                  <input
-                    type="text"
-                    className={styles.roomTitleInput}
-                    value={roomTitle}
-                    maxLength={40}
-                    placeholder="Nome da sala (opcional)"
-                    onChange={(event) => setRoomTitle(event.target.value)}
-                  />
-                  <NewRoomButton size="xl" roomTitle={roomTitle} />
-                </div>
-              }
+              action={<NewRoomButton size="xl" roomTitle="" />}
             />
           )}
         </section>

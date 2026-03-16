@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ActionIcon, Avatar, Button, TextInput } from "@mantine/core";
 import Picker from "@emoji-mart/react";
 import { init } from "emoji-mart";
+import emojiData from "@emoji-mart/data";
 //@ts-expect-error
 import Linkify from "react-linkify";
 import { SecureLink } from "react-secure-link";
@@ -58,7 +59,7 @@ export class Chat extends React.Component<ChatProps, ChatState> {
   async componentDidMount() {
     this.scrollToBottom();
     this.messagesRef.current?.addEventListener("scroll", this.onScroll);
-    init({});
+    init({ data: emojiData });
     this.props.socket?.on("REC:typing", this.handleTypingEvent);
   }
 

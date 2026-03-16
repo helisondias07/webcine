@@ -692,7 +692,7 @@ export class Room {
       chatWithTime.isSub = true;
     }
     this.chat.push(chatWithTime);
-    this.chat = this.chat.splice(-100);
+    this.chat = this.chat.slice(-100);
     this.io.of(this.roomId).emit("REC:chat", chatWithTime);
   };
 
@@ -1233,15 +1233,15 @@ export class Room {
       const expireTime = getStartOfDay() / 1000 + 86400;
       if (clientId) {
         await redis.zincrby("vBrowserClientIDs", 1, clientId);
-        redis.expireat("vBrowserClientIDs", expireTime);
+        await redis.expireat("vBrowserClientIDs", expireTime);
         await redis.zincrby("vBrowserClientIDMinutes", 1, clientId);
-        redis.expireat("vBrowserClientIDMinutes", expireTime);
+        await redis.expireat("vBrowserClientIDMinutes", expireTime);
       }
       if (uid) {
         await redis.zincrby("vBrowserUIDs", 1, uid);
-        redis.expireat("vBrowserUIDs", expireTime);
+        await redis.expireat("vBrowserUIDs", expireTime);
         await redis.zincrby("vBrowserUIDMinutes", 1, uid);
-        redis.expireat("vBrowserUIDMinutes", expireTime);
+        await redis.expireat("vBrowserUIDMinutes", expireTime);
       }
     }
     if (uid && postgres) {

@@ -1019,6 +1019,7 @@ app.use(
           "'self'",
           "https://www.google-analytics.com",
           "https://region1.google-analytics.com",
+          "https://cdn.jsdelivr.net",
           "ws:",
           "wss:",
         ],

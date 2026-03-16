@@ -135,7 +135,7 @@ a {
 @media only screen and (max-width: 1024px) {
   html {
     height: auto;
-    overflow-y: hidden;
+    overflow-y: auto;
   }
 
   body {

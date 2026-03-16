@@ -14,7 +14,7 @@ export async function redisCount(prefix: string) {
   try {
     const key = `${prefix}:${getStartOfHour()}`;
     await redis.incr(key);
-    await redis.expireat(key, getStartOfHour() + 86400 * 1000);
+    await redis.expireat(key, Math.floor((getStartOfHour() + 86400 * 1000) / 1000));
   } catch (e) {
     console.log(e);
   }
@@ -48,7 +48,7 @@ export async function redisCountDistinct(prefix: string, item: string) {
   }
   const key = `${prefix}:${getStartOfHour()}`;
   await redis.pfadd(key, item);
-  await redis.expireat(key, getStartOfHour() + 86400 * 1000);
+  await redis.expireat(key, Math.floor((getStartOfHour() + 86400 * 1000) / 1000));
 }
 
 export async function getRedisCountDayDistinct(prefix: string) {

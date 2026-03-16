@@ -476,7 +476,7 @@ export const SurpriseModal = ({
   const saveLocalHistory = (item: HistoryItem) => {
     const current = readLocalHistory().filter((entry) => entry.movieId !== item.movieId);
     const next = [item, ...current].slice(0, 20);
-    window.localStorage.setItem(LOCAL_HISTORY_STORAGE_KEY, JSON.stringify(next));
+    try { window.localStorage.setItem(LOCAL_HISTORY_STORAGE_KEY, JSON.stringify(next)); } catch { /* quota exceeded */ }
   };
 
   const persistMovieHistory = async () => {
@@ -599,7 +599,7 @@ export const SurpriseModal = ({
   const togglePlatform = (key: string) => {
     setSelectedPlatforms((prev) => {
       const next = prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
-      window.localStorage.setItem(PLATFORMS_STORAGE_KEY, JSON.stringify(next));
+      try { window.localStorage.setItem(PLATFORMS_STORAGE_KEY, JSON.stringify(next)); } catch { /* quota exceeded */ }
       return next;
     });
   };

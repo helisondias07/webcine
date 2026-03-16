@@ -786,8 +786,15 @@ export class Room {
       }
       data = data + ".json";
       // Extract fallback_url
-      const resp = await axios.get(data);
-      const json = resp.data;
+      let json: any;
+      try {
+        const resp = await axios.get(data);
+        json = resp.data;
+      } catch (e) {
+        console.warn("[cmdHost] Reddit fetch failed", e);
+        socket?.emit("errorMessage", "Não foi possível carregar este link do Reddit.");
+        return;
+      }
       let reddit_m3u8 =
         json?.[0]?.data?.children?.[0]?.data?.secure_media?.reddit_video
           ?.hls_url;

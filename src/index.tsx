@@ -138,14 +138,17 @@ function getStoredThemeMode(): ThemeMode {
 class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
   private authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
+  private _isMounted = false;
 
   componentWillUnmount() {
+    this._isMounted = false;
     if (this.authUnsubscribe) {
       this.authUnsubscribe();
     }
   }
 
   async componentDidMount() {
+    this._isMounted = true;
     runWhenIdle(() => {
       const measurementIds = String(config.VITE_GA_MEASUREMENT_IDS ?? "")
         .split(",")
@@ -160,6 +163,7 @@ class WebCineTVApp extends React.Component {
         this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user: firebase.User | null) => {
         if (user) {
           // console.log(user);
+          if (!this._isMounted) return;
           this.setState({ user });
           const token = await user.getIdToken();
           const authHeaders = {
@@ -177,10 +181,12 @@ class WebCineTVApp extends React.Component {
               },
             ),
           ]);
+          if (!this._isMounted) return;
           const metadataData = await metadataResponse.json();
           const entitlementsData = entitlementsResponse.ok
             ? await entitlementsResponse.json()
             : undefined;
+          if (!this._isMounted) return;
           this.setState({
             isSubscriber: Boolean(
               entitlementsData?.isSubscriber ?? metadataData?.isSubscriber,

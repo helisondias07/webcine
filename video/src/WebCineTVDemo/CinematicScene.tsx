@@ -1,6 +1,6 @@
 /**
  * Cena cinemática: vídeo fullscreen com vignette + texto overlay.
- * Usada para home, room e features.
+ * Fade-in/out via overlay preto (não opacity do container) para evitar flash branco.
  */
 import React from 'react';
 import {
@@ -15,14 +15,14 @@ import { GOLD, DARK_BG } from './constants';
 
 interface CinematicSceneProps {
   clip: string;
-  eyebrow?: string;   // pequeno label acima do título (ex: "PLATAFORMA")
+  eyebrow?: string;
   title: string;
   subtitle?: string;
-  titleAlign?: 'left' | 'center' | 'right';
   accentColor?: string;
   videoStartFrom?: number;
-  /** Se true, o texto fica no canto inferior esquerdo (estilo trailer) */
   textPosition?: 'bottom-left' | 'center' | 'bottom-center';
+  /** Intervalo [inicio, fim] em frames da cena onde a tela fica preta — mascara cortes no clip */
+  blackoutFrames?: [number, number];
 }
 
 export const CinematicScene: React.FC<CinematicSceneProps> = ({
@@ -33,22 +33,28 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
   accentColor = GOLD,
   videoStartFrom = 0,
   textPosition = 'bottom-left',
+  blackoutFrames,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
-  // Fade in da cena
-  const sceneIn  = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: 'clamp' });
-  // Fade out da cena
-  const sceneOut = interpolate(frame, [durationInFrames - 14, durationInFrames], [1, 0], {
+  // Overlay preto: aparece escuro, some suavemente no início e volta no fim
+  const overlayFadeIn  = interpolate(frame, [0, 20], [1, 0], { extrapolateRight: 'clamp' });
+  const overlayFadeOut = interpolate(frame, [durationInFrames - 16, durationInFrames], [0, 1], {
     extrapolateLeft: 'clamp',
   });
-  const opacity = Math.min(sceneIn, sceneOut);
 
-  // Zoom lento no vídeo (Ken Burns)
-  const videoScale = interpolate(frame, [0, durationInFrames], [1.0, 1.06], {
-    extrapolateRight: 'clamp',
-  });
+  // Blackout suave para mascarar corte no clip (fade 5 frames antes/depois)
+  const blackout = blackoutFrames
+    ? interpolate(
+        frame,
+        [blackoutFrames[0] - 5, blackoutFrames[0], blackoutFrames[1], blackoutFrames[1] + 5],
+        [0, 1, 1, 0],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+      )
+    : 0;
+
+  const overlayOpacity = Math.max(overlayFadeIn, overlayFadeOut, blackout);
 
   // Texto slide-up
   const textY = spring({
@@ -58,9 +64,9 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
     from: 28,
     to: 0,
   });
-  const textOpacity = interpolate(frame, [8, 28], [0, 1], { extrapolateRight: 'clamp' });
+  const textOpacity = interpolate(frame, [10, 30], [0, 1], { extrapolateRight: 'clamp' });
 
-  const isCenter = textPosition === 'center' || textPosition === 'bottom-center';
+  const isCenter       = textPosition === 'center' || textPosition === 'bottom-center';
   const isBottomCenter = textPosition === 'bottom-center';
 
   const textStyle: React.CSSProperties = isCenter && !isBottomCenter
@@ -102,10 +108,9 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
         background: DARK_BG,
         position: 'relative',
         overflow: 'hidden',
-        opacity,
       }}
     >
-      {/* Vídeo fullscreen com Ken Burns — zoom aplicado direto no elemento, GPU layer */}
+      {/* Vídeo fullscreen — sem zoom, sem transform */}
       <OffthreadVideo
         src={staticFile(`clips/${clip}`)}
         startFrom={videoStartFrom}
@@ -116,10 +121,6 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          transform: `scale(${videoScale}) translateZ(0)`,
-          transformOrigin: 'center center',
-          willChange: 'transform',
-          backfaceVisibility: 'hidden',
         }}
       />
 
@@ -136,7 +137,18 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
         }}
       />
 
-      {/* Texto overlay */}
+      {/* Overlay preto de transição — fica ABAIXO do texto para texto permanecer visível */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: '#000000',
+          opacity: overlayOpacity,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Texto overlay — sempre na camada de cima */}
       <div
         style={{
           ...textStyle,
@@ -194,6 +206,7 @@ export const CinematicScene: React.FC<CinematicSceneProps> = ({
           </div>
         )}
       </div>
+
     </div>
   );
 };

@@ -634,6 +634,7 @@ export const SurpriseModal = ({
       }}
       overlayProps={{ opacity: 0.82, blur: 0 }}
       classNames={{
+        inner: styles.modalInner,
         content: `${styles.modalContent} ${selectionClosing ? styles.selectionClosing : ""}`,
         body: styles.modalBody,
       }}

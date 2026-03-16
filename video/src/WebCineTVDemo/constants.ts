@@ -1,15 +1,13 @@
 export const VIDEO_FPS = 30;
 export const VIDEO_WIDTH = 1920;
 export const VIDEO_HEIGHT = 1080;
-export const VIDEO_DURATION_FRAMES = 900; // 30 segundos exatos
+export const VIDEO_DURATION_FRAMES = 900; // 30 segundos — 4 partes iguais de 7.5s
 
-// Cenas (frames)
 export const SCENES = {
-  hook:     { start: 0,   end: 90  }, // 0s–3s   — tela preta + pergunta dramática
-  home:     { start: 90,  end: 330 }, // 3s–11s  — home page navegando
-  room:     { start: 330, end: 570 }, // 11s–19s — sala de watch + modal
-  features: { start: 570, end: 780 }, // 19s–26s — recursos / mobile
-  cta:      { start: 780, end: 900 }, // 26s–30s — logo + URL
+  hook:     { start: 0,   end: 225 }, // 0s–7.5s    — hook dramático
+  home:     { start: 225, end: 450 }, // 7.5s–15s   — home + Nova Sala + entrar na sala
+  features: { start: 450, end: 750 }, // 15s–25s    — vídeo rodando + chat ao vivo (10s)
+  cta:      { start: 750, end: 900 }, // 25s–30s    — logo + URL (5s)
 };
 
 export const GOLD       = '#d4a84b';

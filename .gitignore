@@ -29,3 +29,11 @@ playwright-report/
 test-results/
 lighthouse-mobile.json
 lighthouse-desktop.json
+
+# Remotion — binários e dependências (código-fonte em video/src/ é rastreado)
+video/node_modules/
+video/public/clips/
+video/out/
+
+# Logs temporários
+tmp-*.log

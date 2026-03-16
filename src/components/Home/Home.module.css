@@ -389,7 +389,8 @@
   .container {
     min-height: 0;
     height: auto;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .layout {
@@ -434,8 +435,8 @@
   .container {
     --app-shell-gutter: 10px;
     padding: 12px var(--app-shell-gutter) 12px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .layout {

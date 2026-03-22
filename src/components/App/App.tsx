@@ -1619,13 +1619,11 @@ export class App extends React.Component<AppProps, AppState> {
             ? 16_000_000
             : 18_000_000;
     const maxBitratePerPeer = Math.round(
-      Math.max(1_200_000, Math.min(8_000_000, totalBitrateBudget / peers)),
+      Math.max(1_200_000, Math.min(4_000_000, totalBitrateBudget / peers)),
     );
-    let captureHeight = 1080;
+    let captureHeight = 720;
     if (maxBitratePerPeer < 1_500_000) {
       captureHeight = 540;
-    } else if (maxBitratePerPeer < 2_200_000) {
-      captureHeight = 720;
     }
     const captureWidth =
       captureHeight >= 1080 ? 1920 : captureHeight >= 720 ? 1280 : 960;
@@ -1828,7 +1826,7 @@ export class App extends React.Component<AppProps, AppState> {
         scaleResolutionDownBy: profile.scaleResolutionDownBy,
       };
       params.encodings = encodings;
-      params.degradationPreference = "maintain-resolution";
+      params.degradationPreference = "balanced";
       await sender.setParameters(params);
     } catch (e) {
       console.warn("screenshare: failed to apply sender parameters", e);
@@ -1875,9 +1873,7 @@ export class App extends React.Component<AppProps, AppState> {
           logicalSurface?: boolean;
         } = {
           logicalSurface: true,
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 },
+          height: 720,
         };
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: videoConstraints,

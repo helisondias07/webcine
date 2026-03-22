@@ -132,7 +132,7 @@ function getStoredThemeMode(): ThemeMode {
   if (stored === "light" || stored === "dark") {
     return stored;
   }
-  return "dark";
+  return "light";
 }
 
 class WebCineTVApp extends React.Component {

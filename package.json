@@ -41,7 +41,7 @@
     "node-ssh": "^13.2.1",
     "pg": "^8.20.0",
     "socket.io": "^4.8.3",
-    "stripe": "^8.222.0",
+    "stripe": "^21.0.1",
     "twitch-m3u8": "^1.1.5"
   },
   "overrides": {

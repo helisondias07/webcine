@@ -1,6 +1,6 @@
 import type MediasoupClient from "mediasoup-client";
 import React from "react";
-import { Alert, Loader, Menu, Modal, Overlay, Title } from "@mantine/core";
+import { Alert, Loader, Menu, Overlay, Title } from "@mantine/core";
 import io, { Socket } from "socket.io-client";
 import {
   formatSpeed,
@@ -9,6 +9,9 @@ import {
   serverPath,
   testAutoplay,
   openFileSelector,
+  formatTimestamp,
+  getColorForStringHex,
+  getDefaultPicture,
   getOrCreateClientId,
   getOrCreateSessionId,
   calculateMedian,
@@ -19,7 +22,6 @@ import {
   isHls,
   isScreenShare,
   isFileShare,
-  isVBrowser,
   isDash,
   VIDEO_MAX_HEIGHT_CSS,
   createUuid,
@@ -27,20 +29,16 @@ import {
 } from "../../utils/utils";
 import { Chat } from "../Chat/Chat";
 import { TopBar } from "../TopBar/TopBar";
-import { VBrowser } from "../VBrowser/VBrowser";
-import { VideoChat } from "../VideoChat/VideoChat";
 import { getCurrentSettings } from "../Settings/LocalSettings";
 import { MultiStreamModal } from "../Modal/MultiStreamModal";
 import { ComboBox } from "../ComboBox/ComboBox";
 import { Controls } from "../Controls/Controls";
-import { VBrowserModal } from "../Modal/VBrowserModal";
 import { SettingsModal } from "../Settings/SettingsModal";
 import { ErrorModal } from "../Modal/ErrorModal";
 import { PasswordModal } from "../Modal/PasswordModal";
 import { ScreenShareModal } from "../Modal/ScreenShareModal";
 import { FileShareModal } from "../Modal/FileShareModal";
 import { SurpriseModal } from "../Modal/SurpriseModal";
-import firebase from "firebase/compat/app";
 import { HTML } from "./HTML";
 import { YouTube } from "./YouTube";
 import styles from "./App.module.css";
@@ -62,6 +60,11 @@ import {
 } from "@tabler/icons-react";
 import { InviteButton } from "../InviteButton/InviteButton";
 import { t } from "../../i18n";
+import {
+  getFirebaseClient,
+  type FirebaseUnsubscribe,
+  type FirebaseUser,
+} from "../../utils/firebaseClient";
 import type WebTorrent from "webtorrent";
 import type Hls from "hls.js";
 import { type MediaPlayerClass } from "dashjs";
@@ -96,7 +99,6 @@ const YOUTUBE_QUALITY_STORAGE_KEY = "watchparty-yt-quality";
 const SEARCH_HINT_STORAGE_KEY = "watchparty-search-hint-seen";
 const NAME_COLOR_STORAGE_KEY = "watchparty-name-color";
 const DEFAULT_NAME_COLOR = "#FFFFFF";
-const VBROWSER_ENABLED = false;
 const LIVE_REACTION_EMOJIS = [
   "\u{1F602}",
   "\u{1F525}",
@@ -105,21 +107,6 @@ const LIVE_REACTION_EMOJIS = [
   "\u{1F60D}",
   "\u{1F480}",
 ] as const;
-const PRESET_NAME_COLORS = [
-  "#FFFFFF",
-  "#FFE100",
-  "#FF8C00",
-  "#FF2E2E",
-  "#FF1493",
-  "#D66BFF",
-  "#8A2BE2",
-  "#23D5FF",
-  "#0047FF",
-  "#39FF14",
-  "#0B6B2A",
-  "#D4A017",
-] as const;
-
 function normalizeDisplayName(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 40);
 }
@@ -177,7 +164,6 @@ interface AppState {
   fullScreen: boolean;
   controlsTimestamp: number;
   watchOptions: SearchResult[];
-  isVBrowser: boolean;
   isAutoPlayable: boolean;
   downloaded: number;
   total: number;
@@ -192,12 +178,8 @@ interface AppState {
   overlayMsg: string;
   isErrorAuth: boolean;
   settings: Settings;
-  vBrowserResolution: string;
-  vBrowserQuality: string;
-  isVBrowserLarge: boolean;
   nonPlayableMedia: boolean;
   currentTab: string;
-  isVBrowserModalOpen: boolean;
   isScreenShareModalOpen: boolean;
   isFileShareModalOpen: boolean;
   isSurpriseModalOpen: boolean;
@@ -229,9 +211,6 @@ interface AppState {
   youtubeQualityMode: YouTubeQualityMode;
   youtubeQualityLevels: YT.SuggestedVideoQuality[];
   showSearchHint: boolean;
-  preJoinModalOpen: boolean;
-  preJoinName: string;
-  preJoinColor: string;
   liveReactions: LiveReactionBubble[];
   showLiveReactionTray: boolean;
   joinToasts: JoinToast[];
@@ -323,7 +302,6 @@ export class App extends React.Component<AppProps, AppState> {
     fullScreen: false,
     controlsTimestamp: 0,
     watchOptions: [],
-    isVBrowser: false,
     isAutoPlayable: true,
     downloaded: 0,
     total: 0,
@@ -333,13 +311,9 @@ export class App extends React.Component<AppProps, AppState> {
     overlayMsg: "",
     isErrorAuth: false,
     settings: {},
-    vBrowserResolution: "1280x720@30",
-    vBrowserQuality: "1",
-    isVBrowserLarge: false,
     nonPlayableMedia: false,
     currentTab:
       new URLSearchParams(window.location.search).get("tab") ?? "chat",
-    isVBrowserModalOpen: false,
     isScreenShareModalOpen: false,
     isFileShareModalOpen: false,
     isSurpriseModalOpen: false,
@@ -390,11 +364,6 @@ export class App extends React.Component<AppProps, AppState> {
     youtubeQualityLevels: [],
     showSearchHint:
       window.localStorage.getItem(SEARCH_HINT_STORAGE_KEY) !== "1",
-    preJoinModalOpen: true,
-    preJoinName: "",
-    preJoinColor: normalizeNameColor(
-      window.localStorage.getItem(NAME_COLOR_STORAGE_KEY),
-    ),
     liveReactions: [],
     showLiveReactionTray: false,
     joinToasts: [],
@@ -425,7 +394,7 @@ export class App extends React.Component<AppProps, AppState> {
   countdownTimeouts: number[] = [];
   lastLiveReactionSentAt = 0;
   suppressYouTubeStateSyncUntil = 0;
-  authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
+  authUnsubscribe: FirebaseUnsubscribe | undefined = undefined;
   YouTubeInterface: YouTube = new YouTube(
     null,
     normalizeYouTubeQuality(
@@ -477,14 +446,16 @@ export class App extends React.Component<AppProps, AppState> {
     this.loadSettings();
     this.loadYouTube();
     if (config.VITE_FIREBASE_CONFIG) {
-      this.authUnsubscribe = firebase
+      const firebaseClient = await getFirebaseClient();
+      this.authUnsubscribe = firebaseClient
         .auth()
-        .onAuthStateChanged(async (user: firebase.User | null) => {
+        .onAuthStateChanged(async (user: FirebaseUser | null) => {
           if (user) {
             this.loadSignInData(user);
           }
         });
     }
+    this.init();
   }
 
   componentWillUnmount() {
@@ -547,22 +518,6 @@ export class App extends React.Component<AppProps, AppState> {
     }
     this.setState({ showSearchHint: false });
     window.localStorage.setItem(SEARCH_HINT_STORAGE_KEY, "1");
-  };
-
-  confirmPreJoin = () => {
-    const preJoinName =
-      normalizeDisplayName(this.state.preJoinName) || DEFAULT_CHAT_NAME;
-    const preJoinColor = normalizeNameColor(this.state.preJoinColor);
-    window.localStorage.setItem("watchparty-username", preJoinName);
-    window.localStorage.setItem(NAME_COLOR_STORAGE_KEY, preJoinColor);
-    this.setState(
-      {
-        myName: preJoinName,
-        myNameColor: preJoinColor,
-        preJoinModalOpen: false,
-      },
-      this.init,
-    );
   };
 
   onProfileUpdated = (event: CustomEvent<{ name?: string; avatar?: string }>) => {
@@ -718,22 +673,11 @@ export class App extends React.Component<AppProps, AppState> {
       if (this.playingFileShare() && !isFileShare(currentMedia)) {
         this.stopPublishingLocalStream();
       }
-      if (this.playingVBrowser() && !isVBrowser(currentMedia)) {
-        this.stopVBrowser();
-      }
       if (this.playingScreenShare() && isScreenShare(currentMedia)) {
         // Ignore, it's probably a reconnection
         return;
       }
       if (this.playingFileShare() && isFileShare(currentMedia)) {
-        // Ignore, it's probably a reconnection
-        return;
-      }
-      if (
-        this.playingVBrowser() &&
-        this.getVBrowserHost() &&
-        isVBrowser(currentMedia)
-      ) {
         // Ignore, it's probably a reconnection
         return;
       }
@@ -745,9 +689,6 @@ export class App extends React.Component<AppProps, AppState> {
           roomPlaybackRate: data.playbackRate,
           loading: Boolean(data.video),
           nonPlayableMedia: false,
-          isVBrowserLarge: data.isVBrowserLarge,
-          vBrowserResolution: "1280x720@30",
-          vBrowserQuality: "1",
           controller: data.controller,
           isLiveStream: false,
         },
@@ -768,18 +709,11 @@ export class App extends React.Component<AppProps, AppState> {
             this.Player().setPlaybackRate(data.playbackRate);
           }
 
-          if (
-            this.playingScreenShare() ||
-            this.playingFileShare() ||
-            this.playingVBrowser()
-          ) {
+          if (this.playingScreenShare() || this.playingFileShare()) {
             console.log(
-              "exiting REC:host since we are using webRTC (fileshare, screenshare, or vbrowser). Check setupRTCConnections()",
+              "exiting REC:host since we are using webRTC (fileshare or screenshare). Check setupRTCConnections()",
             );
-            if (!(this.playingVBrowser() && !this.getVBrowserHost())) {
-              // Remove the loader unless we're waiting for a vbrowser
-              this.setLoadingFalse();
-            }
+            this.setLoadingFalse();
             if (this.playingScreenShare() || this.playingFileShare()) {
               await this.setupRTCConnections();
             }
@@ -1223,7 +1157,7 @@ export class App extends React.Component<AppProps, AppState> {
     this.setState({ settings });
   };
 
-  loadSignInData = async (user: firebase.User | undefined) => {
+  loadSignInData = async (user: FirebaseUser | undefined) => {
     if (user && this.socket) {
       // NOTE: firebase auth doesn't provide the actual first name data that individual providers (G/FB) do
       // It's accessible at the time the user logs in but not afterward
@@ -2407,18 +2341,6 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  startVBrowser = async (options: {
-    size: string;
-    region?: string;
-    targetUrl?: string;
-  }) => {
-    this.socket.emit("CMD:startVBrowser", { options });
-  };
-
-  stopVBrowser = async () => {
-    this.socket.emit("CMD:stopVBrowser");
-  };
-
   changeController = async (value: string | null) => {
     // console.log(data);
     this.socket.emit("CMD:changeController", value);
@@ -2451,51 +2373,8 @@ export class App extends React.Component<AppProps, AppState> {
     return isFileShare(this.state.roomMedia);
   };
 
-  playingVBrowser = () => {
-    return isVBrowser(this.state.roomMedia);
-  };
-
-  decodeBase64Url = (value: string) => {
-    try {
-      const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-      const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
-      return window.atob(normalized + padding);
-    } catch {
-      return "";
-    }
-  };
-
-  getVBrowserData = () => {
-    const raw = this.state.roomMedia.replace("vbrowser://", "");
-    const atIndex = raw.lastIndexOf("@");
-    const pass = atIndex >= 0 ? raw.slice(0, atIndex) : "";
-    const rest = atIndex >= 0 ? raw.slice(atIndex + 1) : raw;
-    const openSeparator = "::open::";
-    const openIndex = rest.indexOf(openSeparator);
-    const host =
-      openIndex >= 0 ? rest.slice(0, openIndex) : rest;
-    const openToken =
-      openIndex >= 0
-        ? rest.slice(openIndex + openSeparator.length)
-        : "";
-    const openUrl = openToken ? this.decodeBase64Url(openToken) : "";
-    return { pass: pass.trim(), host: host.trim(), openUrl };
-  };
-
-  getVBrowserPass = () => {
-    return this.getVBrowserData().pass;
-  };
-
-  getVBrowserHost = () => {
-    return this.getVBrowserData().host;
-  };
-
-  getVBrowserLaunchUrl = () => {
-    return this.getVBrowserData().openUrl;
-  };
-
   isPauseDisabled = () => {
-    return this.playingScreenShare() || this.playingVBrowser();
+    return this.playingScreenShare();
   };
 
   localSeek = (customTime?: number) => {
@@ -2640,16 +2519,10 @@ export class App extends React.Component<AppProps, AppState> {
     // Default: fullscreen the body (theater mode)
     let container = document.body as HTMLElement;
     if (bVideoOnly || isMobile()) {
-      if (this.playingVBrowser() && !isMobile()) {
-        // vbrowser needs to fullscreen the control wrapper div
-        // Can't really control the VBrowser on mobile anyway, so just fullscreen the video
-        container = document.getElementById("leftVideoParent") as HTMLElement;
-      } else {
-        // fullscreen player shell so floating chat remains available
-        container =
-          (document.getElementById("watchPlayerShell") as HTMLElement) ??
-          this.Player().getVideoEl();
-      }
+      // fullscreen player shell so floating chat remains available
+      container =
+        (document.getElementById("watchPlayerShell") as HTMLElement) ??
+        this.Player().getVideoEl();
     }
     if (
       !container.requestFullscreen &&
@@ -2703,7 +2576,7 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   isPictureInPictureSupported = () => {
-    if (!this.usingNative() || this.playingVBrowser()) {
+    if (!this.usingNative()) {
       return false;
     }
     const doc = document as Document & {
@@ -2846,7 +2719,7 @@ export class App extends React.Component<AppProps, AppState> {
     this.socket.emit("CMD:picture", url);
   };
 
-  updateUid = async (user: firebase.User) => {
+  updateUid = async (user: FirebaseUser) => {
     const uid = user.uid;
     const token = await user.getIdToken();
     this.socket.emit("CMD:uid", { uid, token });
@@ -2869,9 +2742,6 @@ export class App extends React.Component<AppProps, AppState> {
       return (
         "Arquivo de " + (this.state.nameMap[sharer?.id ?? ""] || "usuario")
       );
-    }
-    if (input.startsWith("vbrowser://")) {
-      return "Navegador virtual" + (this.state.isVBrowserLarge ? "+" : "");
     }
     if (isMagnet(input)) {
       const magnetParsed = new URLSearchParams(input);
@@ -3079,16 +2949,14 @@ export class App extends React.Component<AppProps, AppState> {
         this.haveLock() &&
         this.state.roomMedia &&
         !this.playingScreenShare() &&
-        !this.playingFileShare() &&
-        !this.playingVBrowser(),
+        !this.playingFileShare(),
     );
     const canStopHostedMedia = Boolean(
       this.haveLock() &&
         this.state.roomMedia &&
         !this.localStreamToPublish &&
         !this.playingScreenShare() &&
-        !this.playingFileShare() &&
-        !this.playingVBrowser(),
+        !this.playingFileShare(),
     );
     const playlist = this.state.playlist;
     const controls = (
@@ -3123,12 +2991,6 @@ export class App extends React.Component<AppProps, AppState> {
             startConvert={this.startConvert}
           />
         )}
-        {VBROWSER_ENABLED && this.state.isVBrowserModalOpen && (
-          <VBrowserModal
-            closeModal={() => this.setState({ isVBrowserModalOpen: false })}
-            startVBrowser={this.startVBrowser}
-          />
-        )}
         {this.state.isScreenShareModalOpen && (
           <ScreenShareModal
             closeModal={() => this.setState({ isScreenShareModalOpen: false })}
@@ -3148,96 +3010,10 @@ export class App extends React.Component<AppProps, AppState> {
             onPlayTogether={(url) => this.roomSetMedia(url)}
           />
         )}
-        {this.state.state === "starting" && !this.state.preJoinModalOpen && (
+        {this.state.state === "starting" && (
           <Overlay className={styles.flexCenter}>
             <Title order={2}>Carregando...</Title>
           </Overlay>
-        )}
-        {this.state.preJoinModalOpen && (
-          <Modal
-            opened
-            onClose={() => {}}
-            withCloseButton={false}
-            closeOnClickOutside={false}
-            closeOnEscape={false}
-            centered
-            size={400}
-            title="Entrar como convidado"
-            classNames={{
-              content: styles.preJoinModalContent,
-              header: styles.preJoinModalHeader,
-              title: styles.preJoinModalTitle,
-              body: styles.preJoinModalBody,
-            }}
-          >
-            <div className={styles.preJoinContent}>
-              {(() => {
-                const previewName = normalizeDisplayName(this.state.preJoinName);
-                const displayName = previewName || "Seu nome";
-                const color = normalizeNameColor(this.state.preJoinColor);
-                return (
-                  <div className={styles.preJoinPreview}>
-                    <div
-                      className={styles.preJoinPreviewAvatar}
-                      style={{
-                        background: toRgba(color, 0.22),
-                        borderColor: toRgba(color, 0.5),
-                        color,
-                      }}
-                    >
-                      {getDisplayInitials(displayName)}
-                    </div>
-                    <div
-                      className={styles.preJoinPreviewName}
-                      style={{
-                        color: previewName ? color : "var(--text-muted)",
-                      }}
-                    >
-                      {displayName}
-                    </div>
-                  </div>
-                );
-              })()}
-              <TextInput
-                label="Apelido"
-                placeholder="Seu apelido ou nome"
-                value={this.state.preJoinName}
-                maxLength={40}
-                autoFocus
-                onChange={(e) =>
-                  this.setState({ preJoinName: e.target.value })
-                }
-              />
-              <div className={styles.preJoinColorBlock}>
-                <div className={styles.preJoinColorLabel}>Cor do nome</div>
-                <div className={styles.preJoinColorGrid}>
-                  {PRESET_NAME_COLORS.map((color) => {
-                    const selected = this.state.preJoinColor === color;
-                    return (
-                      <button
-                        key={color}
-                        type="button"
-                        className={`${styles.preJoinColorSwatch} ${
-                          selected ? styles.preJoinColorSwatchSelected : ""
-                        }`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => this.setState({ preJoinColor: color })}
-                        aria-label={`Selecionar cor ${color}`}
-                        title={color}
-                      >
-                        {selected ? (
-                          <span className={styles.preJoinColorCheck}>✓</span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <Button color="webgold" onClick={this.confirmPreJoin}>
-                Entrar na sala
-              </Button>
-            </div>
-          </Modal>
         )}
         {this.state.overlayMsg && <ErrorModal error={this.state.overlayMsg} />}
         {this.state.isErrorAuth && <PasswordModal roomId={this.state.roomId} />}
@@ -3405,16 +3181,6 @@ export class App extends React.Component<AppProps, AppState> {
                             className={styles.topActionButton}
                           >
                             {t("stopShare")}
-                          </Button>
-                        )}
-                        {this.playingVBrowser() && this.haveLock() && (
-                          <Button
-                            color="red"
-                            onClick={this.stopVBrowser}
-                            leftSection={<IconX />}
-                            className={styles.topActionButton}
-                          >
-                            {t("stopVBrowser")}
                           </Button>
                         )}
                         {this.state.uploadController && (
@@ -3595,8 +3361,8 @@ export class App extends React.Component<AppProps, AppState> {
                             >
                               <Loader />
                               <div>
-                                {this.playingVBrowser()
-                                  ? VBROWSER_ENABLED
+                                {false
+                                  ? false
                                     ? "Iniciando navegador virtual. Isso pode levar até 1 minuto."
                                     : "Navegador virtual temporariamente indisponível."
                                   : ""}
@@ -3606,8 +3372,7 @@ export class App extends React.Component<AppProps, AppState> {
                           {!this.state.loading &&
                             !this.state.roomMedia &&
                             !this.localStreamToPublish &&
-                            !sharer &&
-                            !this.playingVBrowser() && (
+                            !sharer && (
                               <div className={styles.emptyStateCard}>
                                 <div
                                   className={styles.emptyStatePulse}
@@ -3694,43 +3459,21 @@ export class App extends React.Component<AppProps, AppState> {
                       allow="autoplay"
                       src="https://www.youtube.com/embed/?enablejsapi=1&controls=0&rel=0&playsinline=1&vq=hd1080"
                     />
-                    {this.playingVBrowser() &&
-                    this.getVBrowserPass() &&
-                    this.getVBrowserHost() ? (
-                      <VBrowser
-                        username={clientId}
-                        password={this.getVBrowserPass()}
-                        hostname={this.getVBrowserHost()}
-                        controlling={this.state.controller === clientId}
-                        resolution={this.state.vBrowserResolution}
-                        quality={this.state.vBrowserQuality}
-                        doPlay={this.localPlay}
-                        setResolution={(data: string) =>
-                          this.setState({ vBrowserResolution: data })
-                        }
-                        setQuality={(data: string) => {
-                          this.setState({ vBrowserQuality: data });
-                        }}
-                        isMobile={isMobile()}
-                        openUrl={this.getVBrowserLaunchUrl()}
-                      />
-                    ) : (
-                      <video
-                        style={{
-                          display:
-                            (this.usingNative() && !this.state.loading) ||
-                            this.state.fullScreen
-                              ? "block"
-                              : "none",
-                          width: "100%",
-                          maxHeight: VIDEO_MAX_HEIGHT_CSS,
-                        }}
-                        id="leftVideo"
-                        onEnded={(e) => this.onVideoEnded(e.currentTarget.src)}
-                        playsInline
-                        onClick={this.roomTogglePlay}
-                      ></video>
-                    )}
+                    <video
+                      style={{
+                        display:
+                          (this.usingNative() && !this.state.loading) ||
+                          this.state.fullScreen
+                            ? "block"
+                            : "none",
+                        width: "100%",
+                        maxHeight: VIDEO_MAX_HEIGHT_CSS,
+                      }}
+                      id="leftVideo"
+                      onEnded={(e) => this.onVideoEnded(e.currentTarget.src)}
+                      playsInline
+                      onClick={this.roomTogglePlay}
+                    ></video>
                     {Boolean(this.state.total) && (
                       <div className={styles.downloadStats}>
                         {Math.min(
@@ -3849,17 +3592,63 @@ export class App extends React.Component<AppProps, AppState> {
                       </div>
                       <div className={styles.chatPanelBody}>
                         {this.state.showPeopleColumn ? (
-                          <VideoChat
-                            socket={this.socket}
-                            participants={this.state.participants}
-                            nameMap={this.state.nameMap}
-                            nameColorMap={this.state.nameColorMap}
-                            pictureMap={this.state.pictureMap}
-                            tsMap={this.state.tsMap}
-                            rosterUpdateTS={this.state.rosterUpdateTS}
-                            owner={this.state.owner}
-                            getLeaderTime={this.getLeaderTime}
-                          />
+                          <div className={styles.peopleList}>
+                            {this.state.participants.map((participant) => {
+                              const name =
+                                this.state.nameMap[participant.id] ||
+                                participant.id;
+                              const color =
+                                this.state.nameColorMap[participant.id] ||
+                                `#${getColorForStringHex(participant.id)}`;
+                              const picture =
+                                this.state.pictureMap[participant.id] ||
+                                getDefaultPicture(
+                                  name,
+                                  getColorForStringHex(participant.id),
+                                );
+                              const isSelf = participant.id === selfId;
+                              const isOwner = participant.id === this.state.owner;
+                              return (
+                                <div
+                                  key={participant.id}
+                                  className={styles.peopleListItem}
+                                >
+                                  <img
+                                    className={styles.peopleAvatar}
+                                    src={picture}
+                                    alt=""
+                                    aria-hidden="true"
+                                  />
+                                  <div className={styles.peopleMeta}>
+                                    <div className={styles.peopleNameRow}>
+                                      <span
+                                        className={styles.peopleName}
+                                        style={{ color }}
+                                        title={name}
+                                      >
+                                        {name}
+                                      </span>
+                                      {isSelf && (
+                                        <span className={styles.peopleBadge}>
+                                          Você
+                                        </span>
+                                      )}
+                                      {isOwner && (
+                                        <span className={styles.peopleBadge}>
+                                          Host
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className={styles.peopleTimestamp}>
+                                      {formatTimestamp(
+                                        this.state.tsMap[participant.id] || 0,
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <Chat
                             chat={this.state.chat}

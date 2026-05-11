@@ -1,10 +1,7 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
-import { serverPath, getUserImage } from "../../utils/utils";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { serverPath } from "../../utils/serverPath";
 import { Avatar, Button } from "@mantine/core";
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
-import { LoginModal } from "../Modal/LoginModal";
-import { ProfileModal } from "../Modal/ProfileModal";
+import type { FirebaseUser } from "../../utils/firebaseClient";
 import { MetadataContext } from "../../MetadataContext";
 import {
   IconCirclePlusFilled,
@@ -15,6 +12,13 @@ import {
 import styles from "./TopBar.module.css";
 import { t } from "../../i18n";
 import { ThemeModeContext } from "../../ThemeModeContext";
+
+const LoginModal = React.lazy(() =>
+  import("../Modal/LoginModal").then((mod) => ({ default: mod.LoginModal })),
+);
+const ProfileModal = React.lazy(() =>
+  import("../Modal/ProfileModal").then((mod) => ({ default: mod.ProfileModal })),
+);
 
 const roomSlugPattern = /^[a-z0-9-]{3,80}$/;
 
@@ -34,7 +38,7 @@ function slugify(value: string) {
 }
 
 export async function createRoom(
-  user: firebase.User | undefined,
+  user: FirebaseUser | undefined,
   openNewTab: boolean | undefined,
   options?: {
     video?: string;
@@ -99,6 +103,14 @@ export const NewRoomButton = (props: {
 }) => {
   const context = useContext(MetadataContext);
   const [isCreating, setIsCreating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const errorTimeoutRef = useRef<number>();
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(errorTimeoutRef.current);
+    };
+  }, []);
 
   const submitCreateRoom = async () => {
     const storedName = window.localStorage.getItem("watchparty-username") ?? "";
@@ -107,6 +119,7 @@ export const NewRoomButton = (props: {
     const roomSlug = `cinema-${slugBase}`;
     window.localStorage.setItem("watchparty-username", cleanName);
     setIsCreating(true);
+    setErrorMessage("");
     try {
       await createRoom(context.user, props.openNewTab, {
         username: cleanName,
@@ -119,21 +132,33 @@ export const NewRoomButton = (props: {
           ? e.message
           : "Não foi possível criar a sala. Tente novamente.";
       console.warn("[createRoom]", message);
+      setErrorMessage(message);
+      window.clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = window.setTimeout(() => {
+        setErrorMessage("");
+      }, 5000);
     } finally {
       setIsCreating(false);
     }
   };
 
   return (
-    <Button
-      className={styles.newRoomButton}
-      size={props.size}
-      onClick={() => void submitCreateRoom()}
-      leftSection={<IconCirclePlusFilled />}
-      disabled={isCreating}
-    >
-      {t("newRoom")}
-    </Button>
+    <>
+      <Button
+        className={styles.newRoomButton}
+        size={props.size}
+        onClick={() => void submitCreateRoom()}
+        leftSection={<IconCirclePlusFilled />}
+        disabled={isCreating}
+      >
+        {t("newRoom")}
+      </Button>
+      {errorMessage && (
+        <div className={styles.createRoomToast} role="alert">
+          {errorMessage}
+        </div>
+      )}
+    </>
   );
 };
 type SignInButtonProps = {};
@@ -152,6 +177,7 @@ export class SignInButton extends React.Component<SignInButtonProps> {
       this.setState({ userImage: customImage });
       return;
     }
+    const { getUserImage } = await import("../../utils/utils");
     this.setState({ userImage: await getUserImage(this.context.user) });
   };
 
@@ -165,6 +191,7 @@ export class SignInButton extends React.Component<SignInButtonProps> {
 
   onOpenLoginRequested = () => {
     if (!this.context.user) {
+      window.dispatchEvent(new CustomEvent("webcinetv-bootstrap-auth"));
       this.setState({ isLoginOpen: true });
     }
   };
@@ -198,13 +225,15 @@ export class SignInButton extends React.Component<SignInButtonProps> {
             onClick={() => this.setState({ isProfileOpen: true })}
           />
           {this.state.isProfileOpen && this.context.user && (
-            <ProfileModal
-              userImage={this.state.userImage}
-              onProfileUpdated={(data) =>
-                this.setState({ userImage: data.avatar || this.state.userImage })
-              }
-              close={() => this.setState({ isProfileOpen: false })}
-            />
+            <React.Suspense fallback={null}>
+              <ProfileModal
+                userImage={this.state.userImage}
+                onProfileUpdated={(data) =>
+                  this.setState({ userImage: data.avatar || this.state.userImage })
+                }
+                close={() => this.setState({ isProfileOpen: false })}
+              />
+            </React.Suspense>
           )}
         </div>
       );
@@ -212,15 +241,20 @@ export class SignInButton extends React.Component<SignInButtonProps> {
     return (
       <React.Fragment>
         {this.state.isLoginOpen && (
-          <LoginModal
-            closeModal={() => this.setState({ isLoginOpen: false })}
-          />
+          <React.Suspense fallback={null}>
+            <LoginModal
+              closeModal={() => this.setState({ isLoginOpen: false })}
+            />
+          </React.Suspense>
         )}
         <Button
           className={styles.signInButton}
           leftSection={<IconLogin />}
           title={t("signIn")}
-          onClick={() => this.setState({ isLoginOpen: true })}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent("webcinetv-bootstrap-auth"));
+            this.setState({ isLoginOpen: true });
+          }}
         >
           {t("signIn")}
         </Button>

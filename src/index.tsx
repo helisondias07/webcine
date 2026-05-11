@@ -16,8 +16,7 @@ import { Home } from "./components/Home/Home";
 import { Privacy, Terms, FAQ } from "./components/Pages/Pages";
 import { TopBar } from "./components/TopBar/TopBar";
 import { Footer } from "./components/Footer/Footer";
-import firebase from "firebase/compat/app";
-import { serverPath, softWhite } from "./utils/utils";
+import { serverPath } from "./utils/serverPath";
 import config from "./config";
 import { DEFAULT_STATE, MetadataContext } from "./MetadataContext";
 import { createTheme, MantineProvider } from "@mantine/core";
@@ -27,9 +26,14 @@ import {
   type ThemeMode,
 } from "./ThemeModeContext";
 import { initAnalytics, runWhenIdle } from "./utils/analytics";
+import {
+  getFirebaseClient,
+  type FirebaseUnsubscribe,
+  type FirebaseUser,
+} from "./utils/firebaseClient";
 
 const theme = createTheme({
-  white: softWhite,
+  white: "whitesmoke",
   fontFamily: '"Outfit", "Segoe UI", Tahoma, sans-serif',
   headings: {
     fontFamily: '"Sora", "Outfit", "Segoe UI", sans-serif',
@@ -114,9 +118,6 @@ const CreatePage = lazy(() =>
 const SEO_TITLE = "WebCineTV — Sua sala de cinema online";
 
 const firebaseConfig = config.VITE_FIREBASE_CONFIG;
-if (firebaseConfig) {
-  firebase.initializeApp(JSON.parse(firebaseConfig));
-}
 document.title = SEO_TITLE;
 
 // Redirect old-style URLs
@@ -137,7 +138,8 @@ function getStoredThemeMode(): ThemeMode {
 
 class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
-  private authUnsubscribe: firebase.Unsubscribe | undefined = undefined;
+  private authUnsubscribe: FirebaseUnsubscribe | undefined = undefined;
+  private authBootstrapStarted = false;
   private _isMounted = false;
 
   componentWillUnmount() {
@@ -159,8 +161,12 @@ class WebCineTVApp extends React.Component {
 
     if (firebaseConfig) {
       const bootstrapAuth = async () => {
-        await import("firebase/auth");
-        this.authUnsubscribe = firebase.auth().onAuthStateChanged(async (user: firebase.User | null) => {
+        if (this.authBootstrapStarted) {
+          return;
+        }
+        this.authBootstrapStarted = true;
+        const firebaseClient = await getFirebaseClient();
+        this.authUnsubscribe = firebaseClient.auth().onAuthStateChanged(async (user: FirebaseUser | null) => {
         if (user) {
           // console.log(user);
           if (!this._isMounted) return;
@@ -212,9 +218,9 @@ class WebCineTVApp extends React.Component {
       if (shouldEagerInitAuth) {
         void bootstrapAuth();
       } else {
-        runWhenIdle(() => {
+        window.addEventListener("webcinetv-bootstrap-auth", () => {
           void bootstrapAuth();
-        }, 4000);
+        });
       }
     } else {
       // Firebase isn't set up so enable subscriber features
@@ -312,6 +318,17 @@ const RootApp = () => {
 
   useEffect(() => {
     document.title = SEO_TITLE;
+  }, []);
+
+  useEffect(() => {
+    if (config.NODE_ENV !== "production" || !("serviceWorker" in navigator)) {
+      return;
+    }
+    runWhenIdle(() => {
+      navigator.serviceWorker
+        .register("/sw.min.js")
+        .catch((error) => console.warn("[serviceWorker]", error));
+    }, 2500);
   }, []);
 
   useEffect(() => {

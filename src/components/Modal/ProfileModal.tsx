@@ -1,7 +1,5 @@
 import React from "react";
 import { Modal, Button, Avatar, Text, TextInput } from "@mantine/core";
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
 import { MetadataContext } from "../../MetadataContext";
 import {
   IconDatabase,
@@ -12,6 +10,7 @@ import {
   IconStarFilled,
 } from "@tabler/icons-react";
 import { t } from "../../i18n";
+import { getFirebaseClient } from "../../utils/firebaseClient";
 
 function normalizeDisplayName(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 40);
@@ -46,8 +45,9 @@ export class ProfileModal extends React.Component<{
     profileError: "",
   };
 
-  onSignOut = () => {
-    firebase.auth().signOut();
+  onSignOut = async () => {
+    const firebaseClient = await getFirebaseClient();
+    await firebaseClient.auth().signOut();
     window.localStorage.removeItem("watchparty-loginname");
     window.location.reload();
   };
@@ -55,7 +55,8 @@ export class ProfileModal extends React.Component<{
   resetPassword = async () => {
     try {
       if (this.context.user?.email) {
-        await firebase.auth().sendPasswordResetEmail(this.context.user.email);
+        const firebaseClient = await getFirebaseClient();
+        await firebaseClient.auth().sendPasswordResetEmail(this.context.user.email);
         this.setState({
           resetDisabled: true,
           resetError: "",

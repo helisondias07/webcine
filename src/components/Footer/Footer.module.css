@@ -22,7 +22,10 @@
 .link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  min-width: 24px;
+  min-height: 24px;
   color: var(--text-muted);
   opacity: 0.6;
   text-decoration: none;
@@ -47,5 +50,9 @@
 
   .link span {
     display: none;
+  }
+
+  .link {
+    gap: 0;
   }
 }

@@ -7,14 +7,16 @@ import {
   PasswordInput,
   Divider,
 } from "@mantine/core";
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
 import { IconBrandGoogleFilled } from "@tabler/icons-react";
 import { t } from "../../i18n";
 import styles from "./LoginModal.module.css";
+import { getFirebaseClient } from "../../utils/firebaseClient";
 
 function getAuthErrorMessage(error: any) {
   const code = String(error?.code ?? "");
+  if (code === "auth/missing-client-config") {
+    return "Firebase Auth nao esta configurado neste ambiente. Confira as variaveis VITE_FIREBASE_*. ";
+  }
   if (code === "auth/invalid-email") {
     return "E-mail inválido.";
   }
@@ -58,7 +60,8 @@ async function getEmailLoginErrorMessage(error: any, email: string) {
     code === "auth/invalid-login-credentials"
   ) {
     try {
-      const methods = await firebase.auth().fetchSignInMethodsForEmail(email);
+      const firebaseClient = await getFirebaseClient();
+      const methods = await firebaseClient.auth().fetchSignInMethodsForEmail(email);
       if (!methods.length) {
         return "Usuário não existe.";
       }
@@ -88,7 +91,8 @@ export class LoginModal extends React.Component<{
 
   emailSignIn = async (email: string, password: string) => {
     try {
-      await firebase.auth().signInWithEmailAndPassword(email, password);
+      const firebaseClient = await getFirebaseClient();
+      await firebaseClient.auth().signInWithEmailAndPassword(email, password);
       this.props.closeModal();
     } catch (e: any) {
       this.setState({ error: await getEmailLoginErrorMessage(e, email) });
@@ -97,8 +101,9 @@ export class LoginModal extends React.Component<{
 
   googleSignIn = async () => {
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      await firebase.auth().signInWithPopup(provider);
+      const firebaseClient = await getFirebaseClient();
+      const provider = new firebaseClient.auth.GoogleAuthProvider();
+      await firebaseClient.auth().signInWithPopup(provider);
       this.props.closeModal();
     } catch (e: any) {
       const code = String(e?.code ?? "");
@@ -109,8 +114,9 @@ export class LoginModal extends React.Component<{
         code === "auth/operation-not-supported-in-this-environment"
       ) {
         try {
-          const provider = new firebase.auth.GoogleAuthProvider();
-          await firebase.auth().signInWithRedirect(provider);
+          const firebaseClient = await getFirebaseClient();
+          const provider = new firebaseClient.auth.GoogleAuthProvider();
+          await firebaseClient.auth().signInWithRedirect(provider);
           return;
         } catch (redirectError: any) {
           this.setState({ error: getAuthErrorMessage(redirectError) });
@@ -227,7 +233,8 @@ export class CreateModal extends React.Component<{
 
   createAccount = async (email: string, password: string) => {
     try {
-      await firebase.auth().createUserWithEmailAndPassword(email, password);
+      const firebaseClient = await getFirebaseClient();
+      await firebaseClient.auth().createUserWithEmailAndPassword(email, password);
       this.props.closeModal();
     } catch (e: any) {
       this.setState({ error: getAuthErrorMessage(e) });
@@ -296,7 +303,8 @@ export class ResetModal extends React.Component<{
         return;
       }
       this.setState({ loading: true, error: "", success: "" });
-      await firebase.auth().sendPasswordResetEmail(this.state.email);
+      const firebaseClient = await getFirebaseClient();
+      await firebaseClient.auth().sendPasswordResetEmail(this.state.email);
       this.setState({
         success:
           "Se o e-mail estiver cadastrado, você receberá as instruções de redefinição em instantes. Verifique também as pastas Spam e Lixeira.",

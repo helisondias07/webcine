@@ -1,10 +1,11 @@
 //@ts-expect-error
 import canAutoplay from "can-autoplay";
 import { MD5 } from "./md5";
-import firebase from "firebase/compat/app";
+import type { FirebaseUser } from "./firebaseClient";
 import config from "../config";
 import { cyrb53 } from "./hash";
 import React from "react";
+import { serverPath } from "./serverPath";
 
 export function formatTimestamp(input: any, zeroTime?: number): string {
   if (
@@ -177,10 +178,6 @@ export const isFileShare = (input: string) => {
   return input.startsWith("fileshare://");
 };
 
-export const isVBrowser = (input: string) => {
-  return input.startsWith("vbrowser://");
-};
-
 export const STREAMING_DOMAINS = [
   "netflix.com",
   "primevideo.com",
@@ -263,13 +260,7 @@ export const iceServers = (): RTCIceServer[] => {
   return servers;
 };
 
-export const serverPath =
-  config.VITE_SERVER_HOST ||
-  `${window.location.protocol}//${
-    config.NODE_ENV === "development"
-      ? `${window.location.hostname}:8080`
-      : window.location.host
-  }`;
+export { serverPath };
 
 export async function getMediaPathResults(
   mediaPath: string,
@@ -509,7 +500,7 @@ export function calculateMedian(array: number[]): number {
 }
 
 export async function getUserImage(
-  user: firebase.User,
+  user: FirebaseUser,
 ): Promise<string | null> {
   if (user.photoURL) {
     return user.photoURL + "?height=256&width=256";

@@ -42,7 +42,7 @@ export default {
   VITE_OAUTH_REDIRECT_HOSTNAME:
     import.meta.env.VITE_OAUTH_REDIRECT_HOSTNAME ?? window.location.origin,
   VITE_FIREBASE_CONFIG:
-    import.meta.env.VITE_FIREBASE_CONFIG ??
+    import.meta.env.VITE_FIREBASE_CONFIG ||
     firebaseFromSplitVars,
   VITE_STRIPE_PUBLIC_KEY:
     import.meta.env.VITE_STRIPE_PUBLIC_KEY ?? "",

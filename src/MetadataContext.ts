@@ -1,8 +1,8 @@
-import firebase from "firebase/compat/app";
+import type { FirebaseUser } from "./utils/firebaseClient";
 import React from "react";
 
 export const DEFAULT_STATE = {
-  user: undefined as firebase.User | undefined,
+  user: undefined as FirebaseUser | undefined,
   isSubscriber: undefined as boolean | undefined,
   plan: "free" as "free" | "premium" | "family",
   subscriptionStatus: "canceled" as

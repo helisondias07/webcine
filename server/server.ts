@@ -1859,6 +1859,138 @@ app.get("/proxy/*splat", async (req, res) => {
   }
 });
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function getPublicOrigin(req: Request) {
+  const configuredOrigin = normalizeOrigin(config.FRONTEND_URL);
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+  const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "")
+    .split(",")[0]
+    .trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] ?? "")
+    .split(",")[0]
+    .trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get("host") || "webcinetv.com.br";
+  return `${protocol}://${host}`;
+}
+
+function replaceMeta(html: string, key: "name" | "property", name: string, content: string) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `<meta\\s+${key}="${escapedName}"\\s+content="[^"]*"\\s*/?>`,
+    "s",
+  );
+  return html.replace(
+    pattern,
+    `<meta ${key}="${name}" content="${escapeHtml(content)}" />`,
+  );
+}
+
+async function getRoomPreview(roomId: string) {
+  const fallback = {
+    title: "WebCineTV - Sala compartilhada",
+    description: "Entre na sala e assista junto com seus amigos em tempo real.",
+  };
+  if (!postgres) {
+    return fallback;
+  }
+  try {
+    const result = await postgres.query(
+      `SELECT "roomTitle", "roomDescription"
+       FROM room
+       WHERE "roomId" = $1 AND password IS NULL
+       LIMIT 1`,
+      [roomId],
+    );
+    const row = result.rows[0];
+    return {
+      title: normalizeRoomTitle(row?.roomTitle) || fallback.title,
+      description:
+        (typeof row?.roomDescription === "string"
+          ? row.roomDescription.trim().replace(/\s+/g, " ").slice(0, 120)
+          : "") ||
+        fallback.description,
+    };
+  } catch (error: any) {
+    console.warn("[room preview error]", error?.message ?? error);
+    return fallback;
+  }
+}
+
+async function getVanityPreview(vanity: string) {
+  if (!postgres) {
+    return getRoomPreview("");
+  }
+  try {
+    const result = await postgres.query(
+      `SELECT "roomId"
+       FROM room
+       WHERE LOWER(vanity) = $1 AND password IS NULL
+       LIMIT 1`,
+      [vanity.toLowerCase()],
+    );
+    return getRoomPreview(result.rows[0]?.roomId ?? "");
+  } catch (error: any) {
+    console.warn("[vanity preview error]", error?.message ?? error);
+    return getRoomPreview("");
+  }
+}
+
+async function sendIndexWithPreview(req: Request, res: Response, preview: {
+  title: string;
+  description: string;
+}) {
+  const indexPath = path.resolve(
+    import.meta.dirname + `/../${config.BUILD_DIRECTORY}/index.html`,
+  );
+  let html = await fs.promises.readFile(indexPath, "utf8");
+  const origin = getPublicOrigin(req);
+  const url = `${origin}${req.originalUrl.split("?")[0] || "/"}`;
+  const image = `${origin}/screenshot_full.png`;
+
+  html = html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(preview.title)}</title>`);
+  html = replaceMeta(html, "name", "description", preview.description);
+  html = replaceMeta(html, "property", "og:title", preview.title);
+  html = replaceMeta(html, "property", "og:description", preview.description);
+  html = replaceMeta(html, "property", "og:image", image);
+  html = replaceMeta(html, "property", "og:url", url);
+  html = replaceMeta(html, "name", "twitter:title", preview.title);
+  html = replaceMeta(html, "name", "twitter:description", preview.description);
+  html = replaceMeta(html, "name", "twitter:image", image);
+  html = html.replace(
+    /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/,
+    `<link rel="canonical" href="${escapeHtml(url)}" />`,
+  );
+  res.type("html").send(html);
+}
+
+app.get("/watch/:roomId", async (req, res, next) => {
+  try {
+    const preview = await getRoomPreview(`/${req.params.roomId}`);
+    await sendIndexWithPreview(req, res, preview);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/r/:vanity", async (req, res, next) => {
+  try {
+    const preview = await getVanityPreview(req.params.vanity ?? "");
+    await sendIndexWithPreview(req, res, preview);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use(express.static(config.BUILD_DIRECTORY));
 // Send index.html for all other requests (SPA)
 app.use("/*splat", (_req, res) => {

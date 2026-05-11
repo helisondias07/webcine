@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ActionIcon } from "@mantine/core";
 import {
   IconBrandYoutubeFilled,
-  IconBrowser,
   IconChevronLeft,
   IconChevronRight,
   IconFile,
@@ -10,7 +9,6 @@ import {
   IconMessageFilled,
   IconScreenShare,
   type IconProps,
-  IconVideo,
 } from "@tabler/icons-react";
 import { NewRoomButton } from "../TopBar/TopBar";
 import styles from "./Home.module.css";
@@ -32,11 +30,6 @@ function shouldSplitHeroOnMobile() {
 
 export const Home = () => {
   const featureCards = [
-    {
-      Icon: IconBrowser,
-      title: "Virtual Browser",
-      text: "Navegue em um browser virtual na nuvem junto com a sala.",
-    },
     {
       Icon: IconBrandYoutubeFilled,
       title: "YouTube",
@@ -61,11 +54,6 @@ export const Home = () => {
       Icon: IconList,
       title: t("playlist"),
       text: "Monte a ordem dos próximos vídeos em colaboração.",
-    },
-    {
-      Icon: IconVideo,
-      title: "Videochamada",
-      text: "Entre em chamada de video quando quiser.",
     },
   ];
 
@@ -97,7 +85,7 @@ export const Home = () => {
   }, [pages.length]);
 
   return (
-    <div className={styles.container}>
+    <main className={styles.container}>
       <div className={styles.layout}>
         <section id="inicio" className={styles.primaryCards}>
           {splitHeroOnMobile ? (
@@ -215,7 +203,7 @@ export const Home = () => {
           </div>
         </section>
       </div>
-    </div>
+    </main>
   );
 };
 

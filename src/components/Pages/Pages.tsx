@@ -32,11 +32,6 @@ Cookies
 ----
 - We use services such as Google Analytics to measure usage. These services may set cookies or other information locally on your device.
 
-Virtual Browsers
-----
-- Virtual machines are recycled after each session ends and any data on them is destroyed.
-- Your commands are encrypted while in-transit to the virtual machine.
-
 YouTube
 ----
 - The service provides the ability to search and play YouTube videos. Google/YouTube may use data provided to the search service in accordance with the [Google Privacy Policy](https://policies.google.com/privacy).
@@ -80,23 +75,6 @@ export const FAQ = () => {
         {`
 FAQ
 ====
-What's a VBrowser?
-----
-A virtual browser (VBrowser) is a browser running in the cloud that a room's members can connect to. Everyone in the room sees the same thing, so it's a great way to watch videos or collaborate on tasks together.
-
-Why did my VBrowser session stop?
-----
-VBrowsers will terminate automatically if no one is in the room for a while.
-VBrowser sessions are also limited to a maximum of 3 hours for free users, and 24 hours for subscribers.
-
-Does everyone in the room need to be a subscriber to get the benefits?
-----
-No, only the person who created the VBrowser needs to be.
-
-How do I access sites that have a "not available" message in the VBrowser?
-----
-Some sites may block traffic that's detected as coming from the cloud. You may need to install a VPN extension inside the virtual browser.
-
 How come I'm not getting any audio when screensharing?
 ----
 To share audio, you must be using Chrome/Edge and sharing a tab or desktop.

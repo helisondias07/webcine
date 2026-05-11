@@ -411,8 +411,6 @@ export class Room {
       socket.on("CMD:removeReaction", (data: unknown) => {
         this.removeReaction(socket, data);
       });
-      socket.on("CMD:joinVideo", () => this.joinVideo(socket));
-      socket.on("CMD:leaveVideo", () => this.leaveVideo(socket));
       socket.on("CMD:joinScreenShare", (data) => {
         validateLock() && this.joinScreenSharing(socket, data);
       });
@@ -423,12 +421,6 @@ export class Room {
         this.setUserMute(socket, data),
       );
       socket.on("CMD:leaveScreenShare", () => this.leaveScreenSharing(socket));
-      socket.on("CMD:startVBrowser", (data: unknown) => {
-        validateLock() && this.startVBrowser(socket, data);
-      });
-      socket.on("CMD:stopVBrowser", () => {
-        validateLock() && this.stopVBrowser();
-      });
       socket.on("CMD:changeController", (data: unknown) => {
         validateLock() && this.changeController(String(data));
       });
@@ -486,9 +478,6 @@ export class Room {
         }
       });
 
-      socket.on("signal", (data: unknown) =>
-        this.sendSignal(socket, data, "signal"),
-      );
       socket.on("signalSS", (data: unknown) =>
         this.sendSignal(socket, data, "signalSS"),
       );
@@ -1053,23 +1042,6 @@ export class Room {
     this.io.of(this.roomId).emit("REC:removeReaction", reaction);
   };
 
-  private joinVideo = async (socket: Socket) => {
-    const match = this.roster.find((user) => user.id === socket.clientId);
-    if (match) {
-      match.isVideoChat = true;
-      redisCount("videoChatStarts");
-    }
-    this.io.of(this.roomId).emit("roster", this.getRosterForApp());
-  };
-
-  private leaveVideo = async (socket: Socket) => {
-    const match = this.roster.find((user) => user.id === socket.clientId);
-    if (match) {
-      match.isVideoChat = false;
-    }
-    this.io.of(this.roomId).emit("roster", this.getRosterForApp());
-  };
-
   private setUserMute = (socket: Socket, raw: unknown) => {
     const data = raw as { isMuted: boolean };
     if (!data) {
@@ -1214,191 +1186,6 @@ export class Room {
     }
     this.cmdHost(socket, "");
     this.io.of(this.roomId).emit("roster", this.getRosterForApp());
-  };
-
-  private startVBrowser = async (socket: Socket, raw: unknown) => {
-    const data = raw as {
-      options?: {
-        size: string;
-        region: string;
-        provider: string;
-        targetUrl?: string;
-      };
-    };
-    if (!data) {
-      socket.emit("errorMessage", "Parametros invalidos do navegador virtual");
-      return;
-    }
-    const isVBrowserDisabled =
-      String(config.VBROWSER_DISABLED ?? "").toLowerCase() === "true";
-    if (isVBrowserDisabled) {
-      socket.emit(
-        "errorMessage",
-        "Navegador virtual temporariamente indisponivel.",
-      );
-      return;
-    }
-    const { clientId } = socket;
-    const uid = socket.uid || "";
-    const targetUrl =
-      typeof data.options?.targetUrl === "string"
-        ? data.options.targetUrl.slice(0, 2000)
-        : "";
-    const baseHost = String(config.VBROWSER_BASE_HOST ?? "").trim();
-    const basePass = String(config.VBROWSER_BASE_PASS ?? "").trim() || "admin";
-    if (baseHost) {
-      let openUrlSuffix = "";
-      if (targetUrl && /^https?:\/\//.test(targetUrl)) {
-        openUrlSuffix =
-          "::open::" + Buffer.from(targetUrl, "utf8").toString("base64url");
-      }
-      this.vBrowserQueue = undefined;
-      this.vBrowser = {
-        id: "",
-        host: baseHost,
-        provider: "base",
-        large: false,
-        region: "",
-        pass: basePass,
-        assignTime: Date.now(),
-        controllerClient: clientId,
-        creatorUID: uid,
-        creatorClientID: clientId,
-      };
-      this.cmdHost(null, `vbrowser://${basePass}@${baseHost}${openUrlSuffix}`);
-      return;
-    }
-    // Billing/paywall is temporarily disabled. Keep basic telemetry only.
-    if (redis) {
-      const expireTime = getStartOfDay() / 1000 + 86400;
-      if (clientId) {
-        await redis.zincrby("vBrowserClientIDs", 1, clientId);
-        await redis.expireat("vBrowserClientIDs", expireTime);
-        await redis.zincrby("vBrowserClientIDMinutes", 1, clientId);
-        await redis.expireat("vBrowserClientIDMinutes", expireTime);
-      }
-      if (uid) {
-        await redis.zincrby("vBrowserUIDs", 1, uid);
-        await redis.expireat("vBrowserUIDs", expireTime);
-        await redis.zincrby("vBrowserUIDMinutes", 1, uid);
-        await redis.expireat("vBrowserUIDMinutes", expireTime);
-      }
-    }
-    if (uid && postgres) {
-      const { rows } = await postgres.query(
-        "SELECT count(1) from vbrowser WHERE uid = $1",
-        [uid],
-      );
-      if (rows[0].count >= 2) {
-        socket.emit(
-          "errorMessage",
-          "Ja existe um navegador virtual ativo para este usuario.",
-        );
-        return;
-      }
-    }
-    let isLarge = false;
-    let region = "";
-    // Premium options remain disabled until billing release.
-
-    redisCount("vBrowserStarts");
-    this.cmdHost(socket, "vbrowser://");
-    // Put the room in the vbrowser queue
-    this.vBrowserQueue = {
-      roomId: this.roomId,
-      queueTime: new Date(),
-      isLarge,
-      region,
-      uid,
-      clientId,
-    };
-    // Check if a vbrowser is available
-    while (this.vBrowserQueue) {
-      const { queueTime, isLarge, region, uid, roomId, clientId } =
-        this.vBrowserQueue;
-      const assignmentTimeoutSeconds = Math.max(
-        15,
-        Number(config.VM_ASSIGNMENT_TIMEOUT) || 75,
-      );
-      const elapsedMs = Date.now() - Number(queueTime);
-      if (elapsedMs >= assignmentTimeoutSeconds * 1000) {
-        console.warn(
-          "[ASSIGN_TIMEOUT] room=%s waited=%sms",
-          roomId,
-          elapsedMs,
-        );
-        socket.emit(
-          "errorMessage",
-          "Nao foi possivel iniciar o navegador virtual no momento. Tente novamente em alguns minutos.",
-        );
-        this.vBrowserQueue = undefined;
-        this.cmdHost(null, "");
-        break;
-      }
-      let assignment: AssignedVM | undefined = undefined;
-      try {
-        if (stateless) {
-          const pass = crypto.randomUUID();
-          const id = await stateless.startVM(pass);
-          assignment = {
-            ...(await stateless.getVM(id)),
-            pass,
-            assignTime: Date.now(),
-          };
-        } else {
-          const { data } = await axios.post<AssignedVM>(
-            "http://localhost:" + config.VMWORKER_PORT + "/assignVM",
-            {
-              isLarge,
-              region,
-              uid,
-              roomId,
-            },
-          );
-          assignment = data;
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-      if (assignment) {
-        this.vBrowser = assignment;
-        this.vBrowser.controllerClient = clientId;
-        this.vBrowser.creatorUID = uid;
-        this.vBrowser.creatorClientID = clientId;
-        const assignEnd = Date.now();
-        const assignElapsed = assignEnd - Number(queueTime);
-        await redis?.lpush("vBrowserStartMS", assignElapsed);
-        await redis?.ltrim("vBrowserStartMS", 0, 19);
-        console.log(
-          "[ASSIGN] %s to %s in %s",
-          assignment.provider + ":" + assignment.id,
-          roomId,
-          assignElapsed + "ms",
-        );
-        let openUrlSuffix = "";
-        if (targetUrl && /^https?:\/\//.test(targetUrl)) {
-          openUrlSuffix =
-            "::open::" + Buffer.from(targetUrl, "utf8").toString("base64url");
-        }
-        this.cmdHost(
-          null,
-          "vbrowser://" +
-            this.vBrowser.pass +
-            "@" +
-            this.vBrowser.host +
-            openUrlSuffix,
-        );
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  };
-
-  private stopVBrowser = async () => {
-    if (!this.vBrowser && !String(this.video ?? "").startsWith("vbrowser://")) {
-      return;
-    }
-    await this.stopVBrowserInternal();
-    redisCount("vBrowserTerminateManual");
   };
 
   private changeController = (data: string) => {
@@ -1640,7 +1427,7 @@ export class Room {
   private sendSignal = (
     socket: Socket,
     raw: unknown,
-    eventName: "signal" | "signalSS",
+    eventName: "signalSS",
   ) => {
     const data = raw as { to: string; msg: string; sharer?: boolean };
     if (!data) {

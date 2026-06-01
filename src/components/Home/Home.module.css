@@ -86,7 +86,7 @@
       color-mix(in srgb, var(--bg-surface-soft) 92%, transparent) 0%,
       color-mix(in srgb, var(--bg-surface) 94%, transparent) 56%,
       color-mix(in srgb, var(--bg-app) 96%, transparent) 100%
-  );
+    );
   overflow: hidden;
   min-height: 0;
   backdrop-filter: blur(14px);
@@ -135,11 +135,12 @@
 }
 
 .heroText {
+  margin: 0;
   font-family: "Sora", "Outfit", sans-serif;
   font-size: clamp(2.15rem, 2.9vw, 3.3rem);
   line-height: 1.15;
   font-weight: 800;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   color: var(--text-main);
   text-shadow: 0 10px 30px color-mix(in srgb, var(--bg-app) 58%, black);
 }
@@ -279,7 +280,9 @@
   border: none;
   background: color-mix(in srgb, var(--text-muted) 44%, transparent);
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .dotActive {

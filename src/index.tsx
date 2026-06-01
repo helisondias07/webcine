@@ -10,7 +10,7 @@ import React, {
   useState,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route } from "react-router-dom";
+import { BrowserRouter, Route, useLocation } from "react-router-dom";
 
 import { Home } from "./components/Home/Home";
 import { Privacy, Terms, FAQ } from "./components/Pages/Pages";
@@ -21,10 +21,7 @@ import config from "./config";
 import { DEFAULT_STATE, MetadataContext } from "./MetadataContext";
 import { createTheme, MantineProvider } from "@mantine/core";
 import { t } from "./i18n";
-import {
-  ThemeModeContext,
-  type ThemeMode,
-} from "./ThemeModeContext";
+import { ThemeModeContext, type ThemeMode } from "./ThemeModeContext";
 import { initAnalytics, runWhenIdle } from "./utils/analytics";
 import {
   getFirebaseClient,
@@ -115,10 +112,174 @@ const CreatePage = lazy(() =>
   import("./components/Create/Create").then((mod) => ({ default: mod.Create })),
 );
 
-const SEO_TITLE = "WebCineTV — Sua sala de cinema online";
+const SITE_URL = "https://webcinetv.com.br";
+const SITE_NAME = "WebCineTV";
+type SeoConfig = {
+  description: string;
+  noIndex?: boolean;
+  path: string;
+  title: string;
+};
+
+const DEFAULT_SEO: SeoConfig = {
+  title: "WebCineTV - Sua sala de cinema online",
+  description:
+    "Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis.",
+  path: "/",
+};
+
+const routeSeo: Record<string, SeoConfig> = {
+  "/": DEFAULT_SEO,
+  "/terms": {
+    title: "Termos de uso - WebCineTV",
+    description:
+      "Leia os termos de uso do WebCineTV para criar salas, assistir videos com amigos e usar os recursos da plataforma.",
+    path: "/terms",
+  },
+  "/privacy": {
+    title: "Politica de privacidade - WebCineTV",
+    description:
+      "Entenda como o WebCineTV lida com contas, salas, cookies, pagamentos e dados relacionados ao uso da plataforma.",
+    path: "/privacy",
+  },
+  "/faq": {
+    title: "Perguntas frequentes - WebCineTV",
+    description:
+      "Tire duvidas sobre audio no compartilhamento de tela, limite de pessoas nas salas e links para criar salas no WebCineTV.",
+    path: "/faq",
+  },
+  "/create": {
+    title: "Criando sala - WebCineTV",
+    description:
+      "Crie uma sala no WebCineTV para assistir videos com amigos em tempo real.",
+    noIndex: true,
+    path: "/create",
+  },
+  "/debug": {
+    title: "Debug - WebCineTV",
+    description: "Pagina tecnica interna do WebCineTV.",
+    noIndex: true,
+    path: "/debug",
+  },
+};
+
+function getSeoForPath(pathname: string): SeoConfig {
+  const exactSeo = routeSeo[pathname];
+  if (exactSeo) {
+    return exactSeo;
+  }
+  if (pathname.startsWith("/watch/") || pathname.startsWith("/r/")) {
+    return {
+      title: "Sala compartilhada - WebCineTV",
+      description:
+        "Sala compartilhada do WebCineTV para assistir videos com amigos em tempo real.",
+      noIndex: true,
+      path: pathname,
+    };
+  }
+  return DEFAULT_SEO;
+}
+
+function upsertMeta(
+  attribute: "name" | "property",
+  key: string,
+  content: string,
+) {
+  let meta = document.head.querySelector<HTMLMetaElement>(
+    `meta[${attribute}="${key}"]`,
+  );
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute(attribute, key);
+    document.head.appendChild(meta);
+  }
+  meta.content = content;
+}
+
+function upsertCanonical(href: string) {
+  let canonical = document.head.querySelector<HTMLLinkElement>(
+    'link[rel="canonical"]',
+  );
+  if (!canonical) {
+    canonical = document.createElement("link");
+    canonical.rel = "canonical";
+    document.head.appendChild(canonical);
+  }
+  canonical.href = href;
+}
+
+function upsertStructuredData(data: unknown) {
+  const id = "webcinetv-structured-data";
+  let script = document.getElementById(id) as HTMLScriptElement | null;
+  if (!script) {
+    script = document.createElement("script");
+    script.id = id;
+    script.type = "application/ld+json";
+    document.head.appendChild(script);
+  }
+  script.textContent = JSON.stringify(data);
+}
+
+const SeoManager = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    const pathname = location.pathname.replace(/\/$/, "") || "/";
+    const seo = getSeoForPath(pathname);
+    const canonicalUrl = `${SITE_URL}${seo.path}`;
+    const imageUrl = `${SITE_URL}/screenshot_full.png`;
+
+    document.title = seo.title;
+    upsertMeta("name", "description", seo.description);
+    upsertMeta(
+      "name",
+      "robots",
+      seo.noIndex ? "noindex, nofollow" : "index, follow",
+    );
+    upsertMeta("name", "company", SITE_NAME);
+    upsertCanonical(canonicalUrl);
+    upsertMeta("property", "og:site_name", SITE_NAME);
+    upsertMeta("property", "og:title", seo.title);
+    upsertMeta("property", "og:description", seo.description);
+    upsertMeta("property", "og:image", imageUrl);
+    upsertMeta("property", "og:url", canonicalUrl);
+    upsertMeta("property", "og:type", "website");
+    upsertMeta("name", "twitter:card", "summary_large_image");
+    upsertMeta("name", "twitter:title", seo.title);
+    upsertMeta("name", "twitter:description", seo.description);
+    upsertMeta("name", "twitter:image", imageUrl);
+
+    upsertStructuredData({
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": `${SITE_URL}/#website`,
+          name: SITE_NAME,
+          url: SITE_URL,
+          inLanguage: "pt-BR",
+          description: DEFAULT_SEO.description,
+        },
+        {
+          "@type": "Organization",
+          "@id": `${SITE_URL}/#organization`,
+          name: SITE_NAME,
+          url: SITE_URL,
+          logo: `${SITE_URL}/logo192.png`,
+          sameAs: [
+            "https://github.com/helisondias07",
+            "https://www.linkedin.com/in/helisondias/",
+          ],
+        },
+      ],
+    });
+  }, [location.pathname]);
+
+  return null;
+};
 
 const firebaseConfig = config.VITE_FIREBASE_CONFIG;
-document.title = SEO_TITLE;
+document.title = DEFAULT_SEO.title;
 
 // Redirect old-style URLs
 if (window.location.hash && window.location.pathname === "/") {
@@ -140,12 +301,20 @@ class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
   private authUnsubscribe: FirebaseUnsubscribe | undefined = undefined;
   private authBootstrapStarted = false;
+  private authBootstrapHandler: (() => void) | undefined = undefined;
   private _isMounted = false;
 
   componentWillUnmount() {
     this._isMounted = false;
     if (this.authUnsubscribe) {
       this.authUnsubscribe();
+    }
+    if (this.authBootstrapHandler) {
+      window.removeEventListener(
+        "webcinetv-bootstrap-auth",
+        this.authBootstrapHandler,
+      );
+      this.authBootstrapHandler = undefined;
     }
   }
 
@@ -166,61 +335,68 @@ class WebCineTVApp extends React.Component {
         }
         this.authBootstrapStarted = true;
         const firebaseClient = await getFirebaseClient();
-        this.authUnsubscribe = firebaseClient.auth().onAuthStateChanged(async (user: FirebaseUser | null) => {
-        if (user) {
-          // console.log(user);
-          if (!this._isMounted) return;
-          this.setState({ user });
-          const token = await user.getIdToken();
-          const authHeaders = {
-            Authorization: `Bearer ${token}`,
-            "X-User-Uid": user.uid,
-          };
-          const [metadataResponse, entitlementsResponse] = await Promise.all([
-            window.fetch(serverPath + "/metadata", {
-              headers: authHeaders,
-            }),
-            window.fetch(
-              serverPath + "/api/me/entitlements",
-              {
-                headers: authHeaders,
-              },
-            ),
-          ]);
-          if (!this._isMounted) return;
-          const metadataData = await metadataResponse.json();
-          const entitlementsData = entitlementsResponse.ok
-            ? await entitlementsResponse.json()
-            : undefined;
-          if (!this._isMounted) return;
-          this.setState({
-            isSubscriber: Boolean(
-              entitlementsData?.isSubscriber ?? metadataData?.isSubscriber,
-            ),
-            plan: entitlementsData?.plan ?? metadataData?.plan ?? "free",
-            subscriptionStatus:
-              entitlementsData?.subscriptionStatus ??
-              metadataData?.subscriptionStatus ??
-              "canceled",
-            entitlements:
-              entitlementsData?.entitlements ?? metadataData?.entitlements ??
-              DEFAULT_STATE.entitlements,
-            streamPath: metadataData.streamPath,
-            convertPath: metadataData.convertPath,
-            beta: metadataData.beta,
+        this.authUnsubscribe = firebaseClient
+          .auth()
+          .onAuthStateChanged(async (user: FirebaseUser | null) => {
+            if (user) {
+              // console.log(user);
+              if (!this._isMounted) return;
+              this.setState({ user });
+              const token = await user.getIdToken();
+              const authHeaders = {
+                Authorization: `Bearer ${token}`,
+                "X-User-Uid": user.uid,
+              };
+              const [metadataResponse, entitlementsResponse] =
+                await Promise.all([
+                  window.fetch(serverPath + "/metadata", {
+                    headers: authHeaders,
+                  }),
+                  window.fetch(serverPath + "/api/me/entitlements", {
+                    headers: authHeaders,
+                  }),
+                ]);
+              if (!this._isMounted) return;
+              const metadataData = await metadataResponse.json();
+              const entitlementsData = entitlementsResponse.ok
+                ? await entitlementsResponse.json()
+                : undefined;
+              if (!this._isMounted) return;
+              this.setState({
+                isSubscriber: Boolean(
+                  entitlementsData?.isSubscriber ?? metadataData?.isSubscriber,
+                ),
+                plan: entitlementsData?.plan ?? metadataData?.plan ?? "free",
+                subscriptionStatus:
+                  entitlementsData?.subscriptionStatus ??
+                  metadataData?.subscriptionStatus ??
+                  "canceled",
+                entitlements:
+                  entitlementsData?.entitlements ??
+                  metadataData?.entitlements ??
+                  DEFAULT_STATE.entitlements,
+                streamPath: metadataData.streamPath,
+                convertPath: metadataData.convertPath,
+                beta: metadataData.beta,
+              });
+            }
           });
-        }
-        });
       };
       const path = window.location.pathname;
       const shouldEagerInitAuth =
-        path.startsWith("/watch/") || path.startsWith("/r/") || path === "/create";
+        path.startsWith("/watch/") ||
+        path.startsWith("/r/") ||
+        path === "/create";
       if (shouldEagerInitAuth) {
         void bootstrapAuth();
       } else {
-        window.addEventListener("webcinetv-bootstrap-auth", () => {
+        this.authBootstrapHandler = () => {
           void bootstrapAuth();
-        });
+        };
+        window.addEventListener(
+          "webcinetv-bootstrap-auth",
+          this.authBootstrapHandler,
+        );
       }
     } else {
       // Firebase isn't set up so enable subscriber features
@@ -239,6 +415,7 @@ class WebCineTVApp extends React.Component {
     return (
       <MetadataContext.Provider value={this.state}>
         <BrowserRouter>
+          <SeoManager />
           <Route
             path="/"
             exact
@@ -315,10 +492,6 @@ class WebCineTVApp extends React.Component {
 
 const RootApp = () => {
   const [mode, setMode] = useState<ThemeMode>(getStoredThemeMode());
-
-  useEffect(() => {
-    document.title = SEO_TITLE;
-  }, []);
 
   useEffect(() => {
     if (config.NODE_ENV !== "production" || !("serviceWorker" in navigator)) {

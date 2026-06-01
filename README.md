@@ -43,7 +43,7 @@ Frontend padrao: `http://localhost:5173`
 Para ambientes de producao, configure os domínios oficiais do frontend no backend:
 
 - `.env`:
-  - `CORS_ALLOWED_ORIGINS=https://webcinetv.app,https://www.webcinetv.app`
+  - `CORS_ALLOWED_ORIGINS=https://webcinetv.com.br,https://www.webcinetv.com.br`
 
 Regras atuais:
 - Origem autorizada recebe `Access-Control-Allow-Origin`.
@@ -139,7 +139,7 @@ Cenarios E2E cobertos:
 - Operar playlist.
 - Mobile (320px e 390px): validacao de topbar e modal sem sobreposicao critica.
 
-No CI (`pull_request` para `master`), os testes E2E rodam automaticamente.
+No CI (`pull_request` para `main`), os testes E2E rodam automaticamente.
 
 ## Dependencias e mitigacoes
 

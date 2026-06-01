@@ -14,9 +14,7 @@ import CountUp from "react-countup";
 import { Table } from "@mantine/core";
 
 const timeSeriesUrl = serverPath + `/timeSeries${window.location.search}`;
-// const timeSeriesUrl = 'https://www.watchparty.me' + `/timeSeries${window.location.search}`;
 const statsUrl = serverPath + `/stats${window.location.search}`;
-// const statsUrl = 'https://www.watchparty.me' + `/stats${window.location.search}`;
 
 // Rendering:
 // Anything that's a Record<string, number> should render as 2 column table
@@ -33,16 +31,31 @@ const Debug = () => {
   });
   useEffect(() => {
     let last = state.current;
+    let cancelled = false;
     const update = async () => {
-      const resp = await fetch(statsUrl);
-      const json = await resp.json();
-      const nextState = { current: json, last };
-      setState(nextState);
-      // Save the value for the next update
-      last = nextState.current;
+      try {
+        const resp = await fetch(statsUrl);
+        if (!resp.ok || cancelled) {
+          return;
+        }
+        const json = await resp.json();
+        if (cancelled) {
+          return;
+        }
+        const nextState = { current: json, last };
+        setState(nextState);
+        // Save the value for the next update
+        last = nextState.current;
+      } catch {
+        // Debug stats are optional and may be unavailable in production.
+      }
     };
     update();
-    setInterval(update, 10000);
+    const intervalId = window.setInterval(update, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
   // Get the keys from the last/mostrecent element
   const keys = Object.keys(timeSeries.slice(-1)[0] ?? {});

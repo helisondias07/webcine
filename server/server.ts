@@ -13,12 +13,9 @@ import { searchYoutube, youtubePlaylist } from "./utils/youtube.ts";
 import { Room } from "./room.ts";
 import { redis, redisCount } from "./utils/redis.ts";
 import {
-  getCustomerByEmail,
-  createSelfServicePortal,
   getIsSubscriberByEmail,
 } from "./utils/stripe.ts";
 import {
-  deleteUser,
   getUserBillingProfile,
   validateUserToken,
 } from "./utils/firebase.ts";
@@ -29,7 +26,7 @@ import { getSessionLimitSeconds } from "./vm/utils.ts";
 import { postgres, insertObject, upsertObject } from "./utils/postgres.ts";
 import axios from "axios";
 import { resolveShard } from "./utils/resolveShard.ts";
-import { makeRoomName, makeUserName } from "./utils/moniker.ts";
+import { makeRoomName } from "./utils/moniker.ts";
 import { getStats } from "./utils/getStats.ts";
 import {
   billingEnabled,
@@ -129,24 +126,6 @@ function resolveTrustedOrigin(value: unknown) {
     return undefined;
   }
   return trustedFrontendOrigins.has(normalized) ? normalized : undefined;
-}
-
-function resolveTrustedReturnUrl(
-  candidate: unknown,
-  requestOrigin: unknown,
-) {
-  if (typeof candidate === "string" && candidate.trim()) {
-    try {
-      const parsed = new URL(candidate);
-      if (resolveTrustedOrigin(parsed.origin)) {
-        return parsed.toString();
-      }
-    } catch {
-      // ignore and fallback
-    }
-  }
-  const trustedRequestOrigin = resolveTrustedOrigin(requestOrigin);
-  return getFrontendUrl(trustedRequestOrigin);
 }
 
 const corsOptions: CorsOptions = {
@@ -1501,50 +1480,19 @@ app.get("/api/me/entitlements", async (req, res) => {
   });
 });
 
-app.post("/manageSub", async (req, res) => {
-  const decoded = await validateUserToken(
-    String(req.body?.uid),
-    String(req.body?.token),
-  );
-  if (!decoded) {
-    res.status(400).json({ error: "invalid user token" });
-    return;
-  }
-  if (!decoded.email) {
-    res.status(400).json({ error: "no email found" });
-    return;
-  }
-  const customer = await getCustomerByEmail(decoded.email);
-  if (!customer) {
-    res.status(400).json({ error: "customer not found" });
-    return;
-  }
-  const session = await createSelfServicePortal(
-    customer.id,
-    resolveTrustedReturnUrl(req.body?.return_url, req.headers.origin),
-  );
-  res.json(session);
-});
-
-app.delete("/deleteAccount", async (req, res) => {
-  // TODO pass this in req.query instead
-  const decoded = await validateUserToken(req.body?.uid, req.body?.token);
-  if (!decoded) {
-    res.status(400).json({ error: "invalid user token" });
-    return;
-  }
-  if (postgres) {
-    // Delete rooms
-    await postgres.query("DELETE FROM room WHERE owner = $1", [decoded.uid]);
-    // Delete linked accounts
-    await postgres.query("DELETE FROM link_account WHERE uid = $1", [
-      decoded.uid,
-    ]);
-  }
-  await deleteUser(decoded.uid);
-  redisCount("deleteAccount");
-  res.json({});
-});
+app.all(
+  [
+    "/manageSub",
+    "/deleteAccount",
+    "/listRooms",
+    "/deleteRoom",
+    "/generateName",
+    "/roomData/:roomId",
+  ],
+  (_req, res) => {
+    res.status(404).json({ error: "not_found" });
+  },
+);
 
 app.get("/metadata", async (req, res) => {
   const { uid, token } = getAuthCredentials(req);
@@ -1599,52 +1547,9 @@ app.get("/resolveRoom/:vanity", async (req, res) => {
   res.json(result?.rows[0] ?? null);
 });
 
-app.get("/roomData/:roomId", async (req, res) => {
-  // Returns the room data given a room ID
-  // Only return data if the room doesn't have a password
-  // If it does, we could accept it as a URL parameter but for now just don't support
-  const result = await postgres?.query(
-    `SELECT data from room WHERE "roomId" = $1 and password IS NULL`,
-    ["/" + req.params.roomId],
-  );
-  res.json(result?.rows[0]?.data);
-});
-
 app.get("/resolveShard/:roomId", async (req, res) => {
   const shardNum = resolveShard(req.params.roomId);
   res.send(String(config.SHARD ? shardNum : ""));
-});
-
-app.get("/listRooms", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded) {
-    res.status(400).json({ error: "invalid user token" });
-    return;
-  }
-  const result = await postgres?.query<{
-    roomId: string;
-    vanity: string | null;
-    hasPassword: boolean;
-  }>(
-    `SELECT "roomId", vanity, (password IS NOT NULL) as "hasPassword" from room WHERE owner = $1`,
-    [decoded.uid],
-  );
-  res.json(result?.rows ?? []);
-});
-
-app.delete("/deleteRoom", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded) {
-    res.status(400).json({ error: "invalid user token" });
-    return;
-  }
-  const result = await postgres?.query(
-    `DELETE from room WHERE owner = $1 and "roomId" = $2`,
-    [decoded.uid, req.query.roomId],
-  );
-  res.json(result?.rows);
 });
 
 app.post("/history/movie", async (req, res) => {
@@ -1789,9 +1694,9 @@ app.delete("/history/movie/:movieId", async (req, res) => {
   }
 });
 
-app.get("/generateName", async (req, res) => {
-  res.send(makeUserName());
-});
+const PROXY_TIMEOUT_MS = 10000;
+const PROXY_PLAYLIST_MAX_BYTES = 2 * 1024 * 1024;
+const PROXY_SEGMENT_MAX_BYTES = 32 * 1024 * 1024;
 
 // Proxy video segments
 app.get("/proxy/*splat", async (req, res) => {
@@ -1812,7 +1717,10 @@ app.get("/proxy/*splat", async (req, res) => {
       // VOD
       // https://d2vjef5jvl6bfs.cloudfront.net/3012391a6c3e84c79ef6_gamesdonequick_41198403369_1681059003/chunked/index-dvr.m3u8
       const resp = await axios.get("https://" + host + pathname, {
-        timeout: 10000,
+        maxContentLength: PROXY_PLAYLIST_MAX_BYTES,
+        maxRedirects: 0,
+        responseType: "text",
+        timeout: PROXY_TIMEOUT_MS,
       });
       const re2 = /(.*.ts)/g;
       let repl = resp.data.replaceAll(re2, `$1?host=${host}`);
@@ -1824,7 +1732,10 @@ app.get("/proxy/*splat", async (req, res) => {
       // https://video-weaver.sea02.hls.ttvnw.net/v1/playlist/CrQEgv7Mz6nnsfJH3XtVQxeYXk8mViy1zNGWglcybvxZsI1rv3iLnjAnnqwCiVXCJ-DdD27J6RuFrLy7YUYwHUCKazIKICIupUCn9UXtaBYhBM5JIYqg9dz6NWYrCWU9HZJj2TGROv9mAOKuTR51YS82hdYL4PFZa3xxWXhgDsxXQHNDB03kY6S0aG0-EVva1xYrn5Ge6IAXRwug9QDGlb-ydtF3BtYppoTklVI7CVLySPPwbbt5Ow1JXdnKhLSwQEs4bh3BLwMnRBwUFI5nmE18BLYbkMOUivgYP5SSMgnGGlSkJO-iJNPWvepunEgyBUzB_7L-b1keTcV-Qak9IcWIITIWbRvmg6qB3ZSuWdcJgWKmdXdIn4qoRM4o16G1_0N_WRqPtMQFo0hmTlAVmHrzRArJQmaSgqAxZxRbFMd9RFeX6qjP9NtwguPbSeStdVbQxMNC34iavYUIxo8Ug812BHsG7J_kIlof2zkIqkEbP3oV3UkSByIo7xh9EEVargjaGDuQRt8zPQ6-fNBWJJe9F6IFu7lXBPIJ016lopyfcvTWjbLbBHsVkg6vG-3UISh0nud7KB5g5ipQePhtcFSI5hvjlfX1DAVHEpTWXkvlnL4wNqEqpBYL2btSXYeE1Cb-RAvrAT0s61usERcL2eI-S5aTcSO8_hxQ2afC7c9vlypOWgP6p6XNpViZHXmdXv4t-d68Z-MpLtSU7VbB3pRWnSswFFyA3W39ITic4lb97Djp3wHhGgz0Sy8aDb9r0tnphIYgASoJdXMtZWFzdC0yMKQG.m3u8
       // Extract the edge URL host and add it to URL so proxy can fetch
       const resp = await axios.get("https://" + host + pathname, {
-        timeout: 10000,
+        maxContentLength: PROXY_PLAYLIST_MAX_BYTES,
+        maxRedirects: 0,
+        responseType: "text",
+        timeout: PROXY_TIMEOUT_MS,
       });
       // const re = /https:\/\/(.*)\/v1\/segment\/(.*)/g;
       // const match = re.exec(resp.data);
@@ -1838,23 +1749,24 @@ app.get("/proxy/*splat", async (req, res) => {
     } else if (pathname.endsWith(".ts")) {
       // Segment
       const resp = await axios.get("https://" + host + pathname, {
+        maxContentLength: PROXY_SEGMENT_MAX_BYTES,
+        maxRedirects: 0,
         responseType: "arraybuffer",
-        timeout: 10000,
+        timeout: PROXY_TIMEOUT_MS,
       });
-      res.writeHead(200, {
-        "Content-Type": "application/octet-stream",
+      const segment = Buffer.from(resp.data);
+      res.set({
+        "Content-Type": String(resp.headers["content-type"] ?? "application/octet-stream"),
         "Accept-Ranges": "bytes",
-        "Content-Length": resp.data.length,
-        "Transfer-Encoding": "chunked",
+        "Content-Length": String(segment.length),
       });
-      res.write(resp.data);
-      res.end();
+      res.status(200).send(segment);
     } else {
       res.status(404);
       res.end();
     }
-  } catch (e) {
-    console.log("proxy failed: %s", req.url);
+  } catch (e: any) {
+    console.warn("[proxy failed]", e?.message ?? e);
     res.status(502).json({ error: "proxy_failed" });
   }
 });
@@ -1892,6 +1804,17 @@ function replaceMeta(html: string, key: "name" | "property", name: string, conte
   return html.replace(
     pattern,
     `<meta ${key}="${name}" content="${escapeHtml(content)}" />`,
+  );
+}
+
+function upsertMeta(html: string, key: "name" | "property", name: string, content: string) {
+  const updated = replaceMeta(html, key, name, content);
+  if (updated !== html) {
+    return updated;
+  }
+  return html.replace(
+    /<\/head>/i,
+    `  <meta ${key}="${name}" content="${escapeHtml(content)}" />\n</head>`,
   );
 }
 
@@ -1966,6 +1889,7 @@ async function sendIndexWithPreview(req: Request, res: Response, preview: {
   html = replaceMeta(html, "name", "twitter:title", preview.title);
   html = replaceMeta(html, "name", "twitter:description", preview.description);
   html = replaceMeta(html, "name", "twitter:image", image);
+  html = upsertMeta(html, "name", "robots", "noindex,nofollow");
   html = html.replace(
     /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/,
     `<link rel="canonical" href="${escapeHtml(url)}" />`,

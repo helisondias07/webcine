@@ -9,7 +9,6 @@ type MediaType = "vbrowser" | "screenshare" | "video" | "youtube";
 interface User {
   id: string;
   isVideoChat?: boolean;
-  isMuted?: boolean;
   isScreenShare?: boolean;
 }
 
@@ -18,13 +17,6 @@ interface LiveReactionEvent {
   emoji: string;
   timestamp: string;
   nonce?: string;
-}
-
-interface Reaction {
-  user: string;
-  value: string;
-  msgId: string;
-  msgTimestamp: string;
 }
 
 interface ChatMessageBase {
@@ -38,7 +30,6 @@ interface ChatMessageBase {
 interface ChatMessage extends ChatMessageBase {
   timestamp: string;
   videoTS?: number;
-  reactions?: { [value: string]: string[] };
 }
 
 interface Settings {

@@ -19,7 +19,6 @@ const ptBR = {
   priceFamilyAnnual: "R$ 159,90/ano",
   choosePlan: "Escolher plano",
   processing: "Processando...",
-  manageSubscription: "Gerenciar assinatura",
   subscribe: "Assinar",
   login: "Entrar",
   createAccount: "Criar conta",

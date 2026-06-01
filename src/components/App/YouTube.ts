@@ -1,5 +1,12 @@
-import { MediaPlayerClass } from "dashjs";
+import type { MediaPlayerClass } from "dashjs";
 import { Player } from "./Player";
+import config from "../../config";
+
+const debugLog = (...args: unknown[]) => {
+  if (config.NODE_ENV === "development") {
+    console.log(...args);
+  }
+};
 
 type YouTubeQualityMode = "auto" | YT.SuggestedVideoQuality;
 
@@ -152,7 +159,7 @@ export class YouTube implements Player {
 
   playVideo = async () => {
     setTimeout(() => {
-      console.log("play yt");
+      debugLog("play yt");
       this.watchPartyYTPlayer?.playVideo();
     }, 200);
   };

@@ -2,7 +2,9 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon-webcine.svg?v=1" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-webcine.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#090909" />
@@ -10,17 +12,14 @@
     <meta name="apple-mobile-web-app-title" content="WebCineTV" />
     <meta
       name="description"
-      content="Crie uma sala, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta. Grátis."
+      content="Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis."
     />
     <meta name="company" content="WebCineTV" />
     <link rel="canonical" href="https://webcinetv.com.br/" />
-    <meta
-      property="og:title"
-      content="WebCineTV — Sua sala de cinema online"
-    />
+    <meta property="og:title" content="WebCineTV - Sua sala de cinema online" />
     <meta
       property="og:description"
-      content="Crie uma sala, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta. Grátis."
+      content="Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis."
     />
     <meta
       property="og:image"
@@ -28,27 +27,34 @@
     />
     <meta property="og:url" content="https://webcinetv.com.br/" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="WebCineTV" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta
       name="twitter:title"
-      content="WebCineTV — Sua sala de cinema online"
+      content="WebCineTV - Sua sala de cinema online"
     />
     <meta
       name="twitter:description"
-      content="Crie uma sala, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta. Grátis."
+      content="Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis."
     />
     <meta
       name="twitter:image"
       content="https://webcinetv.com.br/screenshot_full.png"
     />
-    <title>WebCineTV — Sua sala de cinema online</title>
+    <title>WebCineTV - Sua sala de cinema online</title>
     <script>
       (function () {
         try {
           // Hard-start dark to avoid any light-theme flash before React hydration.
-          document.documentElement.setAttribute("data-mantine-color-scheme", "dark");
+          document.documentElement.setAttribute(
+            "data-mantine-color-scheme",
+            "dark",
+          );
         } catch (_e) {
-          document.documentElement.setAttribute("data-mantine-color-scheme", "dark");
+          document.documentElement.setAttribute(
+            "data-mantine-color-scheme",
+            "dark",
+          );
         }
       })();
     </script>
@@ -69,4 +75,3 @@
     -->
   </body>
 </html>
-

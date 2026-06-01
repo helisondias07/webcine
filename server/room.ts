@@ -275,10 +275,13 @@ export class Room {
         return;
       }
 
-      // Disconnect other sockets with this clientId
-      if (this.socketIdMap[clientId]) {
-        io.of(roomId).sockets.get(this.socketIdMap[clientId])?.disconnect();
+      // Replace an existing connection for this client before registering the
+      // new socket, so reconnects cannot leave duplicate roster entries.
+      const previousSocketId = this.socketIdMap[clientId];
+      if (previousSocketId) {
+        io.of(roomId).sockets.get(previousSocketId)?.disconnect(true);
       }
+      this.roster = this.roster.filter((member) => member.id !== clientId);
       // Keep track of the current socketID associated with this client (only used for signaling and kicking)
       this.socketIdMap[clientId] = socket.id;
       this.roster.push({ id: clientId });
@@ -405,20 +408,11 @@ export class Room {
       socket.on("CMD:liveReaction", (data: unknown) =>
         this.sendLiveReaction(socket, data),
       );
-      socket.on("CMD:addReaction", (data: unknown) =>
-        this.addReaction(socket, data),
-      );
-      socket.on("CMD:removeReaction", (data: unknown) => {
-        this.removeReaction(socket, data);
-      });
       socket.on("CMD:joinScreenShare", (data) => {
         validateLock() && this.joinScreenSharing(socket, data);
       });
       socket.on("CMD:setScreenShareQuality", (data: unknown) =>
         this.setScreenShareQualityPreference(socket, data),
-      );
-      socket.on("CMD:userMute", (data: unknown) =>
-        this.setUserMute(socket, data),
       );
       socket.on("CMD:leaveScreenShare", () => this.leaveScreenSharing(socket));
       socket.on("CMD:changeController", (data: unknown) => {
@@ -439,7 +433,11 @@ export class Room {
       socket.on("CMD:getRoomState", () => this.getRoomState(socket));
       socket.on("CMD:setRoomState", async (data: unknown) => {
         try {
-          (await validateOwner()) && this.setRoomState(socket, data);
+          if (await validateOwner()) {
+            await this.setRoomState(socket, data);
+          } else {
+            socket.emit("errorMessage", "Apenas o dono da sala pode alterar essas configuracoes.");
+          }
         } catch (e) {
           console.error("[CMD:setRoomState] Erro:", e);
         }
@@ -994,66 +992,6 @@ export class Room {
     this.addChatMessage(socket, chatMsg);
   };
 
-  private addReaction = (socket: Socket, raw: unknown) => {
-    const data = raw as { value: string; msgId: string; msgTimestamp: string };
-    if (!data || !data.value || !data.msgId || !data.msgTimestamp) {
-      return;
-    }
-    // Emojis can be multiple bytes
-    if (data.value.length > 8) {
-      return;
-    }
-    const msg = this.chat.find(
-      (m) => m.id === data.msgId && m.timestamp === data.msgTimestamp,
-    );
-    if (!msg) {
-      return;
-    }
-    msg.reactions = msg.reactions || {};
-    msg.reactions[data.value] = msg.reactions[data.value] || [];
-
-    if (!msg.reactions[data.value].includes(socket.clientId)) {
-      msg.reactions[data.value].push(socket.clientId);
-      const reaction: Reaction = { user: socket.clientId, ...data };
-      redisCount("addReaction");
-      this.io.of(this.roomId).emit("REC:addReaction", reaction);
-    }
-  };
-
-  private removeReaction = (socket: Socket, raw: unknown) => {
-    const data = raw as { value: string; msgId: string; msgTimestamp: string };
-    if (!data || !data.value || !data.msgId || !data.msgTimestamp) {
-      return;
-    }
-    // Emojis can be multiple bytes
-    if (data.value.length > 8) {
-      return;
-    }
-    const msg = this.chat.find(
-      (m) => m.id === data.msgId && m.timestamp === data.msgTimestamp,
-    );
-    if (!msg || !msg.reactions?.[data.value]) {
-      return;
-    }
-    msg.reactions[data.value] = msg.reactions[data.value].filter(
-      (id) => id !== socket.clientId,
-    );
-    const reaction: Reaction = { user: socket.clientId, ...data };
-    this.io.of(this.roomId).emit("REC:removeReaction", reaction);
-  };
-
-  private setUserMute = (socket: Socket, raw: unknown) => {
-    const data = raw as { isMuted: boolean };
-    if (!data) {
-      return;
-    }
-    const match = this.roster.find((user) => user.id === socket.clientId);
-    if (match) {
-      match.isMuted = data.isMuted;
-    }
-    this.io.of(this.roomId).emit("roster", this.getRosterForApp());
-  };
-
   private startCountdown = (socket: Socket) => {
     if (!this.video) {
       socket.emit(
@@ -1401,6 +1339,10 @@ export class Room {
         uid,
       ]);
       const row = result.rows[0];
+      if (!row) {
+        socket.emit("errorMessage", "Apenas o dono da sala pode alterar essas configuracoes.");
+        return;
+      }
       this.isChatDisabled = Boolean(row?.isChatDisabled);
       const roomStatePayload = {
         hasPassword: Boolean(row?.password),

@@ -131,9 +131,7 @@ export async function getStats() {
     (await postgres?.query("SELECT count(1) from subscriber"))?.rows[0].count,
   );
   const createRoomErrors = await getRedisCountDay("createRoomError");
-  const deleteAccounts = await getRedisCountDay("deleteAccount");
   const chatMessages = await getRedisCountDay("chatMessages");
-  const addReactions = await getRedisCountDay("addReaction");
   const hetznerApiRemaining = Number(await redis?.get("hetznerApiRemaining"));
   const vBrowserStarts = await getRedisCountDay("vBrowserStarts");
   const vBrowserLaunches = await getRedisCountDay("vBrowserLaunches");
@@ -246,9 +244,7 @@ export async function getStats() {
       numSubs,
       createRoomErrors,
       createRoomPreloads,
-      deleteAccounts,
       chatMessages,
-      addReactions,
       proxyReqs,
       urlStarts,
       streamStarts,

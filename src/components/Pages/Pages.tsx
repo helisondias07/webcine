@@ -1,94 +1,176 @@
 import React from "react";
 
-const mdStyle: React.CSSProperties = {
-  maxWidth: "100vw",
-  width: "800px",
-  padding: "10px",
+const pageStyle: React.CSSProperties = {
+  width: "min(860px, calc(100vw - 32px))",
+  margin: "32px auto 80px",
+  color: "var(--text-main)",
+  lineHeight: 1.6,
 };
+
+const mutedStyle: React.CSSProperties = {
+  color: "var(--text-muted)",
+};
+
+const sectionStyle: React.CSSProperties = {
+  marginTop: 28,
+};
+
+const listStyle: React.CSSProperties = {
+  paddingLeft: 22,
+};
+
+const Page = ({
+  children,
+  description,
+  title,
+}: {
+  children: React.ReactNode;
+  description: string;
+  title: string;
+}) => (
+  <main style={pageStyle}>
+    <h1>{title}</h1>
+    <p style={mutedStyle}>{description}</p>
+    {children}
+  </main>
+);
 
 export const Privacy = () => {
   return (
-    <div style={mdStyle}>
-      <pre style={{ whiteSpace: "pre-wrap" }}>
-        {`
-Privacy Policy
-====
+    <Page
+      title="Politica de privacidade"
+      description="Como o WebCineTV lida com contas, salas, pagamentos, cookies e dados de uso."
+    >
+      <section style={sectionStyle}>
+        <h2>Salas</h2>
+        <ul style={listStyle}>
+          <li>
+            Por padrao, salas sao temporarias e expiram apos um dia de
+            inatividade.
+          </li>
+          <li>
+            Usuarios podem tornar uma sala permanente e desfazer essa escolha a
+            qualquer momento.
+          </li>
+          <li>Nao mantemos registros do conteudo assistido pelos usuarios.</li>
+        </ul>
+      </section>
 
-Rooms
-----
-- By default, rooms are temporary and expire after one day of inactivity.
-- Users have the option of making a room permanent, which can be undone at any time.
-- We do not keep logs of the content that users watch.
+      <section style={sectionStyle}>
+        <h2>Informacoes pessoais</h2>
+        <ul style={listStyle}>
+          <li>Voce nao precisa criar conta para usar o servico.</li>
+          <li>
+            Ao entrar com e-mail ou provedor de autenticacao, usamos nome e foto
+            para identificar voce nas salas.
+          </li>
+          <li>
+            Podemos usar essas informacoes para contato sobre o servico ou para
+            vincular uma assinatura.
+          </li>
+          <li>Nao vendemos informacoes pessoais a terceiros.</li>
+          <li>
+            Pagamentos sao processados por provedores como Stripe. Nao coletamos
+            nem acessamos dados financeiros diretamente.
+          </li>
+        </ul>
+      </section>
 
-Personal Information
-----
-- You are not required to register to use the service, but you have the option to sign in with an email or authentication provider, which will be used to display your name and picture in the rooms you join.
-- If you provide this information, we may use it to contact you regarding your use of the service, or to link your account to a subscription.
-- We do not sell personal information to third parties.
-- You have the right to request deletion of your user data, in accordance with various laws governing data protection. Please contact support@webcinetv.app to request user data deletion.
-- Payment information is handled by providers such as Stripe. We do not collect or access financial information directly.
-
-Cookies
-----
-- We use services such as Google Analytics to measure usage. These services may set cookies or other information locally on your device.
-
-YouTube
-----
-- The service provides the ability to search and play YouTube videos. Google/YouTube may use data provided to the search service in accordance with the [Google Privacy Policy](https://policies.google.com/privacy).
-`}
-      </pre>
-    </div>
+      <section style={sectionStyle}>
+        <h2>Cookies e YouTube</h2>
+        <ul style={listStyle}>
+          <li>
+            Usamos servicos como Google Analytics para medir uso; eles podem
+            armazenar cookies ou dados locais no dispositivo.
+          </li>
+          <li>
+            Ao usar busca e reproducao do YouTube, dados podem ser tratados
+            conforme a{" "}
+            <a href="https://policies.google.com/privacy">
+              Politica de Privacidade do Google
+            </a>
+            .
+          </li>
+        </ul>
+      </section>
+    </Page>
   );
 };
 
 export const Terms = () => {
   return (
-    <div style={mdStyle}>
-      <pre style={{ whiteSpace: "pre-wrap" }}>
-        {`
-Terms of Service
-====
-By using this service you agree to the following terms:
-- You are over 13 years of age
-- Your use of the service may be terminated if you are found to be sharing illegal or infringing content
-- The service provides no guarantee of uptime or availability
-- You use the service at your own risk of encountering objectionable content, as we do not actively moderate rooms unless content is found to be illegal or infringing
+    <Page
+      title="Termos de uso"
+      description="Condicoes para usar o WebCineTV e criar salas para assistir videos com outras pessoas."
+    >
+      <section style={sectionStyle}>
+        <h2>Uso do servico</h2>
+        <ul style={listStyle}>
+          <li>Voce declara ter mais de 13 anos de idade.</li>
+          <li>
+            O uso pode ser encerrado em caso de compartilhamento de conteudo
+            ilegal ou infrator.
+          </li>
+          <li>O servico nao oferece garantia de disponibilidade continua.</li>
+          <li>
+            Voce usa o servico por sua propria conta e risco, inclusive quanto a
+            conteudos criados ou compartilhados por terceiros.
+          </li>
+        </ul>
+      </section>
 
-Subscriptions
-----
-- If you are dissatisfied with the service for any reason or believe you have been charged in error, please contact support@webcinetv.app.
-- We will provide a full refund of the most recent payment, no questions asked.
-
-YouTube
-----
-The service provides the ability to search and play YouTube videos. By using the YouTube search you agree to the [YouTube Terms of Service](https://www.youtube.com/t/terms).
-`}
-      </pre>
-    </div>
+      <section style={sectionStyle}>
+        <h2>Assinaturas e YouTube</h2>
+        <ul style={listStyle}>
+          <li>
+            Em caso de insatisfacao ou cobranca indevida, entre em contato com
+            support@webcinetv.com.br.
+          </li>
+          <li>Podemos reembolsar o pagamento mais recente conforme o caso.</li>
+          <li>
+            Ao usar a busca do YouTube, voce tambem concorda com os{" "}
+            <a href="https://www.youtube.com/t/terms">
+              Termos de Servico do YouTube
+            </a>
+            .
+          </li>
+        </ul>
+      </section>
+    </Page>
   );
 };
 
 export const FAQ = () => {
   return (
-    <div style={mdStyle}>
-      <pre style={{ whiteSpace: "pre-wrap" }}>
-        {`
-FAQ
-====
-How come I'm not getting any audio when screensharing?
-----
-To share audio, you must be using Chrome/Edge and sharing a tab or desktop.
+    <Page
+      title="Perguntas frequentes"
+      description="Duvidas comuns sobre audio, tamanho de salas e links para criar salas no WebCineTV."
+    >
+      <section style={sectionStyle}>
+        <h2>Por que nao sai audio no compartilhamento de tela?</h2>
+        <p>
+          Para compartilhar audio, use Chrome ou Edge e compartilhe uma aba ou a
+          area de trabalho.
+        </p>
+      </section>
 
-Is there a limit to how many people can be in a room?
-----
-Currently there isn't a hard limit, although the service hasn't been tested with more than 15 people or so. Screensharing and filesharing rely on one person uploading to everyone else, so it may not work well with large room sizes.
+      <section style={sectionStyle}>
+        <h2>Existe limite de pessoas em uma sala?</h2>
+        <p>
+          Atualmente nao existe um limite fixo, mas o servico ainda nao foi
+          testado com salas muito grandes. Compartilhamento de tela e arquivos
+          dependem do envio de uma pessoa para as outras, entao podem perder
+          qualidade em grupos maiores.
+        </p>
+      </section>
 
-I own a website and I'd like to have a link that generates a WebCineTV room with a specific video already set. How do I do this?
-----
-You can link to /create?video=URL_HERE to do this.
-
-`}
-      </pre>
-    </div>
+      <section style={sectionStyle}>
+        <h2>Posso criar uma sala com video predefinido?</h2>
+        <p>
+          Sim. Use um link no formato <code>/create?video=URL_DO_VIDEO</code>{" "}
+          para abrir uma sala com o video informado.
+        </p>
+      </section>
+    </Page>
   );
 };

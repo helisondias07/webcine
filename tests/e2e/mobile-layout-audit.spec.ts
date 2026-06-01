@@ -28,13 +28,8 @@ async function createRoom(page: Page) {
   await expectNoHorizontalOverflow(page);
   await page.getByRole("button", { name: "Nova sala" }).first().click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
-  await page.getByPlaceholder("Seu apelido ou nome").fill("Mobile QA");
-  await page.getByRole("button", { name: "Entrar na sala" }).click();
+  await page.getByPlaceholder("Seu nome").fill("Mobile QA");
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
-  const searchHint = page.getByText("Cole aqui o link do YouTube para começar 🎬");
-  if (await searchHint.isVisible()) {
-    await searchHint.click();
-  }
   await expectNoHorizontalOverflow(page);
 }
 
@@ -84,10 +79,6 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
 
   const playlistButton = page.getByTestId("playlist-button");
   await expectInViewport(page, playlistButton, 6);
-  const searchHint = page.getByText("Cole aqui o link do YouTube para começar 🎬");
-  if (await searchHint.isVisible()) {
-    await searchHint.click();
-  }
   await playlistButton.click();
   const queueDropdown = page.locator("[role='menu']").last();
   await expect(queueDropdown).toBeVisible();

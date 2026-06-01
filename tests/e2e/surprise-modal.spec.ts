@@ -4,8 +4,7 @@ async function createRoom(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "Nova sala" }).first().click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
-  await page.getByPlaceholder("Seu apelido ou nome").fill("Surprise QA");
-  await page.getByRole("button", { name: "Entrar na sala" }).click();
+  await page.getByPlaceholder("Seu nome").fill("Surprise QA");
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
 }
 

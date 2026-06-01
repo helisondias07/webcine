@@ -1,10 +1,8 @@
 import { loadEnvFile } from "node:process";
 import fs from "node:fs";
 
-try {
+if (fs.existsSync(".env")) {
   loadEnvFile();
-} catch (e) {
-  console.log(e);
 }
 
 export default {
@@ -39,12 +37,14 @@ export default {
           ) {
             return "auth-billing-vendor";
           }
-          if (
-            id.includes("/hls.js/") ||
-            id.includes("/dashjs/") ||
-            id.includes("/mediasoup-client/")
-          ) {
-            return "media-vendor";
+          if (id.includes("/hls.js/")) {
+            return "hls-vendor";
+          }
+          if (id.includes("/dashjs/")) {
+            return "dash-vendor";
+          }
+          if (id.includes("/mediasoup-client/")) {
+            return "mediasoup-vendor";
           }
           if (id.includes("/emoji-mart/")) {
             return "emoji-vendor";

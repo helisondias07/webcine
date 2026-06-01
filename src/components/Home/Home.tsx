@@ -73,7 +73,7 @@ export const Home = () => {
   }, []);
 
   const pages = useMemo(() => {
-    const chunks: typeof featureCards[] = [];
+    const chunks: (typeof featureCards)[] = [];
     for (let i = 0; i < featureCards.length; i += cardsPerView) {
       chunks.push(featureCards.slice(i, i + cardsPerView));
     }
@@ -91,6 +91,7 @@ export const Home = () => {
           {splitHeroOnMobile ? (
             <>
               <Hero
+                primary
                 heroText="Sua sala de cinema online."
                 subText="Sem precisar instalar nada nem criar contas."
                 action={<NewRoomButton size="xl" roomTitle="" />}
@@ -103,6 +104,7 @@ export const Home = () => {
           ) : (
             <Hero
               mega
+              primary
               heroText="Sua sala de cinema online, assista e converse com seus amigos em tempo real!"
               subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graça!"
               action={<NewRoomButton size="xl" roomTitle="" />}
@@ -130,7 +132,9 @@ export const Home = () => {
                 size="lg"
                 variant="light"
                 color="webgold"
-                onClick={() => setPage((p) => Math.min(pages.length - 1, p + 1))}
+                onClick={() =>
+                  setPage((p) => Math.min(pages.length - 1, p + 1))
+                }
                 disabled={page >= pages.length - 1}
                 aria-label="Próxima página"
               >
@@ -212,17 +216,21 @@ const Hero = ({
   subText,
   action,
   mega,
+  primary,
 }: {
   heroText?: string;
   subText?: string;
   action?: React.ReactNode;
   mega?: boolean;
+  primary?: boolean;
 }) => {
+  const HeadingTag = primary ? "h1" : "div";
+
   return (
     <div className={`${styles.hero} ${mega ? styles.heroMega : ""}`}>
       <div className={styles.heroInner}>
         <div className={styles.heroContent}>
-          <div className={styles.heroText}>{heroText}</div>
+          <HeadingTag className={styles.heroText}>{heroText}</HeadingTag>
           <div className={styles.subText}>{subText}</div>
           {action}
         </div>

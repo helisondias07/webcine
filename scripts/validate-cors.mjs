@@ -6,7 +6,7 @@ const HOST = "127.0.0.1";
 const baseUrl = `http://${HOST}:${PORT}`;
 const allowedOrigins =
   process.env.CORS_TEST_ALLOWED_ORIGINS ||
-  "https://webcinetv.app,https://www.webcinetv.app";
+  "https://webcinetv.com.br,https://www.webcinetv.com.br";
 const [allowedOrigin] = allowedOrigins.split(",").map((x) => x.trim());
 const blockedOrigin = "https://attacker.example";
 

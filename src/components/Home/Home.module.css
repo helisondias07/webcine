@@ -27,7 +27,7 @@
       transparent 34%
     ),
     linear-gradient(180deg, var(--bg-surface-soft) 0%, var(--bg-app) 100%);
-  filter: blur(30px) saturate(108%);
+  filter: blur(42px);
   transform: scale(1.08);
 }
 
@@ -37,11 +37,7 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-surface) 12%, transparent) 0%,
-    color-mix(in srgb, var(--bg-surface) 48%, transparent) 100%
-  );
+  background: transparent;
 }
 
 .layout {
@@ -67,29 +63,17 @@
   min-height: 0;
   border: 1px solid var(--border-soft);
   border-radius: 26px;
-  box-shadow:
-    0 28px 72px color-mix(in srgb, var(--bg-app) 76%, black),
-    inset 0 1px 0 color-mix(in srgb, var(--text-main) 12%, transparent);
+  box-shadow: var(--shadow-md);
   background:
     radial-gradient(
       circle at 85% 12%,
-      color-mix(in srgb, var(--accent-warm) 16%, transparent),
+      color-mix(in srgb, var(--accent-warm) 9%, transparent),
       transparent 44%
     ),
-    radial-gradient(
-      circle at 22% 72%,
-      color-mix(in srgb, var(--overlay-hero-b) 78%, transparent),
-      transparent 46%
-    ),
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--bg-surface-soft) 92%, transparent) 0%,
-      color-mix(in srgb, var(--bg-surface) 94%, transparent) 56%,
-      color-mix(in srgb, var(--bg-app) 96%, transparent) 100%
-    );
+    color-mix(in srgb, var(--bg-surface) 96%, transparent);
   overflow: hidden;
   min-height: 0;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
 }
 
 .heroMega {
@@ -140,9 +124,8 @@
   font-size: clamp(2.15rem, 2.9vw, 3.3rem);
   line-height: 1.15;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: -0.025em;
   color: var(--text-main);
-  text-shadow: 0 10px 30px color-mix(in srgb, var(--bg-app) 58%, black);
 }
 
 .subText {
@@ -240,7 +223,10 @@
   border-radius: 18px;
   background: var(--card-bg);
   box-shadow: none;
-  backdrop-filter: blur(12px);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
   padding: 18px 16px;
   min-height: 0;
   display: flex;
@@ -249,6 +235,16 @@
   text-align: center;
   justify-content: center;
   gap: 8px;
+}
+
+.featureCard:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent-warm) 32%, var(--border-soft));
+  background: color-mix(in srgb, var(--bg-surface) 92%, var(--accent-warm) 8%);
+}
+
+.featureCard svg {
+  color: var(--accent-warm);
 }
 
 .featureGrid {
@@ -264,8 +260,7 @@
 }
 
 .featureTitle {
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: -0.015em;
   font-family: "Sora", "Outfit", sans-serif;
   margin: 0;
   font-size: 1.35rem;
@@ -307,6 +302,7 @@
   border-radius: 18px;
   background: var(--card-bg);
   padding: 18px;
+  box-shadow: var(--shadow-sm);
 }
 
 .howItWorks h3 {
@@ -326,7 +322,7 @@
   border: 1px solid var(--border-soft);
   border-radius: 14px;
   padding: 14px;
-  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
 }
 
 .howItWorksCard span {
@@ -347,7 +343,6 @@
   font-size: 1.35rem;
   font-weight: 800;
   line-height: 1;
-  text-shadow: 0 6px 16px rgba(0, 0, 0, 0.36);
 }
 
 .howItWorksArrowDesktop {
@@ -367,7 +362,7 @@
       transparent 38%
     ),
     radial-gradient(circle at 72% 20%, rgba(0, 0, 0, 0.06), transparent 40%),
-    linear-gradient(180deg, #faf9f4 0%, #f5f3eb 100%);
+    linear-gradient(180deg, var(--bg-app) 0%, var(--bg-app) 100%);
 }
 
 :global([data-mantine-color-scheme="light"]) .container::after {
@@ -527,29 +522,54 @@
   }
   .container {
     --app-shell-gutter: 10px;
-    padding: 12px var(--app-shell-gutter) 12px;
+    padding: 14px var(--app-shell-gutter) 20px;
     overflow-x: hidden;
     overflow-y: visible;
   }
 
   .layout {
-    gap: 10px;
+    gap: 24px;
+  }
+
+  .hero {
+    min-height: 300px;
+    border-radius: 22px;
+    box-shadow: var(--shadow-sm);
   }
 
   .heroInner {
-    padding: 18px 14px;
+    padding: 26px 18px;
   }
 
+  .heroContent,
+  .heroMega .heroContent {
+    max-width: 100%;
+    gap: 16px;
+  }
+
+  .heroMega .heroText,
   .heroText {
-    font-size: clamp(1.5rem, 7.2vw, 2rem);
+    max-width: 290px;
+    font-size: clamp(1.75rem, 9vw, 2.2rem);
+    line-height: 1.08;
   }
 
+  .heroMega .subText,
   .subText {
-    font-size: 0.98rem;
+    max-width: 300px;
+    font-size: clamp(0.9rem, 4vw, 1rem);
+    line-height: 1.5;
   }
 
   .heroAction {
-    width: 220px;
+    width: auto;
+    margin-top: 4px;
+  }
+
+  .heroContent :global(.mantine-Button-root) {
+    min-height: 48px;
+    padding-inline: 24px;
+    font-size: 1rem;
   }
 
   .carouselSection {
@@ -560,15 +580,65 @@
     font-size: 1.02rem;
   }
 
+  .carouselHeader h2,
+  .howItWorks h2 {
+    font-size: 1.1rem;
+    line-height: 1.25;
+  }
+
   .featureCard {
-    padding: 14px 10px;
+    min-height: 190px;
+    padding: 22px 16px;
+    border-radius: 16px;
+    gap: 10px;
+  }
+
+  .featureCard:hover {
+    transform: none;
+  }
+
+  .featureCard svg {
+    width: 38px;
+    height: 38px;
   }
 
   .featureTitle {
-    font-size: 1.16rem;
+    font-size: clamp(1rem, 5.2vw, 1.15rem);
+    line-height: 1.25;
   }
 
   .featureText {
-    font-size: 0.98rem;
+    max-width: 290px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .howItWorks {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .howItWorksCard {
+    padding: 14px;
+  }
+
+  .howItWorksCard h3 {
+    font-size: 0.95rem;
+  }
+}
+
+@media only screen and (max-width: 360px) {
+  .heroMega .heroText,
+  .heroText {
+    font-size: 1.7rem;
+  }
+
+  .heroMega .subText,
+  .subText {
+    font-size: 0.88rem;
+  }
+
+  .featureCard {
+    min-height: 176px;
   }
 }

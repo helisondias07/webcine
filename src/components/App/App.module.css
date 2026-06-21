@@ -34,12 +34,8 @@
 .commandDeck {
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-panel) 94%, transparent),
-    color-mix(in srgb, var(--bg-surface) 86%, transparent)
-  );
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
+  backdrop-filter: blur(16px);
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
@@ -201,10 +197,10 @@
   background:
     radial-gradient(
       1200px 380px at 50% 0%,
-      color-mix(in srgb, var(--accent-warm) 10%, transparent),
+      color-mix(in srgb, var(--accent-warm) 6%, transparent),
       transparent 70%
     ),
-    color-mix(in srgb, var(--bg-surface) 88%, black);
+    #050607;
 }
 
 .flexCenter {
@@ -234,18 +230,17 @@
   background:
     radial-gradient(
       1000px 360px at 50% -80%,
-      color-mix(in srgb, var(--accent-warm) 12%, transparent),
+      color-mix(in srgb, var(--accent-warm) 8%, transparent),
       transparent 72%
     ),
-    color-mix(in srgb, var(--bg-panel) 96%, transparent);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(6px);
+    color-mix(in srgb, #101318 96%, transparent);
+  box-shadow: var(--shadow-md);
 }
 
 .emptyStateTitle {
   font-size: clamp(1rem, 1.8vw, 1.22rem);
   font-weight: 700;
-  color: var(--text-primary);
+  color: #f4f1ea;
   letter-spacing: 0.01em;
 }
 
@@ -280,7 +275,7 @@
 }
 
 .emptyStateSubtitle {
-  color: var(--text-muted);
+  color: #a7abb2;
   font-size: 0.9rem;
   text-align: center;
 }
@@ -302,7 +297,7 @@
   border: 1px solid
     color-mix(in srgb, var(--accent-warm) 46%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
-  color: var(--text-primary);
+  color: #f4f1ea;
   border-radius: 999px;
   padding: 9px 16px;
   font-size: 0.9rem;
@@ -360,7 +355,7 @@
   border: 1px solid
     color-mix(in srgb, var(--accent-warm) 64%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--shadow-md);
   color: var(--accent-warm);
 }
 
@@ -386,7 +381,7 @@
   font-weight: 700;
   line-height: 1;
   padding: 6px 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .chatPanel {
@@ -403,7 +398,7 @@
   overflow: hidden;
   background: color-mix(in srgb, var(--bg-panel) 95%, transparent);
   backdrop-filter: blur(16px);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   transform-origin: bottom right;
@@ -593,7 +588,7 @@
   border: 0.5px solid var(--border-soft);
   border-radius: 12px;
   padding: 10px 14px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--shadow-md);
   animation: joinToastLife 3.5s both;
 }
 
@@ -804,7 +799,7 @@
 @media only screen and (max-width: 760px) {
   .roomShell {
     width: 100%;
-    padding: 8px 0 10px;
+    padding: 6px 0 10px;
   }
 
   .mobileStack {
@@ -819,18 +814,44 @@
   .commandDeck {
     padding: 8px;
     width: 100%;
+    border-radius: 14px;
+    gap: 8px;
+  }
+
+  .searchRow {
+    gap: 8px;
+  }
+
+  .topActions {
+    gap: 7px;
+  }
+
+  .topActionButton {
+    min-height: 38px;
+    height: 38px;
+    font-size: 0.78rem;
+  }
+
+  .nameInput :global(.mantine-Input-input),
+  .searchField :global(.mantine-Input-input) {
+    min-height: 40px;
+    height: 40px;
+    font-size: 0.84rem;
   }
 
   .emptyStateCard {
     min-width: 0;
     width: calc(100vw - 28px);
     max-width: 100%;
-    padding: 18px 14px;
-    gap: 10px;
+    padding: 22px 16px;
+    gap: 12px;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
   }
 
   .emptyStateTitle {
-    font-size: 1rem;
+    font-size: 1.02rem;
+    line-height: 1.3;
   }
 
   .emptyStatePulseIcon {
@@ -839,12 +860,18 @@
   }
 
   .emptyActionButton {
-    min-width: 136px;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
   }
 
   .emptySurpriseButton {
     width: 100%;
     max-width: 320px;
+    min-height: 44px;
+    font-size: 0.84rem;
+    line-height: 1.35;
+    padding: 8px 14px;
   }
 
   .shareButton {
@@ -857,7 +884,7 @@
   }
 
   .playerContainer {
-    min-height: 48vh;
+    min-height: max(520px, 68svh);
   }
 
   .chatDock {
@@ -887,7 +914,7 @@
         100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px
       )
     );
-    height: min(58vh, 430px);
+    height: min(64svh, 460px);
   }
 
   .nameInput {
@@ -924,5 +951,19 @@
 
   .emptySurpriseButton {
     width: 100%;
+  }
+
+  .emptyStateCard {
+    width: calc(100vw - 20px);
+    padding: 20px 14px;
+  }
+
+  .emptyStatePulseIcon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .playerContainer {
+    min-height: max(500px, 66svh);
   }
 }

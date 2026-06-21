@@ -1,4 +1,4 @@
-﻿import config from "./config.ts";
+import config from "./config.ts";
 import axios from "axios";
 import { Server, Socket } from "socket.io";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
@@ -1028,11 +1028,12 @@ export class Room {
 
   private broadcastTyping = (socket: Socket, raw: unknown) => {
     const data = raw as { isTyping?: boolean };
-    if (!data?.isTyping) {
+    if (data === null || data === undefined) {
       return;
     }
     socket.broadcast.emit("REC:typing", {
       user: socket.clientId,
+      isTyping: Boolean(data.isTyping),
       timestamp: new Date().toISOString(),
     });
   };

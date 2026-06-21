@@ -67,19 +67,42 @@ export class Chat extends React.Component<ChatProps, ChatState> {
     if (this.props.hide !== prevProps.hide) {
       this.scrollToBottom();
     }
+    if (this.props.chat !== prevProps.chat && this.props.chat.length > prevProps.chat.length) {
+      const lastMsg = this.props.chat[this.props.chat.length - 1];
+      if (lastMsg && lastMsg.id) {
+        const sender = lastMsg.id;
+        if (this.state.typingUsers[sender]) {
+          this.setState((prevState) => {
+            const nextTypingUsers = { ...prevState.typingUsers };
+            delete nextTypingUsers[sender];
+            return { typingUsers: nextTypingUsers };
+          });
+        }
+      }
+    }
   }
 
   updateChatMsg = (e: any) => {
-    this.setState({ chatMsg: e.target.value });
-    window.clearTimeout(this.typingEmitDebounce);
-    this.typingEmitDebounce = window.setTimeout(() => {
+    const val = e.target.value;
+    this.setState({ chatMsg: val });
+
+    if (val) {
       const now = Date.now();
-      if (now - this.typingEmitLastAt < 250) {
-        return;
+      if (now - this.typingEmitLastAt > 2000) {
+        this.typingEmitLastAt = now;
+        this.props.socket?.emit("CMD:typing", { isTyping: true });
       }
-      this.typingEmitLastAt = now;
-      this.props.socket?.emit("CMD:typing", { isTyping: true });
-    }, 250);
+
+      window.clearTimeout(this.typingEmitDebounce);
+      this.typingEmitDebounce = window.setTimeout(() => {
+        this.props.socket?.emit("CMD:typing", { isTyping: false });
+        this.typingEmitLastAt = 0;
+      }, 1500);
+    } else {
+      window.clearTimeout(this.typingEmitDebounce);
+      this.props.socket?.emit("CMD:typing", { isTyping: false });
+      this.typingEmitLastAt = 0;
+    }
   };
 
   sendChatMsg = () => {
@@ -90,6 +113,9 @@ export class Chat extends React.Component<ChatProps, ChatState> {
       return;
     }
     this.setState({ chatMsg: "" });
+    window.clearTimeout(this.typingEmitDebounce);
+    this.props.socket?.emit("CMD:typing", { isTyping: false });
+    this.typingEmitLastAt = 0;
     this.props.socket?.emit("CMD:chat", this.state.chatMsg);
   };
 
@@ -130,28 +156,35 @@ export class Chat extends React.Component<ChatProps, ChatState> {
     return "";
   };
 
-  handleTypingEvent = (payload: { user: string; timestamp: string }) => {
+  handleTypingEvent = (payload: { user: string; isTyping?: boolean; timestamp: string }) => {
     const user = String(payload?.user ?? "");
     if (!user) {
       return;
     }
-    this.setState((prevState) => ({
-      typingUsers: {
-        ...prevState.typingUsers,
-        [user]: Date.now() + 3000,
-      },
-    }));
-    window.setTimeout(() => {
-      this.setState((prevState) => {
-        const expiry = prevState.typingUsers[user];
-        if (!expiry || expiry > Date.now()) {
-          return null;
-        }
-        const nextTypingUsers = { ...prevState.typingUsers };
+    const isTyping = payload.isTyping !== false;
+    this.setState((prevState) => {
+      const nextTypingUsers = { ...prevState.typingUsers };
+      if (isTyping) {
+        nextTypingUsers[user] = Date.now() + 3000;
+      } else {
         delete nextTypingUsers[user];
-        return { typingUsers: nextTypingUsers };
-      });
-    }, 3050);
+      }
+      return { typingUsers: nextTypingUsers };
+    });
+
+    if (isTyping) {
+      window.setTimeout(() => {
+        this.setState((prevState) => {
+          const expiry = prevState.typingUsers[user];
+          if (!expiry || expiry > Date.now()) {
+            return null;
+          }
+          const nextTypingUsers = { ...prevState.typingUsers };
+          delete nextTypingUsers[user];
+          return { typingUsers: nextTypingUsers };
+        });
+      }, 3050);
+    }
   };
 
   render() {

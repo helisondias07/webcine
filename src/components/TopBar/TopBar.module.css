@@ -4,13 +4,12 @@
   z-index: 80;
   min-height: var(--topbar-height);
   padding: 10px 0;
-  backdrop-filter: blur(14px);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-panel) 96%, transparent) 0%,
-      color-mix(in srgb, var(--bg-panel) 86%, transparent) 100%
-    );
+  backdrop-filter: blur(18px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-panel) 96%, transparent) 0%,
+    color-mix(in srgb, var(--bg-panel) 86%, transparent) 100%
+  );
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -19,7 +18,10 @@
 }
 
 .topbarInner {
-  width: min(var(--app-shell-max-width), calc(100% - (var(--app-shell-gutter) * 2)));
+  width: min(
+    var(--app-shell-max-width),
+    calc(100% - (var(--app-shell-gutter) * 2))
+  );
   margin: 0 auto;
   min-height: 50px;
   display: flex;
@@ -55,7 +57,6 @@
   letter-spacing: 0;
   line-height: 1;
   white-space: nowrap;
-  text-shadow: 0 10px 24px rgba(0, 0, 0, 0.42);
 }
 
 .brandWord {
@@ -138,12 +139,11 @@
   height: 30px;
   border-radius: 999px;
   border: 1px solid var(--border-soft);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-surface-soft) 86%, transparent),
-      color-mix(in srgb, var(--bg-surface) 92%, transparent)
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-surface-soft) 86%, transparent),
+    color-mix(in srgb, var(--bg-surface) 92%, transparent)
+  );
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -174,13 +174,12 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background:
-    linear-gradient(
-      155deg,
-      color-mix(in srgb, var(--accent-warm) 86%, white),
-      color-mix(in srgb, var(--brand-500) 72%, white)
-    );
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent-warm) 86%, white),
+    color-mix(in srgb, var(--brand-500) 72%, white)
+  );
+  box-shadow: var(--shadow-sm);
   transition: transform 0.24s ease;
 }
 
@@ -219,7 +218,8 @@
   z-index: 120;
   transform: translateX(-50%);
   max-width: min(520px, calc(100vw - 24px));
-  border: 1px solid color-mix(in srgb, var(--danger-soft) 54%, var(--border-soft));
+  border: 1px solid
+    color-mix(in srgb, var(--danger-soft) 54%, var(--border-soft));
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-panel) 96%, black);
   color: var(--text-main);
@@ -250,6 +250,15 @@
 }
 
 @media only screen and (max-width: 700px) {
+  .topbar {
+    min-height: var(--topbar-height);
+    padding: 7px 0;
+  }
+
+  .topbarInner {
+    min-height: 48px;
+  }
+
   .brandLink {
     position: static;
     transform: none;
@@ -261,7 +270,7 @@
   }
 
   .brandText {
-    font-size: 1.12rem;
+    font-size: 1.08rem;
   }
 
   .brandWord {
@@ -290,10 +299,13 @@
   .brandWord {
     letter-spacing: 0.1em;
   }
-
 }
 
 @media only screen and (max-width: 380px) {
+  .themeSwitch {
+    width: 50px;
+  }
+
   .actions {
     gap: 4px;
   }
@@ -318,17 +330,12 @@
     height: 30px;
   }
 
-  .themeSwitch {
-    width: 52px;
-    height: 28px;
-  }
-
   .themeThumb {
     width: 22px;
     height: 22px;
   }
 
   .themeSwitch[data-mode="dark"] .themeThumb {
-    transform: translateX(24px);
+    transform: translateX(22px);
   }
 }

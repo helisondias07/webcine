@@ -27,18 +27,9 @@ export const Footer = () => {
 
   return (
     <>
-      <div aria-hidden style={{ height: "var(--app-footer-height, 0px)" }} />
+      <div aria-hidden className={styles.footerSpacer} />
       <footer ref={ref} className={styles.footer}>
         <span>Criado por Helison Dias</span>
-        <a href="/terms" className={styles.link}>
-          Termos
-        </a>
-        <a href="/privacy" className={styles.link}>
-          Privacidade
-        </a>
-        <a href="/faq" className={styles.link}>
-          FAQ
-        </a>
         <a
           href="https://github.com/helisondias07"
           target="_blank"

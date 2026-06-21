@@ -60,12 +60,7 @@ export const Privacy = () => {
         <h2>Informacoes pessoais</h2>
         <ul style={listStyle}>
           <li>Voce nao precisa criar conta para usar o servico.</li>
-          <li>
-            Ao entrar com e-mail ou provedor de autenticacao, usamos nome e foto
-            para identificar voce nas salas.
-          </li>
-          <li>Podemos usar essas informacoes para contato sobre o servico.</li>
-          <li>Nao vendemos informacoes pessoais a terceiros.</li>
+          <li>Nao vendemos ou compartilhamos informacoes pessoais com terceiros.</li>
         </ul>
       </section>
 

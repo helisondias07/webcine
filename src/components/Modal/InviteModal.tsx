@@ -24,6 +24,13 @@ export const InviteModal = ({
       <TextInput
         label="Copie e compartilhe este link:"
         readOnly
+        onClick={(e) => {
+          const input = e.currentTarget.querySelector("input") || (e.target as HTMLInputElement);
+          if (input) {
+            input.select();
+          }
+          handleCopyInviteLink();
+        }}
         rightSection={
           <ActionIcon onClick={handleCopyInviteLink} color="teal">
             <IconCopy size={16} />

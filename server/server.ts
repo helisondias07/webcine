@@ -1,4 +1,4 @@
-﻿import config from "./config.ts";
+import config from "./config.ts";
 import fs from "node:fs";
 import express, { type Request, type Response } from "express";
 import bodyParser from "body-parser";
@@ -336,7 +336,7 @@ const YOUTUBE_SURPRISE_CATEGORIES = {
       "try not to laugh challenge brasil",
       "não rir challenge brasileiro",
     ],
-    label: "Tente nÃ£o rir",
+    label: "Tente não rir",
   },
   gaming: {
     queries: [
@@ -354,7 +354,7 @@ const YOUTUBE_SURPRISE_CATEGORIES = {
       "música brasileira oficial",
       "top hits brasil clipe",
     ],
-    label: "Clipe de mÃºsica",
+    label: "Clipe de música",
   },
   "stand-up": {
     queries: [
@@ -374,7 +374,7 @@ const YOUTUBE_SURPRISE_CATEGORIES = {
       "documentário investigação brasil",
       "documentário natureza brasil",
     ],
-    label: "DocumentÃ¡rio",
+    label: "Documentário",
   },
   culinaria: {
     queries: [
@@ -384,7 +384,7 @@ const YOUTUBE_SURPRISE_CATEGORIES = {
       "tastemade brasil receitas",
       "receita brasileira passo a passo",
     ],
-    label: "CulinÃ¡ria",
+    label: "Culinária",
   },
   "viral-trending": {
     queries: [
@@ -469,7 +469,7 @@ function normalizeSurpriseCategory(input: unknown): SurpriseVideoCategory {
   if (value === "musicas" || value === "música" || value === "musica") {
     return "clipe-de-musica";
   }
-  if (value === "aleatorio" || value === "aleatÃ³rio" || value === "random") {
+  if (value === "aleatorio" || value === "aleatório" || value === "random") {
     const keys = Object.keys(
       YOUTUBE_SURPRISE_CATEGORIES,
     ) as SurpriseVideoCategory[];
@@ -853,13 +853,13 @@ function parseGenreId(value: unknown) {
   }
   const genreByName: Record<string, number> = {
     acao: 28,
-    "aÃ§Ã£o": 28,
+    "ação": 28,
     comedia: 35,
-    "comÃ©dia": 35,
+    "comédia": 35,
     terror: 27,
     romance: 10749,
     animacao: 16,
-    "animaÃ§Ã£o": 16,
+    "animação": 16,
     suspense: 53,
   };
   return genreByName[text] ?? null;
@@ -1015,7 +1015,7 @@ app.get("/surprise/video", async (req, res) => {
     if (code === "youtube_key_missing") {
       res.status(503).json({
         error: "youtube_not_configured",
-        message: "A busca de vÃ­deos estÃ¡ temporariamente indisponÃ­vel.",
+        message: "A busca de vídeos está temporariamente indisponível.",
       });
       return;
     }
@@ -1028,14 +1028,14 @@ app.get("/surprise/video", async (req, res) => {
       res.status(503).json({
         error: "youtube_api_blocked",
         message:
-          "A chave do YouTube estÃ¡ bloqueada para busca. Ative YouTube Data API v3 e revise as restriÃ§Ãµes da API key.",
+          "A chave do YouTube está bloqueada para busca. Ative YouTube Data API v3 e revise as restrições da API key.",
       });
       return;
     }
     console.warn("[surprise video error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_video_failed",
-      message: "NÃ£o foi possÃ­vel buscar vÃ­deos agora. Tente novamente.",
+      message: "Não foi possível buscar vídeos agora. Tente novamente.",
     });
   }
 });
@@ -1054,14 +1054,14 @@ app.get("/surprise/providers", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
+        message: "A busca de filmes está temporariamente indisponível.",
       });
       return;
     }
     console.warn("[surprise providers error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_providers_failed",
-      message: "NÃ£o foi possÃ­vel carregar as plataformas no momento.",
+      message: "Não foi possível carregar as plataformas no momento.",
     });
   }
 });
@@ -1159,14 +1159,14 @@ app.get("/surprise/movies", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
+        message: "A busca de filmes está temporariamente indisponível.",
       });
       return;
     }
     console.warn("[surprise movies error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_movies_failed",
-      message: "NÃ£o foi possÃ­vel buscar filmes agora. Tente novamente.",
+      message: "Não foi possível buscar filmes agora. Tente novamente.",
     });
   }
 });
@@ -1274,14 +1274,14 @@ app.get("/surprise/movie/:id", async (req, res) => {
     if (code === "tmdb_token_missing") {
       res.status(503).json({
         error: "tmdb_not_configured",
-        message: "A busca de filmes estÃ¡ temporariamente indisponÃ­vel.",
+        message: "A busca de filmes está temporariamente indisponível.",
       });
       return;
     }
     console.warn("[surprise movie details error]", error?.message ?? error);
     res.status(500).json({
       error: "surprise_movie_details_failed",
-      message: "NÃ£o foi possÃ­vel carregar os detalhes desse filme agora.",
+      message: "Não foi possível carregar os detalhes desse filme agora.",
     });
   }
 });

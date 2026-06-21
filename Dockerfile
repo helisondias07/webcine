@@ -1,5 +1,5 @@
 # Stage 1: Build the frontend and server typecheck
-FROM node:24-alpine AS builder
+FROM mcr.microsoft.com/playwright:v1.61.0-noble AS builder
 
 WORKDIR /app
 

@@ -37,6 +37,9 @@ async function openAndCloseChat(page: Page) {
     await openChatButton.click();
   }
   await expect(page.getByTestId("chat-panel")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Abrir seletor de emojis" }),
+  ).toHaveCount(0);
   await page.getByTestId("close-chat-button").click();
   await expect(openChatButton).toBeVisible();
 }

@@ -36,7 +36,6 @@ export async function getStats() {
     creationTime: Date;
     lastUpdateTime: Date;
     vanity: string;
-    isSubRoom: boolean;
     roomTitle: string;
     roomDescription: string;
     mediaPath: string;
@@ -47,7 +46,7 @@ export async function getStats() {
     creator: string;
     lock: string;
   }>(
-    `SELECT "roomId", "creationTime", "lastUpdateTime", vanity, "isSubRoom", "roomTitle", "roomDescription", "mediaPath", owner,
+    `SELECT "roomId", "creationTime", "lastUpdateTime", vanity, "roomTitle", "roomDescription", "mediaPath", owner,
     data->'video' as video, data->'videoTS' as "videoTS", data->'vBrowser' as "vBrowser", data->'creator' as creator, data->'lock' as lock
     FROM room
     WHERE "lastUpdateTime" > NOW() - INTERVAL '7 day'
@@ -82,7 +81,6 @@ export async function getStats() {
         creationTime: dbRoom.creationTime || undefined,
         lastUpdateTime: dbRoom.lastUpdateTime || undefined,
         vanity: dbRoom.vanity || undefined,
-        isSubRoom: dbRoom.isSubRoom || undefined,
         owner: dbRoom.owner || undefined,
         roomTitle: dbRoom.roomTitle || undefined,
         roomDescription: dbRoom.roomDescription || undefined,
@@ -126,9 +124,6 @@ export async function getStats() {
   );
   const numAllRooms = Number(
     (await postgres?.query("SELECT count(1) from room"))?.rows[0].count,
-  );
-  const numSubs = Number(
-    (await postgres?.query("SELECT count(1) from subscriber"))?.rows[0].count,
   );
   const createRoomErrors = await getRedisCountDay("createRoomError");
   const chatMessages = await getRedisCountDay("chatMessages");
@@ -241,7 +236,6 @@ export async function getStats() {
       postgresUsage,
       numPermaRooms,
       numAllRooms,
-      numSubs,
       createRoomErrors,
       createRoomPreloads,
       chatMessages,

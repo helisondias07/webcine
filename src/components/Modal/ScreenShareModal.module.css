@@ -52,10 +52,6 @@
   gap: 10px;
 }
 
-.premiumCard {
-  background: color-mix(in srgb, var(--bg-surface) 90%, transparent);
-}
-
 .planHead {
   display: flex;
   align-items: center;

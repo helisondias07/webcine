@@ -670,13 +670,6 @@
   overflow-y: auto;
 }
 
-.historyLoginBanner {
-  margin-bottom: 10px;
-  background: var(--bg-panel);
-  border: 0.5px solid var(--border-soft);
-  color: var(--text-muted);
-}
-
 .historyList {
   display: flex;
   flex-direction: column;

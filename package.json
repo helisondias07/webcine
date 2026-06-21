@@ -35,14 +35,12 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "firebase-admin": "^13.10.0",
     "helmet": "^8.1.0",
     "ioredis": "^5.10.0",
     "lucide-react": "^0.577.0",
     "node-ssh": "^13.2.1",
     "pg": "^8.20.0",
     "socket.io": "^4.8.3",
-    "stripe": "^8.222.0",
     "twitch-m3u8": "^1.1.5"
   },
   "overrides": {
@@ -61,11 +59,8 @@
     "brace-expansion": "^2.0.3"
   },
   "devDependencies": {
-    "@emoji-mart/data": "^1.2.1",
-    "@emoji-mart/react": "^1.1.1",
     "@mantine/core": "^8.3.16",
     "@playwright/test": "^1.58.2",
-    "@stripe/stripe-js": "^1.54.2",
     "@tabler/icons-react": "^3.40.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
@@ -83,7 +78,6 @@
     "concurrently": "^9.2.1",
     "dashjs": "^5.1.1",
     "eventemitter3": "^4.0.7",
-    "firebase": "^12.10.0",
     "hls.js": "^1.6.15",
     "mediasoup-client": "^3.18.1",
     "react": "^18.3.1",

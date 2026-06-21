@@ -1,24 +1,10 @@
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { serverPath } from "../../utils/serverPath";
-import { Avatar, Button } from "@mantine/core";
-import type { FirebaseUser } from "../../utils/firebaseClient";
-import { MetadataContext } from "../../MetadataContext";
-import {
-  IconCirclePlusFilled,
-  IconLogin,
-  IconMoonStars,
-  IconSun,
-} from "@tabler/icons-react";
+import { Button } from "@mantine/core";
+import { IconCirclePlusFilled, IconMoonStars, IconSun } from "@tabler/icons-react";
 import styles from "./TopBar.module.css";
 import { t } from "../../i18n";
 import { ThemeModeContext } from "../../ThemeModeContext";
-
-const LoginModal = React.lazy(() =>
-  import("../Modal/LoginModal").then((mod) => ({ default: mod.LoginModal })),
-);
-const ProfileModal = React.lazy(() =>
-  import("../Modal/ProfileModal").then((mod) => ({ default: mod.ProfileModal })),
-);
 
 const roomSlugPattern = /^[a-z0-9-]{3,80}$/;
 
@@ -38,7 +24,6 @@ function slugify(value: string) {
 }
 
 export async function createRoom(
-  user: FirebaseUser | undefined,
   openNewTab: boolean | undefined,
   options?: {
     video?: string;
@@ -47,8 +32,6 @@ export async function createRoom(
     roomTitle?: string;
   },
 ) {
-  const uid = user?.uid;
-  const token = await user?.getIdToken();
   const roomSlug =
     options?.roomSlug && roomSlugPattern.test(options.roomSlug)
       ? options.roomSlug
@@ -62,8 +45,6 @@ export async function createRoom(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        uid,
-        token,
         video: options?.video ?? "",
         username: options?.username ?? "",
         roomSlug,
@@ -101,7 +82,6 @@ export const NewRoomButton = (props: {
   openNewTab?: boolean;
   roomTitle?: string;
 }) => {
-  const context = useContext(MetadataContext);
   const [isCreating, setIsCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const errorTimeoutRef = useRef<number>();
@@ -121,7 +101,7 @@ export const NewRoomButton = (props: {
     setIsCreating(true);
     setErrorMessage("");
     try {
-      await createRoom(context.user, props.openNewTab, {
+      await createRoom(props.openNewTab, {
         username: cleanName,
         roomSlug,
         roomTitle: props.roomTitle,
@@ -161,108 +141,6 @@ export const NewRoomButton = (props: {
     </>
   );
 };
-type SignInButtonProps = {};
-
-export class SignInButton extends React.Component<SignInButtonProps> {
-  static contextType = MetadataContext;
-  declare context: React.ContextType<typeof MetadataContext>;
-  public state = { isLoginOpen: false, isProfileOpen: false, userImage: null };
-
-  loadUserImage = async () => {
-    if (!this.context.user) {
-      return;
-    }
-    const customImage = window.localStorage.getItem("watchparty-custom-avatar");
-    if (customImage) {
-      this.setState({ userImage: customImage });
-      return;
-    }
-    const { getUserImage } = await import("../../utils/utils");
-    this.setState({ userImage: await getUserImage(this.context.user) });
-  };
-
-  onProfileUpdated = (event: Event) => {
-    const customEvent = event as CustomEvent<{ avatar?: string }>;
-    const avatar = customEvent.detail?.avatar || null;
-    if (avatar !== null) {
-      this.setState({ userImage: avatar });
-    }
-  };
-
-  onOpenLoginRequested = () => {
-    if (!this.context.user) {
-      window.dispatchEvent(new CustomEvent("webcinetv-bootstrap-auth"));
-      this.setState({ isLoginOpen: true });
-    }
-  };
-
-  componentDidMount() {
-    void this.loadUserImage();
-    window.addEventListener("watchparty-profile-updated", this.onProfileUpdated);
-    window.addEventListener("webcinetv-open-login", this.onOpenLoginRequested);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener(
-      "watchparty-profile-updated",
-      this.onProfileUpdated,
-    );
-    window.removeEventListener("webcinetv-open-login", this.onOpenLoginRequested);
-  }
-
-  async componentDidUpdate(prevProps: SignInButtonProps) {
-    if (this.context.user && !this.state.userImage) {
-      void this.loadUserImage();
-    }
-  }
-
-  render() {
-    if (this.context.user) {
-      return (
-        <div className={styles.avatarButton}>
-          <Avatar
-            src={this.state.userImage}
-            onClick={() => this.setState({ isProfileOpen: true })}
-          />
-          {this.state.isProfileOpen && this.context.user && (
-            <React.Suspense fallback={null}>
-              <ProfileModal
-                userImage={this.state.userImage}
-                onProfileUpdated={(data) =>
-                  this.setState({ userImage: data.avatar || this.state.userImage })
-                }
-                close={() => this.setState({ isProfileOpen: false })}
-              />
-            </React.Suspense>
-          )}
-        </div>
-      );
-    }
-    return (
-      <React.Fragment>
-        {this.state.isLoginOpen && (
-          <React.Suspense fallback={null}>
-            <LoginModal
-              closeModal={() => this.setState({ isLoginOpen: false })}
-            />
-          </React.Suspense>
-        )}
-        <Button
-          className={styles.signInButton}
-          leftSection={<IconLogin />}
-          title={t("signIn")}
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent("webcinetv-bootstrap-auth"));
-            this.setState({ isLoginOpen: true });
-          }}
-        >
-          {t("signIn")}
-        </Button>
-      </React.Fragment>
-    );
-  }
-}
-
 const ThemeToggle = () => {
   const { mode, toggleMode } = useContext(ThemeModeContext);
   const isLight = mode === "light";
@@ -337,7 +215,6 @@ export const TopBar = (props: {
         <div className={styles.actionsWrap}>
           <div className={styles.actions}>
             {!props.hideNewRoom && <NewRoomButton openNewTab />}
-            {!props.hideSignin && <SignInButton />}
           </div>
         </div>
         {titleText && (

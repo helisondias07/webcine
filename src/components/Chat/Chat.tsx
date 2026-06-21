@@ -1,9 +1,5 @@
-import React, { RefObject, useContext } from "react";
-import { createPortal } from "react-dom";
+import React, { RefObject } from "react";
 import { ActionIcon, Avatar, Button, TextInput } from "@mantine/core";
-import Picker from "@emoji-mart/react";
-import { init } from "emoji-mart";
-import emojiData from "@emoji-mart/data";
 //@ts-expect-error
 import Linkify from "react-linkify";
 import { SecureLink } from "react-secure-link";
@@ -13,12 +9,11 @@ import {
   formatTimestamp,
   getColorForStringHex,
   getDefaultPicture,
-  isEmojiString,
+  getOrCreateClientId,
 } from "../../utils/utils";
 import { UserMenu } from "../UserMenu/UserMenu";
 import { Socket } from "socket.io-client";
-import { MetadataContext } from "../../MetadataContext";
-import { IconMoodSmile, IconSend } from "@tabler/icons-react";
+import { IconSend } from "@tabler/icons-react";
 
 interface ChatProps {
   chat: ChatMessage[];
@@ -38,28 +33,22 @@ interface ChatProps {
 interface ChatState {
   chatMsg: string;
   isNearBottom: boolean;
-  isPickerOpen: boolean;
   typingUsers: Record<string, number>;
 }
 
 export class Chat extends React.Component<ChatProps, ChatState> {
-  static contextType = MetadataContext;
-  declare context: React.ContextType<typeof MetadataContext>;
   public state: ChatState = {
     chatMsg: "",
     isNearBottom: true,
-    isPickerOpen: false,
     typingUsers: {},
   };
   messagesRef = React.createRef<HTMLDivElement>();
-  emojiButtonRef = React.createRef<HTMLButtonElement>();
   typingEmitDebounce: number | undefined = undefined;
   typingEmitLastAt = 0;
 
   async componentDidMount() {
     this.scrollToBottom();
     this.messagesRef.current?.addEventListener("scroll", this.onScroll);
-    init({ data: emojiData });
     this.props.socket?.on("REC:typing", this.handleTypingEvent);
   }
 
@@ -126,7 +115,8 @@ export class Chat extends React.Component<ChatProps, ChatState> {
 
   scrollToBottom = () => {
     if (this.messagesRef.current) {
-      this.messagesRef.current.scrollTop = this.messagesRef.current.scrollHeight;
+      this.messagesRef.current.scrollTop =
+        this.messagesRef.current.scrollHeight;
     }
   };
 
@@ -138,10 +128,6 @@ export class Chat extends React.Component<ChatProps, ChatState> {
       return "entrou!";
     }
     return "";
-  };
-
-  addEmoji = (emoji: any) => {
-    this.setState({ chatMsg: this.state.chatMsg + emoji.native });
   };
 
   handleTypingEvent = (payload: { user: string; timestamp: string }) => {
@@ -169,11 +155,6 @@ export class Chat extends React.Component<ChatProps, ChatState> {
   };
 
   render() {
-    const pickerTheme =
-      document.documentElement.getAttribute("data-mantine-color-scheme") ===
-      "light"
-        ? "light"
-        : "dark";
     const activeTypingUsers = (
       Object.entries(this.state.typingUsers) as [string, number][]
     )
@@ -189,14 +170,6 @@ export class Chat extends React.Component<ChatProps, ChatState> {
           : activeTypingUsers.length === 1
             ? `${this.props.nameMap[activeTypingUsers[0]] || "Alguém"} está digitando...`
             : "";
-
-    const emojiButtonRect = this.emojiButtonRef.current?.getBoundingClientRect();
-    const pickerBottom = emojiButtonRect
-      ? Math.max(window.innerHeight - emojiButtonRect.top + 8, 12)
-      : 76;
-    const pickerRight = emojiButtonRect
-      ? Math.max(window.innerWidth - emojiButtonRect.right, 8)
-      : 8;
 
     return (
       <div
@@ -241,28 +214,6 @@ export class Chat extends React.Component<ChatProps, ChatState> {
             </Button>
           )}
         </div>
-        {this.state.isPickerOpen &&
-          createPortal(
-            <div
-              style={{
-                position: "fixed",
-                right: `${pickerRight}px`,
-                bottom: `${pickerBottom}px`,
-                zIndex: 1000,
-                width: "min(352px, calc(100vw - 16px))",
-                maxHeight: "58vh",
-              }}
-            >
-              <Picker
-                theme={pickerTheme}
-                previewPosition="none"
-                maxFrequentRows={1}
-                onEmojiSelect={this.addEmoji}
-                onClickOutside={() => this.setState({ isPickerOpen: false })}
-              />
-            </div>,
-            document.body,
-          )}
         <TextInput
           className={styles.chatInput}
           onKeyDown={(e: any) => e.key === "Enter" && this.sendChatMsg()}
@@ -275,7 +226,7 @@ export class Chat extends React.Component<ChatProps, ChatState> {
               ? "O chat foi desativado pelo dono da sala."
               : "Digite uma mensagem..."
           }
-          rightSectionWidth={78}
+          rightSectionWidth={42}
           rightSection={
             <div
               style={{
@@ -284,18 +235,6 @@ export class Chat extends React.Component<ChatProps, ChatState> {
                 gap: 6,
               }}
             >
-              <ActionIcon
-                ref={this.emojiButtonRef}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() =>
-                  this.setState((prev) => ({ isPickerOpen: !prev.isPickerOpen }))
-                }
-                disabled={this.props.isChatDisabled}
-                aria-label="Abrir seletor de emojis"
-                title="Emojis"
-              >
-                <IconMoodSmile size={18} />
-              </ActionIcon>
               <ActionIcon
                 onClick={this.sendChatMsg}
                 disabled={this.props.isChatDisabled || !this.state.chatMsg}
@@ -343,8 +282,7 @@ const ChatMessage = ({
   isChatDisabled: boolean | undefined;
   className: string;
 }) => {
-  const { user } = useContext(MetadataContext);
-  const { id, timestamp, cmd, msg, system, isSub, videoTS } = message;
+  const { id, timestamp, cmd, msg, system, videoTS } = message;
   const commandMessage = cmd ? formatMessage(cmd, msg) : "";
   const imageMsg = renderImageString(msg);
   return (
@@ -382,7 +320,7 @@ const ChatMessage = ({
               socket={socket}
               userToManage={id}
               isChatMessage
-              disabled={!Boolean(owner && owner === user?.uid)}
+              disabled={!Boolean(owner && owner === getOrCreateClientId())}
               trigger={
                 <div
                   style={{
@@ -390,8 +328,7 @@ const ChatMessage = ({
                     fontWeight: 700,
                     color: nameColorMap[id] || undefined,
                   }}
-                  title={isSub ? "Assinante Premium" : ""}
-                  className={`${isSub ? styles.subscriber : styles.light} ${styles.hoverEffect}`}
+                  className={`${styles.light} ${styles.hoverEffect}`}
                 >
                   {Boolean(system) && "Sistema"}
                   {nameMap[id] || id}
@@ -404,8 +341,7 @@ const ChatMessage = ({
                 fontWeight: 700,
                 color: nameColorMap[id] || undefined,
               }}
-              title={isSub ? "Assinante Premium" : ""}
-              className={`${isSub ? styles.subscriber : styles.light}`}
+              className={styles.light}
             >
               {Boolean(system) && "Sistema"}
               {nameMap[id] || id}
@@ -435,11 +371,7 @@ const ChatMessage = ({
             </SecureLink>
           )}
         >
-          <div
-            className={`${styles.light} ${isEmojiString(msg) ? styles.emoji : ""}`}
-          >
-            {!cmd && msg}
-          </div>
+          <div className={styles.light}>{!cmd && msg}</div>
         </Linkify>
         {imageMsg}
       </div>

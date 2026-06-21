@@ -1,17 +1,12 @@
 alter table room add column "roomTitle" text;
 alter table room add column "roomDescription" text;
 alter table room add column "roomTitleColor" text;
+alter table room drop column if exists "isSubRoom";
+drop table if exists subscriber;
 
-CREATE TABLE IF NOT EXISTS movie_history(
-  uid text NOT NULL,
-  movie_id bigint NOT NULL,
-  title text NOT NULL,
-  poster_path text,
-  backdrop_path text,
-  rating double precision,
-  platform text,
-  watched_at timestamp with time zone NOT NULL DEFAULT NOW(),
-  PRIMARY KEY(uid, movie_id)
-);
-CREATE INDEX IF NOT EXISTS movie_history_uid_watched_at_idx
-  ON movie_history(uid, watched_at DESC);
+-- Firebase identities are no longer used. Existing rooms can be claimed again
+-- using the browser-local identity after this one-time migration.
+UPDATE room SET owner = NULL WHERE owner IS NOT NULL;
+DROP TABLE IF EXISTS link_account;
+DROP TABLE IF EXISTS active_user;
+DROP TABLE IF EXISTS movie_history;

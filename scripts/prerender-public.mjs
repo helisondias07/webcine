@@ -1,10 +1,20 @@
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 
 const buildDir = path.resolve("build");
 const routes = ["/", "/terms", "/privacy", "/faq"];
+const chromiumExecutable = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+].find((candidate) => candidate && fsSyncExists(candidate));
+
+function fsSyncExists(candidate) {
+  return existsSync(candidate);
+}
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -81,7 +91,9 @@ if (!address || typeof address === "string") {
 }
 
 const baseUrl = `http://127.0.0.1:${address.port}`;
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  executablePath: chromiumExecutable || undefined,
+});
 
 try {
   for (const route of routes) {

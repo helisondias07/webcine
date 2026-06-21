@@ -2,12 +2,7 @@
 import axios from "axios";
 import { Server, Socket } from "socket.io";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import {
-  getUserBillingProfile,
-  validateUserToken,
-} from "./utils/firebase.ts";
 import { redis, redisCount, redisCountDistinct } from "./utils/redis.ts";
-import { getIsSubscriberByEmail } from "./utils/stripe.ts";
 import { type AssignedVM } from "./vm/base.ts";
 import { getStartOfDay } from "./utils/time.ts";
 import { postgres, updateObject, upsertObject } from "./utils/postgres.ts";
@@ -20,12 +15,6 @@ import {
 import twitch from "twitch-m3u8";
 import { type QueryResult } from "pg";
 import { Docker } from "./vm/docker.ts";
-import {
-  getEntitlementsForPlan,
-  isSubscriberPlan,
-  type UserEntitlements,
-  type UserPlan,
-} from "./utils/entitlements.ts";
 
 const PASSWORD_HASH_PREFIX = "scrypt$";
 const ROOM_PASSWORD_ATTEMPT_WINDOW_SECONDS = 10 * 60;
@@ -53,9 +42,6 @@ declare module "socket.io" {
   interface Socket {
     clientId: string;
     uid: string;
-    isSub: boolean;
-    plan: UserPlan;
-    entitlements: UserEntitlements;
   }
 }
 
@@ -86,6 +72,7 @@ export class Room {
   private countdownStartTimeout: NodeJS.Timeout | undefined = undefined;
   public isChatDisabled: boolean | undefined = undefined;
   public lastUpdateTime: Date = new Date();
+  public dirty = true;
   private preventTSUpdate = false;
   // Not really a queue since there's no ordering, we just retry as long as this is set
   // If we want a real queue then we need external processing of the jobs and a way to update the room from outside
@@ -124,11 +111,11 @@ export class Room {
           delete this.tsMap[key];
         }
       });
-      if (this.video) {
+      if (this.video && !this.paused && this.roster.length > 1) {
         this.lastTsMap = Date.now();
         io.of(roomId).emit("REC:tsMap", this.tsMap);
       }
-    }, 1000);
+    }, 2000);
 
     io.of(roomId).use(async (socket, next) => {
       const clientId = socket.handshake.query?.clientId;
@@ -142,7 +129,11 @@ export class Room {
         return;
       }
       if (postgres) {
-        const attemptKey = getRoomPasswordAttemptKey(this.roomId, socket, clientId);
+        const attemptKey = getRoomPasswordAttemptKey(
+          this.roomId,
+          socket,
+          clientId,
+        );
         const attempts = await getRoomPasswordAttempts(attemptKey);
         if (attempts >= ROOM_PASSWORD_MAX_ATTEMPTS) {
           next(
@@ -153,7 +144,7 @@ export class Room {
           return;
         }
         const result = await postgres.query(
-          `SELECT password, owner, "isSubRoom" FROM room where "roomId" = $1`,
+          `SELECT password, owner FROM room where "roomId" = $1`,
           [this.roomId],
         );
         const authPassword = socket.handshake.auth?.password;
@@ -169,22 +160,10 @@ export class Room {
         const roomOwner = result.rows[0]?.owner;
         if (roomPassword) {
           const hasPasswordMatch = verifyRoomPassword(password, roomPassword);
-          let isOwnerByToken = false;
-          if (!hasPasswordMatch && roomOwner) {
-            const authUid =
-              typeof socket.handshake.auth?.uid === "string"
-                ? socket.handshake.auth.uid
-                : "";
-            const authToken =
-              typeof socket.handshake.auth?.token === "string"
-                ? socket.handshake.auth.token
-                : "";
-            const decoded = await validateUserToken(authUid, authToken);
-            isOwnerByToken = Boolean(
-              decoded?.uid && decoded.uid === String(roomOwner),
-            );
-          }
-          if (!hasPasswordMatch && !isOwnerByToken) {
+          const isRoomOwner = Boolean(
+            roomOwner && clientId === String(roomOwner),
+          );
+          if (!hasPasswordMatch && !isRoomOwner) {
             await incrementRoomPasswordAttempts(attemptKey);
             next(new Error("password"));
             return;
@@ -205,29 +184,20 @@ export class Room {
           }
         }
         // Check if room is at capacity
-        const isSubRoom = Boolean(result.rows[0]?.isSubRoom);
-        const freeCapacity =
-          Number(config.ROOM_CAPACITY) || getEntitlementsForPlan("free").maxParticipants;
-        const premiumCapacity =
-          Number(config.ROOM_CAPACITY_SUB) ||
-          getEntitlementsForPlan("premium").maxParticipants;
-        const roomCapacity = isSubRoom ? premiumCapacity : freeCapacity;
+        const roomCapacity = Number(config.ROOM_CAPACITY) || 0;
         if (roomCapacity > 0 && this.roster.length >= roomCapacity) {
           next(new Error("Esta sala atingiu o limite de participantes."));
           return;
         }
       } else {
-        const freeCapacity =
-          Number(config.ROOM_CAPACITY) || getEntitlementsForPlan("free").maxParticipants;
-        if (freeCapacity > 0 && this.roster.length >= freeCapacity) {
+        const roomCapacity = Number(config.ROOM_CAPACITY) || 0;
+        if (roomCapacity > 0 && this.roster.length >= roomCapacity) {
           next(new Error("Esta sala atingiu o limite de participantes."));
           return;
         }
       }
-      // clientId is meant for things that shouldn't require login
-      // Anything sensitive (e.g. subscriber features, room lock) should be validated with uid and require login
-      // vbrowser controller, identify chat messages, video chat/screenshare signaling
-      // Used as keys for ephemeral room state (e.g. name, picture, timestamp)
+      // clientId is the persistent local browser identity used for room
+      // ownership, controls, chat and screenshare signaling.
 
       // redis-based clientId spoof protection (session)
       // Keep a map of clientIds to sessionIDs (a secret generated by client and stored in localstorage)
@@ -269,7 +239,9 @@ export class Room {
         }
       }
 
-      const isExistingMember = this.roster.some((member) => member.id === clientId);
+      const isExistingMember = this.roster.some(
+        (member) => member.id === clientId,
+      );
       if (this.lock && !isExistingMember) {
         next(new Error("Sala trancada. Novas entradas estao bloqueadas."));
         return;
@@ -279,6 +251,7 @@ export class Room {
       // new socket, so reconnects cannot leave duplicate roster entries.
       const previousSocketId = this.socketIdMap[clientId];
       if (previousSocketId) {
+        this.clearEphemeralShare(clientId);
         io.of(roomId).sockets.get(previousSocketId)?.disconnect(true);
       }
       this.roster = this.roster.filter((member) => member.id !== clientId);
@@ -310,11 +283,7 @@ export class Room {
       io.of(roomId).emit("roster", this.getRosterForApp());
 
       socket.clientId = clientId;
-      socket.uid = "";
-      socket.isSub = false;
-      socket.plan = "free";
-      socket.entitlements = getEntitlementsForPlan("free");
-
+      socket.uid = clientId;
       // Check if this socket matches this.lock UID
       const validateLock = () => {
         return !this.lock || socket.uid === this.lock;
@@ -327,6 +296,15 @@ export class Room {
           [this.roomId],
         );
         const owner = result?.rows[0]?.owner;
+        if (owner && !isValidUUID(String(owner))) {
+          await updateObject(
+            postgres!,
+            "room",
+            { owner: null },
+            { roomId: this.roomId },
+          );
+          return true;
+        }
         return !owner || socket.uid === owner;
       };
 
@@ -348,33 +326,6 @@ export class Room {
       socket.on("CMD:picture", (data: unknown) =>
         this.changeUserPicture(socket, String(data)),
       );
-      socket.on("CMD:uid", async (raw: unknown) => {
-        try {
-          let data = raw as { uid: string; token: string };
-          // Called when the user logs in, sets the socket's auth state
-          if (!data || !data.uid || !data.token) {
-            return;
-          }
-          const decoded = await validateUserToken(data.uid, data.token);
-          if (decoded?.uid) {
-            // This socket is now confirmed to be this UID
-            socket.uid = decoded?.uid;
-          }
-          if (decoded?.uid) {
-            const profile = await getUserBillingProfile(decoded.uid);
-            socket.plan = profile.plan;
-            socket.entitlements = profile.entitlements;
-            socket.isSub = isSubscriberPlan(profile.plan);
-          } else {
-            const isSubscriber = await getIsSubscriberByEmail(decoded?.email);
-            socket.isSub = isSubscriber;
-            socket.plan = isSubscriber ? "premium" : "free";
-            socket.entitlements = getEntitlementsForPlan(socket.plan);
-          }
-        } catch (e) {
-          console.error("[CMD:uid] Erro ao processar autenticação do socket:", e);
-        }
-      });
       socket.on("CMD:host", (data: unknown) => {
         validateLock() && this.startHosting(socket, String(data));
       });
@@ -405,9 +356,6 @@ export class Room {
       socket.on("CMD:typing", (data: unknown) =>
         this.broadcastTyping(socket, data),
       );
-      socket.on("CMD:liveReaction", (data: unknown) =>
-        this.sendLiveReaction(socket, data),
-      );
       socket.on("CMD:joinScreenShare", (data) => {
         validateLock() && this.joinScreenSharing(socket, data);
       });
@@ -436,7 +384,10 @@ export class Room {
           if (await validateOwner()) {
             await this.setRoomState(socket, data);
           } else {
-            socket.emit("errorMessage", "Apenas o dono da sala pode alterar essas configuracoes.");
+            socket.emit(
+              "errorMessage",
+              "Apenas o dono da sala pode alterar essas configuracoes.",
+            );
           }
         } catch (e) {
           console.error("[CMD:setRoomState] Erro:", e);
@@ -507,7 +458,7 @@ export class Room {
       }
     });
     return JSON.stringify({
-      video: this.video,
+      video: this.isEphemeralShare() ? "" : this.video,
       videoTS: this.videoTS,
       playbackRate: this.playbackRate,
       paused: this.paused,
@@ -531,7 +482,12 @@ export class Room {
       console.error("[deserialize] Falha ao parsear roomData:", e);
       return;
     }
-    this.video = roomObj.video;
+    this.video =
+      typeof roomObj.video === "string" &&
+      !roomObj.video.startsWith("screenshare://") &&
+      !roomObj.video.startsWith("fileshare://")
+        ? roomObj.video
+        : "";
     this.videoTS = roomObj.videoTS;
     if (roomObj.paused) {
       this.paused = roomObj.paused;
@@ -569,7 +525,7 @@ export class Room {
   };
 
   public saveRoom = async () => {
-    if (postgres) {
+    if (postgres && this.dirty) {
       try {
         const roomString = this.serialize();
         await postgres.query(
@@ -578,6 +534,7 @@ export class Room {
           WHERE "roomId" = $3`,
           [this.lastUpdateTime ?? new Date(), roomString, this.roomId],
         );
+        this.dirty = false;
       } catch (e) {
         console.warn(e);
       }
@@ -637,6 +594,37 @@ export class Room {
     };
   };
 
+  private isEphemeralShare = (clientId?: string) => {
+    const video = String(this.video ?? "");
+    if (
+      !video.startsWith("screenshare://") &&
+      !video.startsWith("fileshare://")
+    ) {
+      return false;
+    }
+    if (!clientId) {
+      return true;
+    }
+    const ownerId = video
+      .replace(/^screenshare:\/\//, "")
+      .replace(/^fileshare:\/\//, "")
+      .split("@")[0];
+    return ownerId === clientId;
+  };
+
+  private clearEphemeralShare = (clientId: string) => {
+    if (!this.isEphemeralShare(clientId)) {
+      return;
+    }
+    this.video = "";
+    this.videoTS = 0;
+    this.paused = true;
+    this.tsMap = {};
+    this.dirty = true;
+    this.io.of(this.roomId).emit("REC:tsMap", this.tsMap);
+    this.io.of(this.roomId).emit("REC:host", this.getHostState());
+  };
+
   public stopVBrowserInternal = async () => {
     const assignTime = this.vBrowser && this.vBrowser.assignTime;
     const id = this.vBrowser?.id;
@@ -687,6 +675,7 @@ export class Room {
     this.playbackRate = 1;
     this.tsMap = {};
     this.preventTSUpdate = true;
+    this.dirty = true;
     setTimeout(() => (this.preventTSUpdate = false), 1000);
     this.io.of(this.roomId).emit("REC:tsMap", this.tsMap);
     this.io.of(this.roomId).emit("REC:host", this.getHostState());
@@ -708,11 +697,9 @@ export class Room {
       timestamp: new Date().toISOString(),
       videoTS: socket?.clientId ? this.tsMap[socket.clientId] : undefined,
     };
-    if (socket?.isSub) {
-      chatWithTime.isSub = true;
-    }
     this.chat.push(chatWithTime);
     this.chat = this.chat.slice(-100);
+    this.dirty = true;
     this.io.of(this.roomId).emit("REC:chat", chatWithTime);
   };
 
@@ -730,7 +717,11 @@ export class Room {
   private changeUserNameColor = (socket: Socket, raw: unknown) => {
     const data = raw as { value?: string } | string;
     const value =
-      typeof data === "string" ? data : typeof data?.value === "string" ? data.value : "";
+      typeof data === "string"
+        ? data
+        : typeof data?.value === "string"
+          ? data.value
+          : "";
     if (!/^#([0-9a-f]{6})$/i.test(value)) {
       return;
     }
@@ -779,7 +770,10 @@ export class Room {
         json = resp.data;
       } catch (e) {
         console.warn("[cmdHost] Reddit fetch failed", e);
-        socket?.emit("errorMessage", "Não foi possível carregar este link do Reddit.");
+        socket?.emit(
+          "errorMessage",
+          "Não foi possível carregar este link do Reddit.",
+        );
         return;
       }
       let reddit_m3u8 =
@@ -825,7 +819,10 @@ export class Room {
         data = newUrl.toString();
       } catch (e) {
         console.warn(e);
-        socket.emit("errorMessage", "Nao foi possivel abrir esta live da Twitch.");
+        socket.emit(
+          "errorMessage",
+          "Nao foi possivel abrir esta live da Twitch.",
+        );
         return;
       }
     }
@@ -906,12 +903,14 @@ export class Room {
     } else {
       this.playlist.push(item);
     }
+    this.dirty = true;
     this.io.of(this.roomId).emit("playlist", this.playlist);
   };
 
   private playlistDelete = (index: number) => {
     if (index !== -1) {
       this.playlist.splice(index, 1);
+      this.dirty = true;
       this.io.of(this.roomId).emit("playlist", this.playlist);
     }
   };
@@ -924,6 +923,7 @@ export class Room {
     if (data.index !== -1) {
       const items = this.playlist.splice(data.index, 1);
       this.playlist.splice(data.toIndex, 0, items[0]);
+      this.dirty = true;
       this.io.of(this.roomId).emit("playlist", this.playlist);
     }
   };
@@ -931,11 +931,13 @@ export class Room {
   private playVideo = (socket: Socket) => {
     socket.broadcast.emit("REC:play", this.video);
     this.paused = false;
+    this.dirty = true;
   };
 
   private pauseVideo = (socket: Socket) => {
     socket.broadcast.emit("REC:pause");
     this.paused = true;
+    this.dirty = true;
   };
 
   private seekVideo = (socket: Socket, data: number) => {
@@ -943,6 +945,7 @@ export class Room {
       return;
     }
     this.videoTS = data;
+    this.dirty = true;
     socket.broadcast.emit("REC:seek", data);
   };
 
@@ -951,6 +954,7 @@ export class Room {
       return;
     }
     this.playbackRate = Number(data);
+    this.dirty = true;
     this.io.of(this.roomId).emit("REC:playbackRate", Number(data));
   };
 
@@ -1033,29 +1037,6 @@ export class Room {
     });
   };
 
-  private sendLiveReaction = (socket: Socket, raw: unknown) => {
-    const data = raw as { emoji?: string; nonce?: string };
-    const emoji = String(data?.emoji ?? "");
-    const nonce = String(data?.nonce ?? "").slice(0, 64);
-    const allowed = new Set([
-      "\u{1F602}",
-      "\u{1F525}",
-      "\u{1F631}",
-      "\u{1F44F}",
-      "\u{1F60D}",
-      "\u{1F480}",
-    ]);
-    if (!allowed.has(emoji)) {
-      return;
-    }
-    this.io.of(this.roomId).emit("REC:liveReaction", {
-      user: socket.clientId,
-      emoji,
-      timestamp: new Date().toISOString(),
-      nonce,
-    });
-  };
-
   private setScreenShareQualityPreference = (socket: Socket, raw: unknown) => {
     const data = raw as { mode?: string };
     const mode = String(data?.mode ?? "");
@@ -1070,10 +1051,13 @@ export class Room {
     if (!sharerSocketId) {
       return;
     }
-    this.io.of(this.roomId).to(sharerSocketId).emit("REC:setViewerShareQuality", {
-      viewerId: socket.clientId,
-      mode,
-    });
+    this.io
+      .of(this.roomId)
+      .to(sharerSocketId)
+      .emit("REC:setViewerShareQuality", {
+        viewerId: socket.clientId,
+        mode,
+      });
   };
 
   private joinScreenSharing = (socket: Socket, raw: unknown) => {
@@ -1090,14 +1074,8 @@ export class Room {
       );
       return;
     }
-    let mediasoupSuffix = "";
-    if (data?.mediasoup) {
-      socket.emit(
-        "errorMessage",
-        "Modo relay premium ainda nao esta disponivel nesta versao.",
-      );
-      return;
-    }
+    const mediasoupServer = String(config.MEDIASOUP_SERVER ?? "").trim();
+    const mediasoupSuffix = mediasoupServer ? `@${mediasoupServer}` : "";
     if (data && data.file) {
       this.cmdHost(socket, "fileshare://" + socket.clientId + mediasoupSuffix);
       redisCount("fileShareStarts");
@@ -1119,7 +1097,10 @@ export class Room {
   private leaveScreenSharing = (socket: Socket) => {
     const sharer = this.getRosterForApp().find((user) => user.isScreenShare);
     if (!sharer || sharer?.id !== socket.clientId) {
-      socket.emit("errorMessage", "Voce nao e o usuario que esta compartilhando");
+      socket.emit(
+        "errorMessage",
+        "Voce nao e o usuario que esta compartilhando",
+      );
       return;
     }
     this.cmdHost(socket, "");
@@ -1157,14 +1138,7 @@ export class Room {
       socket.emit("errorMessage", "Banco de dados indisponivel");
       return;
     }
-    const { uid, isSub } = socket;
-    if (!uid) {
-      socket.emit(
-        "errorMessage",
-        "Faca login para tornar esta sala permanente.",
-      );
-      return;
-    }
+    const { uid } = socket;
     if (data.undo) {
       await updateObject(
         postgres,
@@ -1174,7 +1148,6 @@ export class Room {
           owner: null,
           vanity: null,
           isChatDisabled: null,
-          isSubRoom: null,
           roomTitle: null,
           roomDescription: null,
           roomTitleColor: null,
@@ -1184,29 +1157,9 @@ export class Room {
       );
       socket.emit("REC:getRoomState", {});
     } else {
-      // validate room count
-      const roomCount = Number(
-        (
-        await postgres.query(
-          'SELECT count(1) from room where owner = $1 AND "roomId" != $2',
-          [uid, this.roomId],
-        )
-        ).rows[0].count,
-      );
-      const limit = Number(
-        isSub ? config.SUBSCRIBER_ROOM_LIMIT : config.FREE_ROOM_LIMIT,
-      );
-      if (roomCount >= limit) {
-        socket.emit(
-          "errorMessage",
-          "Voce atingiu o limite de salas permanentes. Assine para criar mais salas.",
-        );
-        return;
-      }
       const roomObj = {
         roomId: this.roomId,
         owner: uid,
-        isSubRoom: isSub,
       };
       let result: QueryResult | null = null;
       result = await upsertObject(postgres, "room", roomObj, {
@@ -1231,6 +1184,15 @@ export class Room {
       [this.roomId],
     );
     const first = result.rows[0];
+    if (first?.owner && !isValidUUID(String(first.owner))) {
+      await updateObject(
+        postgres,
+        "room",
+        { owner: null },
+        { roomId: this.roomId },
+      );
+      first.owner = null;
+    }
     if (this.isChatDisabled === undefined) {
       this.isChatDisabled = Boolean(first?.isChatDisabled);
     }
@@ -1285,8 +1247,8 @@ export class Room {
     const password =
       typeof data.password === "string" ? data.password.trim() : "";
     if (hasPasswordUpdate && password.length > 100) {
-        socket.emit("errorMessage", "Senha muito longa");
-        return;
+      socket.emit("errorMessage", "Senha muito longa");
+      return;
     }
     if (vanity && vanity.length > 100) {
       socket.emit("errorMessage", "URL personalizada muito longa");
@@ -1318,15 +1280,11 @@ export class Room {
     if (hasPasswordUpdate) {
       roomObj.password = password ? hashRoomPassword(password) : null;
     }
-    const { isSub, uid } = socket;
+    const { uid } = socket;
     roomObj.roomTitle = roomTitle;
     roomObj.roomTitleColor = normalizedRoomTitleColor;
-    if (isSub) {
-      // user must be sub to set certain properties
-      // If empty vanity, reset to null
-      roomObj.vanity = vanity ?? null;
-      roomObj.roomDescription = roomDescription;
-    }
+    roomObj.vanity = vanity || null;
+    roomObj.roomDescription = roomDescription;
     try {
       const query = `UPDATE room
         SET ${Object.keys(roomObj).map((k, i) => `"${k}" = $${i + 1}`)}
@@ -1340,7 +1298,10 @@ export class Room {
       ]);
       const row = result.rows[0];
       if (!row) {
-        socket.emit("errorMessage", "Apenas o dono da sala pode alterar essas configuracoes.");
+        socket.emit(
+          "errorMessage",
+          "Apenas o dono da sala pode alterar essas configuracoes.",
+        );
         return;
       }
       this.isChatDisabled = Boolean(row?.isChatDisabled);
@@ -1390,6 +1351,7 @@ export class Room {
     const { clientId } = socket;
     // Disconnecting socket is the current one
     if (socket.id === this.socketIdMap[clientId]) {
+      this.clearEphemeralShare(clientId);
       let index = this.roster.findIndex((user) => user.id === clientId);
       if (index > -1) {
         this.roster.splice(index, 1);
@@ -1415,9 +1377,7 @@ export class Room {
     if (!socketId) {
       return;
     }
-    const userToBeKickedSocket = this.io
-      .of(this.roomId)
-      .sockets.get(socketId);
+    const userToBeKickedSocket = this.io.of(this.roomId).sockets.get(socketId);
     if (userToBeKickedSocket) {
       userToBeKickedSocket.emit("kicked");
       userToBeKickedSocket.disconnect();
@@ -1471,14 +1431,21 @@ function verifyRoomPassword(password: string, stored: string) {
     return false;
   }
   const expected = Buffer.from(digest, "hex");
-  const derived = Buffer.from(scryptSync(password, salt, 64).toString("hex"), "hex");
+  const derived = Buffer.from(
+    scryptSync(password, salt, 64).toString("hex"),
+    "hex",
+  );
   if (expected.length !== derived.length) {
     return false;
   }
   return timingSafeEqual(expected, derived);
 }
 
-function getRoomPasswordAttemptKey(roomId: string, socket: Socket, clientId: string) {
+function getRoomPasswordAttemptKey(
+  roomId: string,
+  socket: Socket,
+  clientId: string,
+) {
   const forwardedFor = socket.handshake.headers["x-forwarded-for"];
   const realIp = socket.handshake.headers["x-real-ip"];
   const ipRaw =
@@ -1543,4 +1510,3 @@ function isValidUUID(id: string) {
     id,
   );
 }
-

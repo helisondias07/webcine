@@ -1,8 +1,7 @@
-import React, { useContext, useState } from "react";
+import React from "react";
 import { Menu } from "@mantine/core";
 import { Socket } from "socket.io-client";
 // import styles from './UserMenu.module.css';
-import { MetadataContext } from "../../MetadataContext";
 import { IconBan, IconTrashFilled, IconX } from "@tabler/icons-react";
 
 export const UserMenu = ({
@@ -23,7 +22,6 @@ export const UserMenu = ({
   timestamp?: string;
   isChatMessage?: boolean;
 }) => {
-  const { user } = useContext(MetadataContext);
   return (
     <Menu
       closeOnItemClick

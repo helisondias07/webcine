@@ -19,15 +19,7 @@ const defaults = {
   WATCHMODE_API_KEY: "", // Optional, provide one to resolve direct streaming links
   WATCHMODE_BASE_URL: "https://api.watchmode.com", // Optional base URL override for Watchmode API
   NODE_ENV: "", // Usually, you should let process.env.NODE_ENV override this
-  FIREBASE_ADMIN_SDK_CONFIG: "", // Optional, for features requiring sign-in/authentication
-  FIREBASE_DATABASE_URL: "", // Optional (unused)
-  STRIPE_SECRET_KEY: "", // Optional, for subscriptions
-  STRIPE_WEBHOOK_SECRET: "", // Optional, for Stripe webhook verification
-  STRIPE_PRICE_PREMIUM_MONTHLY: "", // Stripe Price ID (BRL)
-  STRIPE_PRICE_PREMIUM_ANNUAL: "", // Stripe Price ID (BRL)
-  STRIPE_PRICE_FAMILY_MONTHLY: "", // Stripe Price ID (BRL)
-  STRIPE_PRICE_FAMILY_ANNUAL: "", // Stripe Price ID (BRL)
-  FRONTEND_URL: "", // Optional canonical frontend URL for Stripe redirects
+  FRONTEND_URL: "", // Optional canonical frontend URL
   VBROWSER_SESSION_SECONDS: 10800, // Number of seconds to allow vbrowsers to run for
   VBROWSER_SESSION_SECONDS_LARGE: 86400, // Number of seconds to allow large vbrowsers to run for
   VM_POOL_RAMP_DOWN_HOURS: "", // Comma separated start/end UTC hours of the ramp down period
@@ -62,12 +54,10 @@ const defaults = {
   STREAM_PATH: "", // Path of server that supports additional video streams
   CONVERT_PATH: "", // Path of server that supports video conversion
   ROOM_CAPACITY: 0, // Maximum capacity of a standard room. Set to 0 for unlimited.
-  ROOM_CAPACITY_SUB: 0, // Maximum capacity of a sub room. Set to 0 for unlimited.
+  ROOM_CAPACITY_SUB: 0, // Deprecated compatibility setting.
   BUILD_DIRECTORY: "build", // Name of the directory where the built React UI is served from
   VM_MIN_UPTIME_MINUTES: 0, // Number of minutes of the hour VMs must exist for before being eligible for termination
   SHARD: undefined, // Shard ID of the web server (configure in ecosystem.config.js)
-  FREE_ROOM_LIMIT: 1, // The maximum number of rooms a free user can have
-  SUBSCRIBER_ROOM_LIMIT: 20, // The maximum number of rooms a subscriber can have
   VMWORKER_PORT: 3100, // Port to use for the vmWorker HTTP server
   VM_ASSIGNMENT_TIMEOUT: 75, // Number of seconds to wait for a VM before failing
   MEDIASOUP_SERVER: "", // Optional, URL of the MediaSoup server to broadcast to for larger screen/file shares

@@ -23,12 +23,6 @@
   border-bottom: none;
 }
 
-.settingLabel {
-  position: absolute;
-  top: 8px;
-  right: 0;
-}
-
 .settingBody {
   flex: 1;
 }

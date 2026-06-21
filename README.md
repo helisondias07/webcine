@@ -31,6 +31,7 @@ Uma plataforma para assistir videos em sincronia com amigos.
    - (abre automaticamente `http://localhost:5173` no navegador)
 
 Opcional (sem abrir navegador automaticamente):
+
 - `npm run dev:all:no-open`
 
 Observacao: o backend em desenvolvimento observa apenas `server/`, evitando reinicios indesejados quando o Vite atualiza arquivos do frontend.
@@ -46,14 +47,17 @@ Para ambientes de producao, configure os domínios oficiais do frontend no backe
   - `CORS_ALLOWED_ORIGINS=https://webcinetv.com.br,https://www.webcinetv.com.br`
 
 Regras atuais:
+
 - Origem autorizada recebe `Access-Control-Allow-Origin`.
 - Origem nao autorizada nao recebe `Access-Control-Allow-Origin`.
 - Sem header `Origin` (server-to-server/same-origin) segue permitido.
 
 Validacao automatica:
+
 - `npm run test:cors`
 
 Para adicionar um novo dominio oficial:
+
 1. Adicione o dominio em `CORS_ALLOWED_ORIGINS` (separado por virgula, sem barra final).
 2. Rode `npm run test:cors`.
 3. Valide manualmente no navegador que a origem nova funciona e uma origem externa continua bloqueada.
@@ -72,43 +76,6 @@ After creating a **YouTube Data API V3** access, you can create an API key which
 
 After that restart your server to enable the YouTube API access on your server.
 
-### Firebase (autenticacao + Firestore)
-
-O projeto usa Firebase para login e para persistencia de perfil de assinatura em `users/{uid}`.
-
-To set up, create a new Firebase app (or reuse an old one) from [here](https://console.firebase.google.com/). After creating an application, click on the settings cog icon in the left menu next to "Project overview" and click on project settings. From there, scroll down, create a web application and copy the Firebase SDK configuration snippet JSON data.
-
-No frontend, use preferencialmente as variaveis separadas:
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-
-No backend, configure `FIREBASE_ADMIN_SDK_CONFIG` com o JSON da service account.
-
-### Stripe Brasil (BRL, PIX, boleto, cartao)
-Configure no `.env`:
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `VITE_STRIPE_PUBLIC_KEY`
-- `STRIPE_PRICE_PREMIUM_MONTHLY`
-- `STRIPE_PRICE_PREMIUM_ANNUAL`
-- `STRIPE_PRICE_FAMILY_MONTHLY`
-- `STRIPE_PRICE_FAMILY_ANNUAL`
-
-Endpoints novos:
-- `POST /api/billing/create-checkout-session`
-- `POST /api/billing/webhook`
-- `GET /api/me/entitlements`
-
-Fluxo:
-1. Frontend cria checkout session.
-2. Stripe processa pagamento (PIX/boleto/cartao).
-3. Webhook atualiza perfil do usuario no Firestore.
-4. Entitlements controlam recursos premium no backend e frontend.
-
 ### Virtual Browser Setup
 
 This project supports creating virtual browsers (using m1k1o/neko) either on a cloud provider or with Docker containers. For development, Docker is easiest.
@@ -119,9 +86,15 @@ This project supports creating virtual browsers (using m1k1o/neko) either on a c
 - Note: If your web client is not running on the same physical machine as the server, you will also need to configure `DOCKER_VM_HOST` to a publically-resolvable value (i.e. not localhost)
 - If you want to run managed instance pools (whether on cloud or with Docker), configure `VM_MANAGER_CONFIG` and run the vmWorker service.
 
-No MVP BR:
-- Links de plataformas com DRM (Netflix, Prime, etc.) sao roteados para o VBrowser.
-- Acesso ao VBrowser exige plano Premium/Familia quando Firebase esta ativo.
+### MediaSoup / SFU
+
+Para salas maiores, configure `MEDIASOUP_SERVER` com a URL pública do relay
+compatível com o protocolo MediaSoup usado pelo cliente. Quando configurado, o
+compartilhamento envia uma única cópia ao relay, reduzindo o upload de quem
+transmite. Sem essa variável, o site continua usando P2P.
+
+Links de plataformas com DRM (Netflix, Prime, etc.) podem ser roteados para o
+VBrowser quando essa infraestrutura estiver configurada.
 
 ### Room Persistence
 
@@ -134,6 +107,7 @@ No MVP BR:
 - E2E (Playwright): `npm run test:e2e`
 
 Cenarios E2E cobertos:
+
 - Criar sala e entrar.
 - Abrir e fechar chat.
 - Operar playlist.
@@ -143,7 +117,6 @@ No CI (`pull_request` para `main`), os testes E2E rodam automaticamente.
 
 ## Dependencias e mitigacoes
 
-- `firebase-admin` foi atualizado para `13.x` e cadeia relacionada tambem atualizada.
 - `pm2` possui advisory sem fix upstream no momento.
   - Mitigacao operacional recomendada: expor apenas via reverse proxy, restringir porta de admin/process manager e monitorar logs/processos.
 - `webtorrent` continua com advisories transitivos sem versao segura oficial no ecossistema atual do pacote.
@@ -157,12 +130,9 @@ No CI (`pull_request` para `main`), os testes E2E rodam automaticamente.
 - Redis
 - PostgreSQL
 - Docker
-- Firebase Auth + Firestore
-- Stripe Brasil (PIX, boleto, cartao)
 
 ## Dicas de deploy (evitar erro fora do localhost)
 
 - Nao use `VITE_SERVER_HOST=http://localhost:8080` em build de producao.
 - Se frontend e backend estao no mesmo dominio, deixe `VITE_SERVER_HOST` vazio.
 - Se estao em dominios diferentes, configure `VITE_SERVER_HOST` com a URL publica da API (ex.: `https://api.seudominio.com`).
-- Para login Google funcionar em producao, adicione o(s) dominio(s) reais em Firebase Authentication > Settings > Authorized domains.

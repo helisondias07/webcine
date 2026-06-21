@@ -1,7 +1,6 @@
-import React, { useContext, useState } from "react";
+import React, { useState } from "react";
 import { Modal, Loader, Menu, Text, Checkbox } from "@mantine/core";
 import { IconFile } from "@tabler/icons-react";
-import { MetadataContext } from "../../MetadataContext";
 
 export const MultiStreamModal = ({
   streams,
@@ -14,16 +13,19 @@ export const MultiStreamModal = ({
   resetMultiSelect: () => void;
   startConvert: (sourceUrl?: string) => void;
 }) => {
-  const context = useContext(MetadataContext);
   const [convert, setConvert] = useState(false);
   return (
-    <Modal opened onClose={resetMultiSelect} centered title="Escolha um arquivo">
+    <Modal
+      opened
+      onClose={resetMultiSelect}
+      centered
+      title="Escolha um arquivo"
+    >
       {streams.length === 0 ? (
         <Loader />
       ) : (
         <>
           <Checkbox
-            disabled={!context.isSubscriber}
             label="Converter mídia (use se o arquivo não tocar com áudio/vídeo)"
             checked={convert}
             onChange={(e) => setConvert(e.target.checked)}

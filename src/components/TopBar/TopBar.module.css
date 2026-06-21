@@ -188,25 +188,12 @@
   transform: translateX(28px);
 }
 
-.avatarButton {
-  margin: 4px;
-  min-width: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
 .comingSoonButton {
   opacity: 0.58;
   cursor: not-allowed;
 }
 
-.signInButton,
 .newRoomButton,
-.signInButton :global(.mantine-Button-inner),
-.signInButton :global(.mantine-Button-label),
-.signInButton :global(.mantine-Button-section),
 .newRoomButton :global(.mantine-Button-root),
 .newRoomButton :global(.mantine-Button-inner),
 .newRoomButton :global(.mantine-Button-label),
@@ -304,18 +291,6 @@
     letter-spacing: 0.1em;
   }
 
-  .signInButton :global(.mantine-Button-label) {
-    display: none;
-  }
-
-  .signInButton :global(.mantine-Button-section) {
-    margin: 0;
-  }
-
-  .signInButton {
-    min-width: 32px;
-    padding-inline: 10px;
-  }
 }
 
 @media only screen and (max-width: 380px) {

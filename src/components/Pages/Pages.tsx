@@ -39,7 +39,7 @@ export const Privacy = () => {
   return (
     <Page
       title="Politica de privacidade"
-      description="Como o WebCineTV lida com contas, salas, pagamentos, cookies e dados de uso."
+      description="Como o WebCineTV lida com contas, salas, cookies e dados de uso."
     >
       <section style={sectionStyle}>
         <h2>Salas</h2>
@@ -64,15 +64,8 @@ export const Privacy = () => {
             Ao entrar com e-mail ou provedor de autenticacao, usamos nome e foto
             para identificar voce nas salas.
           </li>
-          <li>
-            Podemos usar essas informacoes para contato sobre o servico ou para
-            vincular uma assinatura.
-          </li>
+          <li>Podemos usar essas informacoes para contato sobre o servico.</li>
           <li>Nao vendemos informacoes pessoais a terceiros.</li>
-          <li>
-            Pagamentos sao processados por provedores como Stripe. Nao coletamos
-            nem acessamos dados financeiros diretamente.
-          </li>
         </ul>
       </section>
 
@@ -120,13 +113,8 @@ export const Terms = () => {
       </section>
 
       <section style={sectionStyle}>
-        <h2>Assinaturas e YouTube</h2>
+        <h2>YouTube</h2>
         <ul style={listStyle}>
-          <li>
-            Em caso de insatisfacao ou cobranca indevida, entre em contato com
-            support@webcinetv.com.br.
-          </li>
-          <li>Podemos reembolsar o pagamento mais recente conforme o caso.</li>
           <li>
             Ao usar a busca do YouTube, voce tambem concorda com os{" "}
             <a href="https://www.youtube.com/t/terms">

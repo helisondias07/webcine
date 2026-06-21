@@ -1,243 +1,84 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ActionIcon } from "@mantine/core";
+import React from "react";
 import {
   IconBrandYoutubeFilled,
-  IconChevronLeft,
-  IconChevronRight,
   IconFile,
-  IconList,
   IconMessageFilled,
   IconScreenShare,
   type IconProps,
 } from "@tabler/icons-react";
 import { NewRoomButton } from "../TopBar/TopBar";
 import styles from "./Home.module.css";
-import { t } from "../../i18n";
 
-function getCardsPerView() {
-  if (window.innerWidth <= 760) {
-    return 1;
-  }
-  if (window.innerWidth <= 1180) {
-    return 2;
-  }
-  return 3;
-}
+const features = [
+  {
+    Icon: IconScreenShare,
+    title: "Compartilhe sua tela",
+    text: "Transmita uma aba, aplicativo ou a tela inteira para seus amigos.",
+  },
+  {
+    Icon: IconBrandYoutubeFilled,
+    title: "Vídeos sincronizados",
+    text: "Cole um link do YouTube e todos assistem no mesmo instante.",
+  },
+  {
+    Icon: IconMessageFilled,
+    title: "Converse na sala",
+    text: "Chat e participantes ficam ao lado do vídeo, sem interromper a sessão.",
+  },
+  {
+    Icon: IconFile,
+    title: "Seus próprios arquivos",
+    text: "Escolha um vídeo do dispositivo e transmita diretamente para a sala.",
+  },
+];
 
-function shouldSplitHeroOnMobile() {
-  return window.innerWidth <= 980;
-}
-
-export const Home = () => {
-  const featureCards = [
-    {
-      Icon: IconBrandYoutubeFilled,
-      title: "YouTube",
-      text: "Reproduza vídeos do YouTube através de links ou pesquise no WebCine.",
-    },
-    {
-      Icon: IconScreenShare,
-      title: "Screensharing",
-      text: "Compartilhe aba do navegador ou tela inteira.",
-    },
-    {
-      Icon: IconFile,
-      title: "Arquivo",
-      text: "Envie e transmita seus próprios arquivos direto do seu dispositivo.",
-    },
-    {
-      Icon: IconMessageFilled,
-      title: "Chat",
-      text: "Converse com a galera durante a sessão.",
-    },
-    {
-      Icon: IconList,
-      title: t("playlist"),
-      text: "Monte a ordem dos próximos vídeos em colaboração.",
-    },
-  ];
-
-  const [cardsPerView, setCardsPerView] = useState(() => getCardsPerView());
-  const [splitHeroOnMobile, setSplitHeroOnMobile] = useState(() =>
-    shouldSplitHeroOnMobile(),
-  );
-  const [page, setPage] = useState(0);
-
-  useEffect(() => {
-    const onResize = () => {
-      setCardsPerView(getCardsPerView());
-      setSplitHeroOnMobile(shouldSplitHeroOnMobile());
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  const pages = useMemo(() => {
-    const chunks: (typeof featureCards)[] = [];
-    for (let i = 0; i < featureCards.length; i += cardsPerView) {
-      chunks.push(featureCards.slice(i, i + cardsPerView));
-    }
-    return chunks;
-  }, [cardsPerView]);
-
-  useEffect(() => {
-    setPage((current) => Math.min(current, Math.max(0, pages.length - 1)));
-  }, [pages.length]);
-
-  return (
-    <main className={styles.container}>
-      <div className={styles.layout}>
-        <section id="inicio" className={styles.primaryCards}>
-          {splitHeroOnMobile ? (
-            <>
-              <Hero
-                primary
-                heroText="Sua sala de cinema online."
-                subText="Sem precisar instalar nada nem criar contas."
-                action={<NewRoomButton size="xl" roomTitle="" />}
-              />
-              <Hero
-                heroText="Assista e converse com seus amigos em tempo real!"
-                subText="Play, pause e chat no mesmo ritmo para todo mundo de graça!"
-              />
-            </>
-          ) : (
-            <Hero
-              mega
-              primary
-              heroText="Sua sala de cinema online, assista e converse com seus amigos em tempo real!"
-              subText="Sem precisar instalar nada nem criar contas! Play, pause e chat no mesmo ritmo para todo mundo de graça!"
-              action={<NewRoomButton size="xl" roomTitle="" />}
-            />
-          )}
-        </section>
-
-        <section id="recursos" className={styles.carouselSection}>
-          <div className={styles.carouselHeader}>
-            <h3>Recursos da plataforma</h3>
-            <div className={styles.carouselControls}>
-              <ActionIcon
-                className={styles.carouselArrow}
-                size="lg"
-                variant="light"
-                color="webgold"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                aria-label="Página anterior"
-              >
-                <IconChevronLeft size={18} />
-              </ActionIcon>
-              <ActionIcon
-                className={styles.carouselArrow}
-                size="lg"
-                variant="light"
-                color="webgold"
-                onClick={() =>
-                  setPage((p) => Math.min(pages.length - 1, p + 1))
-                }
-                disabled={page >= pages.length - 1}
-                aria-label="Próxima página"
-              >
-                <IconChevronRight size={18} />
-              </ActionIcon>
+export const Home = () => (
+  <main className={styles.container}>
+    <div className={styles.layout}>
+      <section id="inicio" className={styles.primaryCards}>
+        <div className={`${styles.hero} ${styles.heroMega}`}>
+          <div className={styles.heroInner}>
+            <div className={styles.heroContent}>
+              <h1 className={styles.heroText}>
+                Assista junto, mesmo à distância.
+              </h1>
+              <div className={styles.subText}>
+                Compartilhe sua tela, sincronize vídeos e converse com seus
+                amigos em uma sala privada. Sem instalar nada.
+              </div>
+              <NewRoomButton size="xl" roomTitle="" />
             </div>
           </div>
-
-          <div className={styles.carouselViewport}>
-            <div
-              className={styles.carouselTrack}
-              style={{
-                transform: `translateX(-${page * 100}%)`,
-              }}
-            >
-              {pages.map((cards, pageIndex) => (
-                <div
-                  key={`page-${pageIndex}`}
-                  className={styles.carouselPage}
-                  style={{
-                    gridTemplateColumns: `repeat(${cardsPerView}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {cards.map((feature) => (
-                    <Feature
-                      key={`${pageIndex}-${feature.title}`}
-                      Icon={feature.Icon}
-                      title={feature.title}
-                      text={feature.text}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div id="planos" className={styles.carouselDots}>
-            {pages.map((_, i) => (
-              <button
-                key={`dot-${i}`}
-                className={`${styles.dot} ${i === page ? styles.dotActive : ""}`}
-                onClick={() => setPage(i)}
-                aria-label={`Ir para página ${i + 1}`}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.howItWorks} aria-labelledby="como-funciona">
-          <h3 id="como-funciona">Como funciona</h3>
-          <div className={styles.howItWorksGrid}>
-            {[
-              "Crie uma sala",
-              "Convide seus amigos",
-              "Assista junto em tempo real",
-            ].map((step, index, all) => (
-              <React.Fragment key={step}>
-                <div className={styles.howItWorksCard}>
-                  <span>{index + 1}</span>
-                  <h4>{step}</h4>
-                </div>
-                {index < all.length - 1 && (
-                  <div className={styles.howItWorksArrow} aria-hidden="true">
-                    <span className={styles.howItWorksArrowDesktop}>→</span>
-                    <span className={styles.howItWorksArrowMobile}>↓</span>
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-};
-
-const Hero = ({
-  heroText,
-  subText,
-  action,
-  mega,
-  primary,
-}: {
-  heroText?: string;
-  subText?: string;
-  action?: React.ReactNode;
-  mega?: boolean;
-  primary?: boolean;
-}) => {
-  const HeadingTag = primary ? "h1" : "div";
-
-  return (
-    <div className={`${styles.hero} ${mega ? styles.heroMega : ""}`}>
-      <div className={styles.heroInner}>
-        <div className={styles.heroContent}>
-          <HeadingTag className={styles.heroText}>{heroText}</HeadingTag>
-          <div className={styles.subText}>{subText}</div>
-          {action}
         </div>
-      </div>
+      </section>
+
+      <section id="recursos" className={styles.carouselSection}>
+        <div className={styles.carouselHeader}>
+          <h2>O essencial para a sessão</h2>
+        </div>
+        <div className={styles.featureGrid}>
+          {features.map((feature) => (
+            <Feature key={feature.title} {...feature} />
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.howItWorks} aria-labelledby="como-funciona">
+        <h2 id="como-funciona">Comece em segundos</h2>
+        <div className={styles.stepsGrid}>
+          {["Crie uma sala", "Envie o convite", "Escolha o que assistir"].map(
+            (step, index) => (
+              <div key={step} className={styles.howItWorksCard}>
+                <span>{index + 1}</span>
+                <h3>{step}</h3>
+              </div>
+            ),
+          )}
+        </div>
+      </section>
     </div>
-  );
-};
+  </main>
+);
 
 const Feature = ({
   Icon,
@@ -247,12 +88,10 @@ const Feature = ({
   Icon: React.ForwardRefExoticComponent<IconProps>;
   text: string;
   title: string;
-}) => {
-  return (
-    <div className={styles.featureCard}>
-      <Icon size={58} />
-      <h4 className={styles.featureTitle}>{title}</h4>
-      <div className={styles.featureText}>{text}</div>
-    </div>
-  );
-};
+}) => (
+  <article className={styles.featureCard}>
+    <Icon size={44} />
+    <h3 className={styles.featureTitle}>{title}</h3>
+    <p className={styles.featureText}>{text}</p>
+  </article>
+);

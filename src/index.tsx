@@ -23,11 +23,6 @@ import { createTheme, MantineProvider } from "@mantine/core";
 import { t } from "./i18n";
 import { ThemeModeContext, type ThemeMode } from "./ThemeModeContext";
 import { initAnalytics, runWhenIdle } from "./utils/analytics";
-import {
-  getFirebaseClient,
-  type FirebaseUnsubscribe,
-  type FirebaseUser,
-} from "./utils/firebaseClient";
 
 const theme = createTheme({
   white: "whitesmoke",
@@ -278,7 +273,6 @@ const SeoManager = () => {
   return null;
 };
 
-const firebaseConfig = config.VITE_FIREBASE_CONFIG;
 document.title = DEFAULT_SEO.title;
 
 // Redirect old-style URLs
@@ -299,23 +293,10 @@ function getStoredThemeMode(): ThemeMode {
 
 class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
-  private authUnsubscribe: FirebaseUnsubscribe | undefined = undefined;
-  private authBootstrapStarted = false;
-  private authBootstrapHandler: (() => void) | undefined = undefined;
   private _isMounted = false;
 
   componentWillUnmount() {
     this._isMounted = false;
-    if (this.authUnsubscribe) {
-      this.authUnsubscribe();
-    }
-    if (this.authBootstrapHandler) {
-      window.removeEventListener(
-        "webcinetv-bootstrap-auth",
-        this.authBootstrapHandler,
-      );
-      this.authBootstrapHandler = undefined;
-    }
   }
 
   async componentDidMount() {
@@ -328,86 +309,15 @@ class WebCineTVApp extends React.Component {
       void initAnalytics(measurementIds);
     });
 
-    if (firebaseConfig) {
-      const bootstrapAuth = async () => {
-        if (this.authBootstrapStarted) {
-          return;
-        }
-        this.authBootstrapStarted = true;
-        const firebaseClient = await getFirebaseClient();
-        this.authUnsubscribe = firebaseClient
-          .auth()
-          .onAuthStateChanged(async (user: FirebaseUser | null) => {
-            if (user) {
-              // console.log(user);
-              if (!this._isMounted) return;
-              this.setState({ user });
-              const token = await user.getIdToken();
-              const authHeaders = {
-                Authorization: `Bearer ${token}`,
-                "X-User-Uid": user.uid,
-              };
-              const [metadataResponse, entitlementsResponse] =
-                await Promise.all([
-                  window.fetch(serverPath + "/metadata", {
-                    headers: authHeaders,
-                  }),
-                  window.fetch(serverPath + "/api/me/entitlements", {
-                    headers: authHeaders,
-                  }),
-                ]);
-              if (!this._isMounted) return;
-              const metadataData = await metadataResponse.json();
-              const entitlementsData = entitlementsResponse.ok
-                ? await entitlementsResponse.json()
-                : undefined;
-              if (!this._isMounted) return;
-              this.setState({
-                isSubscriber: Boolean(
-                  entitlementsData?.isSubscriber ?? metadataData?.isSubscriber,
-                ),
-                plan: entitlementsData?.plan ?? metadataData?.plan ?? "free",
-                subscriptionStatus:
-                  entitlementsData?.subscriptionStatus ??
-                  metadataData?.subscriptionStatus ??
-                  "canceled",
-                entitlements:
-                  entitlementsData?.entitlements ??
-                  metadataData?.entitlements ??
-                  DEFAULT_STATE.entitlements,
-                streamPath: metadataData.streamPath,
-                convertPath: metadataData.convertPath,
-                beta: metadataData.beta,
-              });
-            }
-          });
-      };
-      const path = window.location.pathname;
-      const shouldEagerInitAuth =
-        path.startsWith("/watch/") ||
-        path.startsWith("/r/") ||
-        path === "/create";
-      if (shouldEagerInitAuth) {
-        void bootstrapAuth();
-      } else {
-        this.authBootstrapHandler = () => {
-          void bootstrapAuth();
-        };
-        window.addEventListener(
-          "webcinetv-bootstrap-auth",
-          this.authBootstrapHandler,
-        );
-      }
-    } else {
-      // Firebase isn't set up so enable subscriber features
+    const metadataResponse = await window
+      .fetch(serverPath + "/metadata")
+      .catch(() => undefined);
+    if (this._isMounted && metadataResponse?.ok) {
+      const metadataData = await metadataResponse.json();
       this.setState({
-        isSubscriber: true,
-        plan: "premium",
-        subscriptionStatus: "active",
-        entitlements: {
-          virtualBrowser: true,
-          maxParticipants: 50,
-        },
+        streamPath: metadataData.streamPath,
+        convertPath: metadataData.convertPath,
+        beta: metadataData.beta,
       });
     }
   }

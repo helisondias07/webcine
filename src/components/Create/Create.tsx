@@ -1,7 +1,6 @@
-import React, { useContext, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { createRoom } from "../TopBar/TopBar";
 import { Loader } from "@mantine/core";
-import { MetadataContext } from "../../MetadataContext";
 import { t } from "../../i18n";
 
 function slugify(value: string) {
@@ -20,7 +19,6 @@ function normalizeDisplayName(value: string) {
 }
 
 export const Create = () => {
-  const { user } = useContext(MetadataContext);
   const buttonEl = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -51,10 +49,7 @@ export const Create = () => {
             window.localStorage.getItem("watchparty-username") ?? "",
           );
           const fallbackName = username || "Convidado";
-          createRoom(
-            user,
-            false,
-            {
+          createRoom(false, {
               video:
                 new URLSearchParams(window.location.search).get("video") ??
                 undefined,
@@ -65,8 +60,7 @@ export const Create = () => {
               roomSlug: username
                 ? `cinema-${slugify(username) || "sala"}`
                 : "cinema-sala",
-            },
-          );
+          });
         }}
       />
     </div>

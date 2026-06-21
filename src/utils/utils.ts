@@ -1,7 +1,5 @@
 //@ts-expect-error
 import canAutoplay from "can-autoplay";
-import { MD5 } from "./md5";
-import type { FirebaseUser } from "./firebaseClient";
 import config from "../config";
 import { cyrb53 } from "./hash";
 import React from "react";
@@ -305,7 +303,9 @@ export async function getMediaPathResults(
     if (!q) {
       return true;
     }
-    return String(res.name || res.url).toLowerCase().includes(q);
+    return String(res.name || res.url)
+      .toLowerCase()
+      .includes(q);
   });
 }
 
@@ -389,8 +389,9 @@ export async function openFileSelector(accept?: string) {
         }, 200);
       }
     };
-    const hasNativePicker = (window as Window & { showOpenFilePicker?: unknown })
-      .showOpenFilePicker;
+    const hasNativePicker = (
+      window as Window & { showOpenFilePicker?: unknown }
+    ).showOpenFilePicker;
     if (!hasNativePicker) {
       // Older browsers may not fire "cancel", so we complete when the tab
       // returns to visible and no file was selected.
@@ -400,11 +401,11 @@ export async function openFileSelector(accept?: string) {
     inputElement.addEventListener("cancel", onCancel);
     document.body.appendChild(inputElement);
     window.setTimeout(() => {
-        const files = inputElement.files;
-        if (!files || files.length === 0) {
-          inputElement.click();
-        }
-      }, 0);
+      const files = inputElement.files;
+      if (!files || files.length === 0) {
+        inputElement.click();
+      }
+    }, 0);
   });
 }
 
@@ -437,7 +438,10 @@ export function addAndSavePassword(roomId: string, password: string) {
   } else {
     delete newPasswords[roomId];
   }
-  window.sessionStorage.setItem("watchparty-passwords", JSON.stringify(newPasswords));
+  window.sessionStorage.setItem(
+    "watchparty-passwords",
+    JSON.stringify(newPasswords),
+  );
 }
 
 export function getSavedPasswords(): Record<string, string> {
@@ -499,24 +503,8 @@ export function calculateMedian(array: number[]): number {
   return 0;
 }
 
-export async function getUserImage(
-  user: FirebaseUser,
-): Promise<string | null> {
-  if (user.photoURL) {
-    return user.photoURL + "?height=256&width=256";
-  }
-  const hash = user.email ? MD5.hash(user.email) : "";
-  return `https://www.gravatar.com/avatar/${hash}?d=identicon`;
-}
-
 export const getFileName = (input: string) => {
   return input.split("/").slice(-1)[0];
-};
-
-export const isEmojiString = (input?: string): boolean => {
-  return /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$/g.test(
-    input ?? "",
-  );
 };
 
 function uuidv4() {

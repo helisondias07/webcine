@@ -12,36 +12,15 @@ import { Server } from "socket.io";
 import { searchYoutube, youtubePlaylist } from "./utils/youtube.ts";
 import { Room } from "./room.ts";
 import { redis, redisCount } from "./utils/redis.ts";
-import {
-  getIsSubscriberByEmail,
-} from "./utils/stripe.ts";
-import {
-  getUserBillingProfile,
-  validateUserToken,
-} from "./utils/firebase.ts";
 import path from "node:path";
 import { isIP } from "node:net";
 import { getStartOfDay } from "./utils/time.ts";
 import { getSessionLimitSeconds } from "./vm/utils.ts";
-import { postgres, insertObject, upsertObject } from "./utils/postgres.ts";
+import { postgres, insertObject } from "./utils/postgres.ts";
 import axios from "axios";
 import { resolveShard } from "./utils/resolveShard.ts";
 import { makeRoomName } from "./utils/moniker.ts";
 import { getStats } from "./utils/getStats.ts";
-import {
-  billingEnabled,
-  type CheckoutPlanId,
-  createCheckoutSession,
-  getFrontendUrl,
-  handleStripeWebhook,
-} from "./utils/billing.ts";
-import {
-  getDefaultBillingProfile,
-  getEntitlementsForPlan,
-  isSubscriberPlan,
-  type UserBillingProfile,
-  type UserPlan,
-} from "./utils/entitlements.ts";
 
 if (process.env.NODE_ENV === "development") {
   axios.interceptors.request.use(
@@ -53,27 +32,6 @@ if (process.env.NODE_ENV === "development") {
       console.error(error);
     },
   );
-}
-
-async function resolveBillingProfile(decoded: {
-  uid?: string;
-  email?: string;
-}): Promise<UserBillingProfile> {
-  if (decoded?.uid) {
-    const profile = await getUserBillingProfile(decoded.uid);
-    return profile;
-  }
-  if (decoded?.email) {
-    const isSub = await getIsSubscriberByEmail(decoded.email);
-    const plan: UserPlan = isSub ? "premium" : "free";
-    return {
-      ...getDefaultBillingProfile(),
-      plan,
-      subscriptionStatus: isSub ? "active" : "canceled",
-      entitlements: getEntitlementsForPlan(plan),
-    };
-  }
-  return getDefaultBillingProfile();
 }
 
 const releaseInterval = 5 * 60 * 1000;
@@ -340,19 +298,6 @@ function normalizeProxyHost(value: string | null) {
   return port ? `${hostname}:${port}` : hostname;
 }
 
-function getAuthCredentials(req: Request) {
-  const uidHeader = req.header("x-user-uid");
-  const authHeader = req.header("authorization");
-  const bearerToken =
-    authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
-  const uid = typeof uidHeader === "string" ? uidHeader.trim() : "";
-  const token = bearerToken;
-  return {
-    uid,
-    token,
-  };
-}
-
 async function roomIdExists(name: string) {
   if (rooms.has(name)) {
     return true;
@@ -515,7 +460,9 @@ const TMDB_PLATFORM_CATALOG = [
 type TmdbCatalogKey = (typeof TMDB_PLATFORM_CATALOG)[number]["key"];
 
 function normalizeSurpriseCategory(input: unknown): SurpriseVideoCategory {
-  const value = String(input ?? "").trim().toLowerCase();
+  const value = String(input ?? "")
+    .trim()
+    .toLowerCase();
   if (value === "gameplay") {
     return "gaming";
   }
@@ -575,15 +522,18 @@ async function fetchSurpriseVideos(
   if (!ids.length) {
     return { category, items: [] };
   }
-  const videosResponse = await axios.get("https://www.googleapis.com/youtube/v3/videos", {
-    params: {
-      key,
-      part: "snippet,statistics",
-      id: ids.join(","),
-      maxResults: 50,
+  const videosResponse = await axios.get(
+    "https://www.googleapis.com/youtube/v3/videos",
+    {
+      params: {
+        key,
+        part: "snippet,statistics",
+        id: ids.join(","),
+        maxResults: 50,
+      },
+      timeout: 12000,
     },
-    timeout: 12000,
-  });
+  );
   const videos = Array.isArray(videosResponse.data?.items)
     ? videosResponse.data.items
     : [];
@@ -604,9 +554,7 @@ async function fetchSurpriseVideos(
         views,
       } as SurpriseVideoItem;
     })
-    .filter(
-      (item: SurpriseVideoItem) => item.id && item.url && item.title,
-    );
+    .filter((item: SurpriseVideoItem) => item.id && item.url && item.title);
   return { category, items: result };
 }
 
@@ -674,7 +622,9 @@ function normalizeCatalogKey(value: unknown): TmdbCatalogKey | null {
     return byKey.key;
   }
   const byAlias = TMDB_PLATFORM_CATALOG.find((item) =>
-    item.aliases.some((alias) => normalizeText(alias).replace(/[_\s]+/g, "-") === normalized),
+    item.aliases.some(
+      (alias) => normalizeText(alias).replace(/[_\s]+/g, "-") === normalized,
+    ),
   );
   return byAlias?.key ?? null;
 }
@@ -700,7 +650,9 @@ const watchmodeDirectCache = new Map<
 >();
 
 function getWatchmodeBaseUrl() {
-  return String(config.WATCHMODE_BASE_URL || "https://api.watchmode.com").replace(/\/+$/, "");
+  return String(
+    config.WATCHMODE_BASE_URL || "https://api.watchmode.com",
+  ).replace(/\/+$/, "");
 }
 
 function getWatchmodeApiKey() {
@@ -730,8 +682,13 @@ function matchesWatchmodeProvider(
   if (!source) {
     return false;
   }
-  const aliases = catalogKey ? WATCHMODE_PROVIDER_ALIASES[catalogKey] ?? [] : [];
-  return aliases.some((alias) => source.includes(normalizeProviderToken(alias))) || source.includes(tmdb);
+  const aliases = catalogKey
+    ? (WATCHMODE_PROVIDER_ALIASES[catalogKey] ?? [])
+    : [];
+  return (
+    aliases.some((alias) => source.includes(normalizeProviderToken(alias))) ||
+    source.includes(tmdb)
+  );
 }
 
 async function resolveWatchmodeTitleId(
@@ -804,13 +761,16 @@ async function resolveDirectWatchLink(params: {
   }
 
   try {
-    const response = await axios.get(`${baseUrl}/v1/title/${titleId}/sources/`, {
-      params: {
-        apiKey,
-        regions: region,
+    const response = await axios.get(
+      `${baseUrl}/v1/title/${titleId}/sources/`,
+      {
+        params: {
+          apiKey,
+          regions: region,
+        },
+        timeout: 10000,
       },
-      timeout: 10000,
-    });
+    );
     const rawSources = Array.isArray(response.data) ? response.data : [];
     const sources = rawSources as WatchmodeSource[];
     const selected =
@@ -845,14 +805,17 @@ async function resolveDirectWatchLink(params: {
 }
 
 async function fetchTmdbProviders(region = "BR") {
-  const response = await axios.get("https://api.themoviedb.org/3/watch/providers/movie", {
-    ...withTmdbAuthParams({
-      language: "pt-BR",
-      watch_region: region,
-      page: 1,
-    }),
-    timeout: 12000,
-  });
+  const response = await axios.get(
+    "https://api.themoviedb.org/3/watch/providers/movie",
+    {
+      ...withTmdbAuthParams({
+        language: "pt-BR",
+        watch_region: region,
+        page: 1,
+      }),
+      timeout: 12000,
+    },
+  );
   const results = Array.isArray(response.data?.results)
     ? (response.data.results as TmdbWatchProvider[])
     : [];
@@ -865,7 +828,9 @@ async function fetchTmdbProviders(region = "BR") {
   const catalog = TMDB_PLATFORM_CATALOG.map((platform) => {
     const found = results.find((provider) => {
       const providerName = normalizeText(provider.provider_name);
-      return platform.aliases.some((alias) => providerName.includes(normalizeText(alias)));
+      return platform.aliases.some((alias) =>
+        providerName.includes(normalizeText(alias)),
+      );
     });
     return {
       key: platform.key,
@@ -922,40 +887,6 @@ function shouldKeepMovieForGenre(movie: any, genreId: number | null) {
   return true;
 }
 
-type MovieHistoryPayload = {
-  movieId: number;
-  title: string;
-  poster_path?: string | null;
-  backdrop_path?: string | null;
-  rating?: number | null;
-  platform?: string | null;
-  watchedAt?: string | null;
-};
-
-let movieHistoryTableReady = false;
-async function ensureMovieHistoryTable() {
-  if (!postgres || movieHistoryTableReady) {
-    return;
-  }
-  await postgres.query(`
-    CREATE TABLE IF NOT EXISTS movie_history (
-      uid text NOT NULL,
-      movie_id bigint NOT NULL,
-      title text NOT NULL,
-      poster_path text,
-      backdrop_path text,
-      rating double precision,
-      platform text,
-      watched_at timestamp with time zone NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (uid, movie_id)
-    );
-  `);
-  await postgres.query(`
-    CREATE INDEX IF NOT EXISTS movie_history_uid_watched_at_idx
-    ON movie_history (uid, watched_at DESC);
-  `);
-  movieHistoryTableReady = true;
-}
 // Following functions iterate over in-memory rooms
 setInterval(minuteMetrics, 60 * 1000);
 setInterval(release, releaseInterval);
@@ -969,23 +900,6 @@ if (process.env.NODE_ENV === "development") {
     console.error(e);
   }
 }
-
-app.post("/api/billing/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-  try {
-    if (!billingEnabled()) {
-      res.status(503).json({ error: "billing_not_configured" });
-      return;
-    }
-    const result = await handleStripeWebhook(
-      req.body as Buffer,
-      req.headers["stripe-signature"],
-    );
-    res.json({ received: true, ...result });
-  } catch (e: any) {
-    console.error("[billing webhook error]", e?.message ?? e);
-    res.status(400).json({ error: "invalid_webhook" });
-  }
-});
 
 app.use(
   helmet({
@@ -1005,15 +919,12 @@ app.use(
           "https://www.googletagmanager.com",
           "https://www.youtube.com",
           "https://apis.google.com",
-          "https://*.firebaseapp.com",
         ],
         "connect-src": [
           "'self'",
           "https://www.google-analytics.com",
           "https://region1.google-analytics.com",
           "https://cdn.jsdelivr.net",
-          "https://identitytoolkit.googleapis.com",
-          "https://securetoken.googleapis.com",
           "https://*.googleapis.com",
           "ws:",
           "wss:",
@@ -1022,7 +933,6 @@ app.use(
           "'self'",
           "https://www.youtube.com",
           "https://www.youtube-nocookie.com",
-          "https://*.firebaseapp.com",
         ],
         "img-src": ["'self'", "data:", "blob:", "https:"],
         "style-src": ["'self'", "'unsafe-inline'"],
@@ -1132,7 +1042,8 @@ app.get("/surprise/video", async (req, res) => {
 
 app.get("/surprise/providers", async (req, res) => {
   try {
-    const region = typeof req.query.region === "string" ? req.query.region : "BR";
+    const region =
+      typeof req.query.region === "string" ? req.query.region : "BR";
     const providers = await fetchTmdbProviders(region);
     res.json({
       region,
@@ -1173,7 +1084,9 @@ app.get("/surprise/movies", async (req, res) => {
         if (!key) {
           return NaN;
         }
-        const found = providersPayload.catalog.find((entry) => entry.key === key);
+        const found = providersPayload.catalog.find(
+          (entry) => entry.key === key,
+        );
         return Number(found?.providerId ?? NaN);
       })
       .filter((id) => Number.isFinite(id) && id > 0);
@@ -1193,10 +1106,13 @@ app.get("/surprise/movies", async (req, res) => {
     if (providerIds.length > 0) {
       discoverParams.with_watch_providers = providerIds.join("|");
     }
-    const firstPageResponse = await axios.get("https://api.themoviedb.org/3/discover/movie", {
-      ...withTmdbAuthParams(discoverParams),
-      timeout: 12000,
-    });
+    const firstPageResponse = await axios.get(
+      "https://api.themoviedb.org/3/discover/movie",
+      {
+        ...withTmdbAuthParams(discoverParams),
+        timeout: 12000,
+      },
+    );
     const totalPages = Math.max(
       1,
       Math.min(5, Number(firstPageResponse.data?.total_pages ?? 1)),
@@ -1233,7 +1149,9 @@ app.get("/surprise/movies", async (req, res) => {
         vote_average: Number(movie?.vote_average ?? 0),
         overview: String(movie?.overview ?? ""),
         poster_path: movie?.poster_path ? String(movie.poster_path) : null,
-        backdrop_path: movie?.backdrop_path ? String(movie.backdrop_path) : null,
+        backdrop_path: movie?.backdrop_path
+          ? String(movie.backdrop_path)
+          : null,
       })),
     });
   } catch (error: any) {
@@ -1260,16 +1178,23 @@ app.get("/surprise/movie/:id", async (req, res) => {
       res.status(400).json({ error: "invalid_movie_id" });
       return;
     }
-    const region = typeof req.query.region === "string" ? req.query.region : "BR";
+    const region =
+      typeof req.query.region === "string" ? req.query.region : "BR";
     const [detailsResponse, providersResponse] = await Promise.all([
       axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
-        ...withTmdbAuthParams({ language: "pt-BR", append_to_response: "external_ids" }),
+        ...withTmdbAuthParams({
+          language: "pt-BR",
+          append_to_response: "external_ids",
+        }),
         timeout: 12000,
       }),
-      axios.get(`https://api.themoviedb.org/3/movie/${movieId}/watch/providers`, {
-        ...withTmdbAuthParams({}),
-        timeout: 12000,
-      }),
+      axios.get(
+        `https://api.themoviedb.org/3/movie/${movieId}/watch/providers`,
+        {
+          ...withTmdbAuthParams({}),
+          timeout: 12000,
+        },
+      ),
     ]);
     const providerIdsFilter = String(req.query.providerIds ?? "")
       .split(/[|,]/)
@@ -1299,14 +1224,21 @@ app.get("/surprise/movie/:id", async (req, res) => {
     ];
     const uniqueProviders = providers.filter(
       (provider, index, arr) =>
-        arr.findIndex((entry) => entry.provider_id === provider.provider_id) === index,
+        arr.findIndex((entry) => entry.provider_id === provider.provider_id) ===
+        index,
     );
     const selectedProvider =
       uniqueProviders.find((provider) =>
         providerIdsFilter.includes(provider.provider_id),
-      ) ?? uniqueProviders[0] ?? null;
-    const selectedCatalogKey = normalizeCatalogKey(selectedProvider?.provider_name ?? "");
-    const imdbId = String(detailsResponse.data?.external_ids?.imdb_id ?? "").trim();
+      ) ??
+      uniqueProviders[0] ??
+      null;
+    const selectedCatalogKey = normalizeCatalogKey(
+      selectedProvider?.provider_name ?? "",
+    );
+    const imdbId = String(
+      detailsResponse.data?.external_ids?.imdb_id ?? "",
+    ).trim();
     const directWatchLink = selectedProvider
       ? await resolveDirectWatchLink({
           movieId,
@@ -1316,13 +1248,14 @@ app.get("/surprise/movie/:id", async (req, res) => {
           region,
         })
       : null;
-    const fallbackWatchLink = typeof regionData?.link === "string" ? regionData.link : "";
+    const fallbackWatchLink =
+      typeof regionData?.link === "string" ? regionData.link : "";
     const watchLink = directWatchLink?.url || fallbackWatchLink;
-    const watchLinkType: WatchLinkType = directWatchLink?.url ? "direct" : "tmdb_fallback";
+    const watchLinkType: WatchLinkType = directWatchLink?.url
+      ? "direct"
+      : "tmdb_fallback";
     const watchLinkProvider =
-      directWatchLink?.providerName ||
-      selectedProvider?.provider_name ||
-      "";
+      directWatchLink?.providerName || selectedProvider?.provider_name || "";
     res.json({
       movie: detailsResponse.data,
       watchLink,
@@ -1355,19 +1288,17 @@ app.get("/surprise/movie/:id", async (req, res) => {
 
 app.post("/createRoom", async (req, res) => {
   try {
-    const decoded = await validateUserToken(req.body?.uid, req.body?.token);
-    const billingProfile = await resolveBillingProfile(decoded ?? {});
-    const isSubscriberRoom = isSubscriberPlan(billingProfile.plan);
-
     const requestedSlug = normalizeSlug(req.body?.roomSlug);
     const displayName = normalizeDisplayName(req.body?.username);
     const roomTitle = normalizeRoomTitle(req.body?.roomTitle);
     const effectiveRoomTitle =
-      roomTitle || (displayName ? `Sala de ${displayName}`.slice(0, 40) : "Sala compartilhada");
+      roomTitle ||
+      (displayName
+        ? `Sala de ${displayName}`.slice(0, 40)
+        : "Sala compartilhada");
     const displaySlug = slugify(displayName);
     const baseRoomSlug =
-      requestedSlug ||
-      (displaySlug ? `cinema-${displaySlug}` : "cinema-sala");
+      requestedSlug || (displaySlug ? `cinema-${displaySlug}` : "cinema-sala");
     const name = await getAvailableRoomName(baseRoomSlug);
 
     console.log("createRoom: ", name);
@@ -1378,7 +1309,6 @@ app.post("/createRoom", async (req, res) => {
         roomId: newRoom.roomId,
         lastUpdateTime: now,
         creationTime: now,
-        isSubRoom: isSubscriberRoom,
         roomTitle: effectiveRoomTitle,
         roomTitleColor: "#888888",
       };
@@ -1389,7 +1319,6 @@ app.post("/createRoom", async (req, res) => {
         console.warn("[createRoom db error]", e?.message ?? e);
       }
     }
-    newRoom.creator = decoded?.email;
     const preload = (req.body?.video || "").slice(0, 20000);
     if (preload) {
       redisCount("createRoomPreload");
@@ -1411,78 +1340,8 @@ app.post("/createRoom", async (req, res) => {
   }
 });
 
-app.post("/api/billing/create-checkout-session", async (req, res) => {
-  if (!billingEnabled()) {
-    res.status(503).json({ error: "billing_not_configured" });
-    return;
-  }
-  const decoded = await validateUserToken(
-    String(req.body?.uid),
-    String(req.body?.token),
-  );
-  if (!decoded) {
-    res.status(400).json({ error: "invalid_user_token" });
-    return;
-  }
-  if (!decoded.email) {
-    res.status(400).json({ error: "email_required" });
-    return;
-  }
-  const planId = String(req.body?.planId ?? "");
-  const allowedPlanIds: CheckoutPlanId[] = [
-    "premium_monthly",
-    "premium_annual",
-    "family_monthly",
-    "family_annual",
-  ];
-  if (!planId || !allowedPlanIds.includes(planId as CheckoutPlanId)) {
-    res.status(400).json({ error: "plan_required" });
-    return;
-  }
-
-  try {
-    const frontendOrigin = resolveTrustedOrigin(req.headers.origin);
-    const session = await createCheckoutSession({
-      uid: decoded.uid,
-      email: decoded.email,
-      planId: planId as CheckoutPlanId,
-      frontendUrl: getFrontendUrl(frontendOrigin),
-    });
-    res.json({
-      checkoutUrl: session.url,
-      sessionId: session.id,
-    });
-  } catch (e: any) {
-    console.error("[create checkout session error]", e?.message ?? e);
-    if (String(e?.message ?? "").startsWith("price_not_configured")) {
-      res.status(400).json({ error: e.message });
-      return;
-    }
-    res.status(500).json({ error: "checkout_session_failed" });
-  }
-});
-
-app.get("/api/me/entitlements", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded) {
-    res.status(401).json({ error: "invalid_user_token" });
-    return;
-  }
-  const profile = await resolveBillingProfile(decoded);
-  res.json({
-    plan: profile.plan,
-    subscriptionStatus: profile.subscriptionStatus,
-    stripeCustomerId: profile.stripeCustomerId,
-    stripeSubscriptionId: profile.stripeSubscriptionId,
-    entitlements: profile.entitlements,
-    isSubscriber: isSubscriberPlan(profile.plan),
-  });
-});
-
 app.all(
   [
-    "/manageSub",
     "/deleteAccount",
     "/listRooms",
     "/deleteRoom",
@@ -1494,11 +1353,7 @@ app.all(
   },
 );
 
-app.get("/metadata", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  const billingProfile = await resolveBillingProfile(decoded ?? {});
-  const isSubscriber = isSubscriberPlan(billingProfile.plan);
+app.get("/metadata", async (_req, res) => {
   let isFreePoolFull = false;
   try {
     isFreePoolFull = (
@@ -1510,25 +1365,10 @@ app.get("/metadata", async (req, res) => {
     // Optional vmWorker endpoint; default to "not full" when unavailable.
     isFreePoolFull = false;
   }
-  const beta =
-    decoded?.email != null &&
-    Boolean(config.BETA_USER_EMAILS.split(",").includes(decoded?.email));
-  const streamPath = beta ? config.STREAM_PATH : undefined;
-  const convertPath = isSubscriber ? config.CONVERT_PATH : undefined;
-  // log metrics but don't wait for it
-  if (postgres && decoded?.uid) {
-    upsertObject(
-      postgres,
-      "active_user",
-      { uid: decoded?.uid, lastActiveTime: new Date() },
-      { uid: true },
-    );
-  }
+  const beta = false;
+  const streamPath = config.STREAM_PATH || undefined;
+  const convertPath = config.CONVERT_PATH || undefined;
   res.json({
-    isSubscriber,
-    plan: billingProfile.plan,
-    subscriptionStatus: billingProfile.subscriptionStatus,
-    entitlements: billingProfile.entitlements,
     isFreePoolFull,
     beta,
     streamPath,
@@ -1550,148 +1390,6 @@ app.get("/resolveRoom/:vanity", async (req, res) => {
 app.get("/resolveShard/:roomId", async (req, res) => {
   const shardNum = resolveShard(req.params.roomId);
   res.send(String(config.SHARD ? shardNum : ""));
-});
-
-app.post("/history/movie", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded?.uid) {
-    res.status(401).json({ error: "invalid_user_token" });
-    return;
-  }
-  if (!postgres) {
-    res.status(503).json({ error: "history_unavailable" });
-    return;
-  }
-  const payload = req.body as MovieHistoryPayload;
-  const movieId = Number(payload?.movieId);
-  const title = String(payload?.title ?? "").trim().slice(0, 250);
-  if (!Number.isFinite(movieId) || movieId <= 0 || !title) {
-    res.status(400).json({ error: "invalid_payload" });
-    return;
-  }
-  const watchedAt = payload?.watchedAt
-    ? new Date(String(payload.watchedAt))
-    : new Date();
-  if (Number.isNaN(watchedAt.getTime())) {
-    res.status(400).json({ error: "invalid_watched_at" });
-    return;
-  }
-  try {
-    await ensureMovieHistoryTable();
-    await postgres.query(
-      `
-      INSERT INTO movie_history
-        (uid, movie_id, title, poster_path, backdrop_path, rating, platform, watched_at)
-      VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (uid, movie_id)
-      DO UPDATE SET
-        title = EXCLUDED.title,
-        poster_path = EXCLUDED.poster_path,
-        backdrop_path = EXCLUDED.backdrop_path,
-        rating = EXCLUDED.rating,
-        platform = EXCLUDED.platform,
-        watched_at = EXCLUDED.watched_at
-      `,
-      [
-        decoded.uid,
-        movieId,
-        title,
-        payload?.poster_path ? String(payload.poster_path).slice(0, 300) : null,
-        payload?.backdrop_path
-          ? String(payload.backdrop_path).slice(0, 300)
-          : null,
-        Number.isFinite(Number(payload?.rating)) ? Number(payload?.rating) : null,
-        payload?.platform ? String(payload.platform).slice(0, 120) : null,
-        watchedAt.toISOString(),
-      ],
-    );
-    res.json({ ok: true });
-  } catch (e: any) {
-    console.error("[history movie save error]", e?.message ?? e);
-    res.status(500).json({ error: "history_save_failed" });
-  }
-});
-
-app.get("/history/movies", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded?.uid) {
-    res.status(401).json({ error: "invalid_user_token" });
-    return;
-  }
-  if (!postgres) {
-    res.status(503).json({ error: "history_unavailable" });
-    return;
-  }
-  try {
-    await ensureMovieHistoryTable();
-    const result = await postgres.query<{
-      movie_id: number;
-      title: string;
-      poster_path: string | null;
-      backdrop_path: string | null;
-      rating: number | null;
-      platform: string | null;
-      watched_at: Date;
-    }>(
-      `
-      SELECT movie_id, title, poster_path, backdrop_path, rating, platform, watched_at
-      FROM movie_history
-      WHERE uid = $1
-      ORDER BY watched_at DESC
-      LIMIT 20
-      `,
-      [decoded.uid],
-    );
-    res.json({
-      items: result.rows.map((row) => ({
-        movieId: Number(row.movie_id),
-        title: row.title,
-        poster_path: row.poster_path,
-        backdrop_path: row.backdrop_path,
-        rating: row.rating,
-        platform: row.platform,
-        watchedAt:
-          row.watched_at instanceof Date
-            ? row.watched_at.toISOString()
-            : new Date(row.watched_at).toISOString(),
-      })),
-    });
-  } catch (e: any) {
-    console.error("[history movie list error]", e?.message ?? e);
-    res.status(500).json({ error: "history_list_failed" });
-  }
-});
-
-app.delete("/history/movie/:movieId", async (req, res) => {
-  const { uid, token } = getAuthCredentials(req);
-  const decoded = await validateUserToken(uid, token);
-  if (!decoded?.uid) {
-    res.status(401).json({ error: "invalid_user_token" });
-    return;
-  }
-  if (!postgres) {
-    res.status(503).json({ error: "history_unavailable" });
-    return;
-  }
-  const movieId = Number(req.params.movieId);
-  if (!Number.isFinite(movieId) || movieId <= 0) {
-    res.status(400).json({ error: "invalid_movie_id" });
-    return;
-  }
-  try {
-    await ensureMovieHistoryTable();
-    await postgres.query(
-      `DELETE FROM movie_history WHERE uid = $1 AND movie_id = $2`,
-      [decoded.uid, movieId],
-    );
-    res.json({ ok: true });
-  } catch (e: any) {
-    console.error("[history movie delete error]", e?.message ?? e);
-    res.status(500).json({ error: "history_delete_failed" });
-  }
 });
 
 const PROXY_TIMEOUT_MS = 10000;
@@ -1756,7 +1454,9 @@ app.get("/proxy/*splat", async (req, res) => {
       });
       const segment = Buffer.from(resp.data);
       res.set({
-        "Content-Type": String(resp.headers["content-type"] ?? "application/octet-stream"),
+        "Content-Type": String(
+          resp.headers["content-type"] ?? "application/octet-stream",
+        ),
         "Accept-Ranges": "bytes",
         "Content-Length": String(segment.length),
       });
@@ -1795,7 +1495,12 @@ function getPublicOrigin(req: Request) {
   return `${protocol}://${host}`;
 }
 
-function replaceMeta(html: string, key: "name" | "property", name: string, content: string) {
+function replaceMeta(
+  html: string,
+  key: "name" | "property",
+  name: string,
+  content: string,
+) {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(
     `<meta\\s+${key}="${escapedName}"\\s+content="[^"]*"\\s*/?>`,
@@ -1807,7 +1512,12 @@ function replaceMeta(html: string, key: "name" | "property", name: string, conte
   );
 }
 
-function upsertMeta(html: string, key: "name" | "property", name: string, content: string) {
+function upsertMeta(
+  html: string,
+  key: "name" | "property",
+  name: string,
+  content: string,
+) {
   const updated = replaceMeta(html, key, name, content);
   if (updated !== html) {
     return updated;
@@ -1840,8 +1550,7 @@ async function getRoomPreview(roomId: string) {
       description:
         (typeof row?.roomDescription === "string"
           ? row.roomDescription.trim().replace(/\s+/g, " ").slice(0, 120)
-          : "") ||
-        fallback.description,
+          : "") || fallback.description,
     };
   } catch (error: any) {
     console.warn("[room preview error]", error?.message ?? error);
@@ -1868,10 +1577,14 @@ async function getVanityPreview(vanity: string) {
   }
 }
 
-async function sendIndexWithPreview(req: Request, res: Response, preview: {
-  title: string;
-  description: string;
-}) {
+async function sendIndexWithPreview(
+  req: Request,
+  res: Response,
+  preview: {
+    title: string;
+    description: string;
+  },
+) {
   const indexPath = path.resolve(
     import.meta.dirname + `/../${config.BUILD_DIRECTORY}/index.html`,
   );
@@ -1880,7 +1593,10 @@ async function sendIndexWithPreview(req: Request, res: Response, preview: {
   const url = `${origin}${req.originalUrl.split("?")[0] || "/"}`;
   const image = `${origin}/screenshot_full.png`;
 
-  html = html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(preview.title)}</title>`);
+  html = html.replace(
+    /<title>.*?<\/title>/s,
+    `<title>${escapeHtml(preview.title)}</title>`,
+  );
   html = replaceMeta(html, "name", "description", preview.description);
   html = replaceMeta(html, "property", "og:title", preview.title);
   html = replaceMeta(html, "property", "og:description", preview.description);
@@ -1915,7 +1631,19 @@ app.get("/r/:vanity", async (req, res, next) => {
   }
 });
 
-app.use(express.static(config.BUILD_DIRECTORY));
+app.use(
+  express.static(config.BUILD_DIRECTORY, {
+    etag: true,
+    maxAge: 0,
+    setHeaders: (res, filePath) => {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache");
+      }
+    },
+  }),
+);
 // Send index.html for all other requests (SPA)
 app.use("/*splat", (_req, res) => {
   res.sendFile(
@@ -1927,53 +1655,53 @@ app.use("/*splat", (_req, res) => {
 
 async function saveRooms() {
   try {
-  // Unload rooms that are empty and idle
-  // Frees up some JS memory space when process is long-running
-  // On reconnect, we'll attempt to reload the room
-  let saveCount = 0;
-  let skipCount = 0;
-  const start = Date.now();
-  await Promise.all(
-    Array.from(rooms.entries()).map(async ([key, room]) => {
-      if (
-        room.roster.length === 0 &&
-        !room.vBrowser &&
-        Number(room.lastUpdateTime) < Date.now() - 8 * 60 * 60 * 1000
-      ) {
-        console.log(
-          "freeing room %s from memory on shard %s",
-          key,
-          config.SHARD,
-        );
-        await room.saveRoom();
-        room.destroy();
-        // Unregister the namespace to avoid dupes on reload
-        // Use public API: remove all listeners before deleting the namespace
-        const nsp = io.of(key);
-        nsp.removeAllListeners();
-        nsp.sockets.forEach((s) => s.disconnect(true));
-        // Delete from the internal map using the public _nsps if available, with fallback
-        if ((io as any)._nsps?.has(key)) {
-          (io as any)._nsps.delete(key);
+    // Unload rooms that are empty and idle
+    // Frees up some JS memory space when process is long-running
+    // On reconnect, we'll attempt to reload the room
+    let saveCount = 0;
+    let skipCount = 0;
+    const start = Date.now();
+    await Promise.all(
+      Array.from(rooms.entries()).map(async ([key, room]) => {
+        if (
+          room.roster.length === 0 &&
+          !room.vBrowser &&
+          Number(room.lastUpdateTime) < Date.now() - 8 * 60 * 60 * 1000
+        ) {
+          console.log(
+            "freeing room %s from memory on shard %s",
+            key,
+            config.SHARD,
+          );
+          await room.saveRoom();
+          room.destroy();
+          // Unregister the namespace to avoid dupes on reload
+          // Use public API: remove all listeners before deleting the namespace
+          const nsp = io.of(key);
+          nsp.removeAllListeners();
+          nsp.sockets.forEach((s) => s.disconnect(true));
+          // Delete from the internal map using the public _nsps if available, with fallback
+          if ((io as any)._nsps?.has(key)) {
+            (io as any)._nsps.delete(key);
+          }
+          rooms.delete(key);
+          saveCount += 1;
+        } else if (room.roster.length && room.dirty) {
+          room.lastUpdateTime = new Date();
+          await room.saveRoom();
+          saveCount += 1;
+        } else {
+          skipCount += 1;
         }
-        rooms.delete(key);
-        saveCount += 1;
-      } else if (room.roster.length) {
-        room.lastUpdateTime = new Date();
-        await room.saveRoom();
-        saveCount += 1;
-      } else {
-        skipCount += 1;
-      }
-    }),
-  );
-  const end = Date.now();
-  console.log(
-    "[SAVEROOMS] %s saved in %sms, %s skipped",
-    saveCount,
-    end - start,
-    skipCount,
-  );
+      }),
+    );
+    const end = Date.now();
+    console.log(
+      "[SAVEROOMS] %s saved in %sms, %s skipped",
+      saveCount,
+      end - start,
+      skipCount,
+    );
   } catch (e) {
     console.error("[SAVEROOMS] Erro durante execução:", e);
   }
@@ -2014,58 +1742,58 @@ async function release() {
 
 async function minuteMetrics() {
   try {
-  const roomArr = Array.from(rooms.values());
-  let vbWaiting = 0;
-  for (let room of roomArr) {
-    if (room.vBrowser && room.vBrowser.id) {
-      // Update the heartbeat
-      await postgres?.query(
-        `UPDATE vbrowser SET "heartbeatTime" = NOW() WHERE "roomId" = $1 and vmid = $2`,
-        [room.roomId, room.vBrowser.id],
-      );
+    const roomArr = Array.from(rooms.values());
+    let vbWaiting = 0;
+    for (let room of roomArr) {
+      if (room.vBrowser && room.vBrowser.id) {
+        // Update the heartbeat
+        await postgres?.query(
+          `UPDATE vbrowser SET "heartbeatTime" = NOW() WHERE "roomId" = $1 and vmid = $2`,
+          [room.roomId, room.vBrowser.id],
+        );
 
-      const expireTime = getStartOfDay() / 1000 + 86400;
-      if (room.vBrowser?.creatorClientID) {
-        await redis?.zincrby(
-          "vBrowserClientIDMinutes",
-          1,
-          room.vBrowser.creatorClientID,
-        );
-        await redis?.expireat("vBrowserClientIDMinutes", expireTime);
+        const expireTime = getStartOfDay() / 1000 + 86400;
+        if (room.vBrowser?.creatorClientID) {
+          await redis?.zincrby(
+            "vBrowserClientIDMinutes",
+            1,
+            room.vBrowser.creatorClientID,
+          );
+          await redis?.expireat("vBrowserClientIDMinutes", expireTime);
+        }
+        if (room.vBrowser?.creatorUID) {
+          await redis?.zincrby(
+            "vBrowserUIDMinutes",
+            1,
+            room.vBrowser?.creatorUID,
+          );
+          await redis?.expireat("vBrowserUIDMinutes", expireTime);
+        }
       }
-      if (room.vBrowser?.creatorUID) {
-        await redis?.zincrby(
-          "vBrowserUIDMinutes",
-          1,
-          room.vBrowser?.creatorUID,
+      const users = room.roster.length;
+      if (users) {
+        await redis?.setex(`roomCounts:${room.roomId}`, 120, users);
+        await redis?.setex(
+          `roomRosters:${room.roomId}`,
+          120,
+          JSON.stringify(room.getRosterForStats()),
         );
-        await redis?.expireat("vBrowserUIDMinutes", expireTime);
       }
+      vbWaiting += room.vBrowserQueue ? 1 : 0;
     }
-    const users = room.roster.length;
-    if (users) {
-      await redis?.setex(`roomCounts:${room.roomId}`, 120, users);
-      await redis?.setex(
-        `roomRosters:${room.roomId}`,
-        120,
-        JSON.stringify(room.getRosterForStats()),
-      );
-    }
-    vbWaiting += room.vBrowserQueue ? 1 : 0;
-  }
-  // Report shard metrics
-  const obj: ShardMetric = {
-    uptime: process.uptime(),
-    mem: process.memoryUsage().rss,
-    roomCount: rooms.size,
-    users: io.engine.clientsCount,
-    vbWaiting,
-  };
-  await redis?.setex(
-    `shardMetrics:${config.SHARD ?? 0}`,
-    120,
-    JSON.stringify(obj),
-  );
+    // Report shard metrics
+    const obj: ShardMetric = {
+      uptime: process.uptime(),
+      mem: process.memoryUsage().rss,
+      roomCount: rooms.size,
+      users: io.engine.clientsCount,
+      vbWaiting,
+    };
+    await redis?.setex(
+      `shardMetrics:${config.SHARD ?? 0}`,
+      120,
+      JSON.stringify(obj),
+    );
   } catch (e) {
     console.error("[MINUTEMETRICS] Erro durante execução:", e);
   }

@@ -1,4 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
+
+const localChromiumExecutable = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+].find((candidate) => candidate && existsSync(candidate));
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -10,6 +17,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:5174",
     trace: "on-first-retry",
+    launchOptions: {
+      executablePath: localChromiumExecutable,
+    },
   },
   projects: [
     {

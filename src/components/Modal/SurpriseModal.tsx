@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Badge, Button, Group, Modal, Text } from "@mantine/core";
 import {
   IconArrowLeft,
@@ -8,7 +8,6 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { serverPath } from "../../utils/utils";
-import { MetadataContext } from "../../MetadataContext";
 import styles from "./SurpriseModal.module.css";
 
 type SurpriseType = "video" | "movie";
@@ -206,8 +205,6 @@ export const SurpriseModal = ({
   onClose: () => void;
   onPlayTogether: (url: string) => void;
 }) => {
-  const metadata = useContext(MetadataContext);
-  const user = metadata.user;
   const [surpriseType, setSurpriseType] = useState<SurpriseType>("video");
   const [flowState, setFlowState] = useState<FlowState>("setup");
   const [errorKind, setErrorKind] = useState<ErrorKind>("none");
@@ -451,18 +448,6 @@ export const SurpriseModal = ({
     window.localStorage.setItem(GENRE_STORAGE_KEY, value);
   };
 
-  const getAuthHeaders = async () => {
-    if (!user) {
-      return null;
-    }
-    const token = await user.getIdToken();
-    return {
-      Authorization: `Bearer ${token}`,
-      "X-User-Uid": user.uid,
-      "Content-Type": "application/json",
-    };
-  };
-
   const readLocalHistory = (): HistoryItem[] => {
     try {
       const raw = window.localStorage.getItem(LOCAL_HISTORY_STORAGE_KEY);
@@ -492,48 +477,14 @@ export const SurpriseModal = ({
       platform: movieResult.platform?.name ?? null,
       watchedAt: new Date().toISOString(),
     };
-    if (!user) {
-      saveLocalHistory(payload);
-      return;
-    }
-    try {
-      const headers = await getAuthHeaders();
-      if (!headers) {
-        saveLocalHistory(payload);
-        return;
-      }
-      await fetchJson<{ ok: boolean }>("/history/movie", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      saveLocalHistory(payload);
-    }
+    saveLocalHistory(payload);
   };
 
   const openHistory = async () => {
     setHistoryLoading(true);
     setHistoryOpen(true);
-    try {
-      if (!user) {
-        setHistoryItems(readLocalHistory());
-        return;
-      }
-      const headers = await getAuthHeaders();
-      if (!headers) {
-        setHistoryItems(readLocalHistory());
-        return;
-      }
-      const payload = await fetchJson<{ items: HistoryItem[] }>("/history/movies", {
-        headers,
-      });
-      setHistoryItems(Array.isArray(payload.items) ? payload.items : []);
-    } catch {
-      setHistoryItems(readLocalHistory());
-    } finally {
-      setHistoryLoading(false);
-    }
+    setHistoryItems(readLocalHistory());
+    setHistoryLoading(false);
   };
 
   const runSurprise = async () => {
@@ -981,11 +932,9 @@ export const SurpriseModal = ({
           </div>
           <footer className={styles.immersiveFooter}>
             <span>Sugestão {movieCounter.current} de {movieCounter.total || "-"}</span>
-            {user && (
-              <Button variant="subtle" color="gray" onClick={() => void openHistory()}>
-                🕐 Ver histórico
-              </Button>
-            )}
+            <Button variant="subtle" color="gray" onClick={() => void openHistory()}>
+              Ver histórico
+            </Button>
           </footer>
         </section>
       )}
@@ -997,27 +946,9 @@ export const SurpriseModal = ({
       size={460}
       closeOnClickOutside={false}
       closeOnEscape={false}
-      title="🕐 Histórico de filmes"
+      title="Histórico de filmes"
       classNames={{ content: styles.historyContent, body: styles.historyBody }}
     >
-      {!user && (
-        <Alert color="yellow" className={styles.historyLoginBanner}>
-          Faça login para salvar seu histórico permanentemente.
-          <div>
-            <Button
-              size="xs"
-              variant="light"
-              mt={8}
-              onClick={() => {
-                setHistoryOpen(false);
-                window.dispatchEvent(new CustomEvent("webcinetv-open-login"));
-              }}
-            >
-              Entrar
-            </Button>
-          </div>
-        </Alert>
-      )}
       {historyLoading ? (
         <Text c="dimmed">Carregando histórico...</Text>
       ) : historyItems.length === 0 ? (

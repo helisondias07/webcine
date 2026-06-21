@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Button,
   Modal,
@@ -6,18 +6,16 @@ import {
   ActionIcon,
   Popover,
   TextInput,
-  Badge,
   Switch,
   Loader,
   Text,
   Divider,
 } from "@mantine/core";
 import { getCurrentSettings, updateSettings } from "./LocalSettings";
-import { serverPath } from "../../utils/utils";
+import { getOrCreateClientId, serverPath } from "../../utils/utils";
 import { PermanentRoomModal } from "../Modal/PermanentRoomModal";
 import { Socket } from "socket.io-client";
 import { HexColorPicker } from "react-colorful";
-import { MetadataContext } from "../../MetadataContext";
 import {
   IconCheck,
   IconDeviceFloppy,
@@ -69,6 +67,7 @@ export const SettingsModal = ({
   setRoomLock,
   socket,
   owner,
+  setOwner,
   vanity,
   setVanity,
   inviteLink: roomLink,
@@ -86,7 +85,7 @@ export const SettingsModal = ({
   myNameColor,
   setMyNameColor,
 }: SettingsModalProps) => {
-  const { user, isSubscriber } = useContext(MetadataContext);
+  const clientId = getOrCreateClientId();
   const [updateTS, setUpdateTS] = useState(0);
   const [permModalOpen, setPermModalOpen] = useState(false);
   const [validVanity, setValidVanity] = useState(true);
@@ -111,7 +110,7 @@ export const SettingsModal = ({
         ...data,
       });
     },
-    [socket, user],
+    [socket],
   );
   const checkValidVanity = useCallback(
     async (input: string) => {
@@ -137,9 +136,8 @@ export const SettingsModal = ({
     },
     [setValidVanity, roomLink],
   );
-  const disableLocking =
-    !Boolean(user) || Boolean(roomLock && roomLock !== user?.uid);
-  const disableOwning = !Boolean(user) || Boolean(owner && owner !== user?.uid);
+  const disableLocking = Boolean(roomLock && roomLock !== clientId);
+  const disableOwning = Boolean(owner && owner !== clientId);
   const isPermanentRoom = Boolean(owner);
   return (
     <>
@@ -164,12 +162,11 @@ export const SettingsModal = ({
               checked={Boolean(roomLock)}
               disabled={disableLocking && disableOwning}
               onChange={(e) => setRoomLock(Boolean(e.currentTarget.checked))}
-              label={!user ? "requer login" : ""}
             />
             <SettingRow
               toggle
               name={`Tornar sala permanente`}
-              description="Função premium em breve. No momento esta opção está desativada."
+              description="Mantém a sala disponível e permite personalizar seus dados."
               helpIcon={
                 <IconHelpCircle
                   onClick={() => setPermModalOpen(true)}
@@ -177,9 +174,12 @@ export const SettingsModal = ({
                 />
               }
               checked={isPermanentRoom}
-              disabled={true}
-              onChange={() => undefined}
-              label="em breve"
+              disabled={disableOwning}
+              onChange={(e) => {
+                const enabled = Boolean(e.currentTarget.checked);
+                socket.emit("CMD:setRoomOwner", { undo: !enabled });
+                setOwner(enabled ? clientId : "");
+              }}
             />
           </div>
 
@@ -220,16 +220,19 @@ export const SettingsModal = ({
 
         {isPermanentRoom && <Divider my="lg" />}
         {isPermanentRoom && (
-          <div className={styles.sectionHeader}>Configurações da sala permanente</div>
+          <div className={styles.sectionHeader}>
+            Configurações da sala permanente
+          </div>
         )}
-        {isPermanentRoom && owner && owner !== user?.uid && (
+        {isPermanentRoom && owner && owner !== clientId && (
           <Alert color="yellow" className={styles.permanentLocked}>
             Apenas o dono da sala pode editar essas configurações.
           </Alert>
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             toggle={false}
+            disabled={false}
             content={
               <TextInput
                 label={`Senha da sala`}
@@ -243,10 +246,9 @@ export const SettingsModal = ({
                 }}
               />
             }
-            disabled={false}
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             content={
               <TextInput
@@ -263,7 +265,7 @@ export const SettingsModal = ({
             disabled={false}
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             toggle
             name={`Desativar chat`}
@@ -276,7 +278,7 @@ export const SettingsModal = ({
             }}
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             disabled={false}
             content={
@@ -294,20 +296,18 @@ export const SettingsModal = ({
             }
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             toggle={false}
+            disabled={false}
             // name={`Set Custom Room URL`}
             // description="Set a custom URL for this room. Inappropriate names may be revoked."
             checked={Boolean(roomLock)}
-            disabled={!isSubscriber}
-            subOnly={true}
             content={
               <TextInput
                 label={`URL personalizada da sala`}
                 description="Define um link curto para sua sala."
                 value={vanity ?? ""}
-                disabled={!isSubscriber}
                 onChange={(e: any) => {
                   setAdminSettingsChanged(true);
                   checkValidVanity(e.target.value);
@@ -328,11 +328,10 @@ export const SettingsModal = ({
             }
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <SettingRow
             toggle={false}
-            disabled={!isSubscriber}
-            subOnly={true}
+            disabled={false}
             content={
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "4px" }}
@@ -341,7 +340,6 @@ export const SettingsModal = ({
                   label={`Título, descrição e cor do título`}
                   description="Essas informações aparecem na barra superior."
                   value={roomTitleInput ?? roomTitle ?? ""}
-                  disabled={!isSubscriber}
                   maxLength={roomTitleMaxCharLength}
                   onChange={(e) => {
                     setAdminSettingsChanged(true);
@@ -376,10 +374,7 @@ export const SettingsModal = ({
                         </React.Fragment>
                       </Popover.Dropdown>
                       <Popover.Target>
-                        <ActionIcon
-                          color={roomTitleColorInput}
-                          disabled={!isSubscriber}
-                        >
+                        <ActionIcon color={roomTitleColorInput}>
                           <IconPaintFilled size={16} />
                         </ActionIcon>
                       </Popover.Target>
@@ -388,7 +383,6 @@ export const SettingsModal = ({
                 ></TextInput>
                 <TextInput
                   value={roomDescriptionInput ?? roomDescription ?? ""}
-                  disabled={!isSubscriber}
                   maxLength={roomDescriptionMaxCharLength}
                   onChange={(e: any) => {
                     setAdminSettingsChanged(true);
@@ -400,7 +394,7 @@ export const SettingsModal = ({
             }
           />
         )}
-        {isPermanentRoom && owner && owner === user?.uid && (
+        {isPermanentRoom && owner && owner === clientId && (
           <Button
             style={{ marginTop: "8px" }}
             disabled={!validVanity || !adminSettingsChanged}
@@ -439,10 +433,8 @@ const SettingRow = ({
   disabled,
   onChange,
   content,
-  subOnly,
   helpIcon,
   toggle,
-  label,
 }: {
   name?: string;
   description?: React.ReactNode;
@@ -451,42 +443,28 @@ const SettingRow = ({
   updateTS?: number;
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   content?: React.ReactNode;
-  subOnly?: boolean;
   helpIcon?: React.ReactNode;
   toggle?: boolean;
-  label?: string;
 }) => {
   return (
     <div className={styles.settingRow}>
-      <div className={styles.settingLabel}>
-          {label ? (
-            <Badge size="xs" color="red">
-              {label}
-            </Badge>
-          ) : null}
-          {subOnly ? (
-            <Badge size="xs" color="orange">
-              Apenas assinante
-            </Badge>
-          ) : null}
-      </div>
       <div className={styles.settingBody}>
-          {toggle && (
-            <Switch
-              label={<span className={styles.rowLabel}>{name}</span>}
-              description={
-                description ? (
-                  <span className={styles.rowDescription}>{description}</span>
-                ) : undefined
-              }
-              checked={checked}
-              disabled={disabled}
-              onChange={onChange}
-            />
-          )}
+        {toggle && (
+          <Switch
+            label={<span className={styles.rowLabel}>{name}</span>}
+            description={
+              description ? (
+                <span className={styles.rowDescription}>{description}</span>
+              ) : undefined
+            }
+            checked={checked}
+            disabled={disabled}
+            onChange={onChange}
+          />
+        )}
         {content && <div className={styles.rowContent}>{content}</div>}
       </div>
       <div className={styles.settingHelp}>{helpIcon}</div>
-      </div>
+    </div>
   );
 };

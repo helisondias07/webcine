@@ -15,7 +15,6 @@ import {
   getOrCreateClientId,
   getOrCreateSessionId,
   calculateMedian,
-  getUserImage,
   isYouTube,
   isMagnet,
   isHttp,
@@ -30,15 +29,12 @@ import {
 import { Chat } from "../Chat/Chat";
 import { TopBar } from "../TopBar/TopBar";
 import { getCurrentSettings } from "../Settings/LocalSettings";
-import { MultiStreamModal } from "../Modal/MultiStreamModal";
 import { ComboBox } from "../ComboBox/ComboBox";
 import { Controls } from "../Controls/Controls";
-import { SettingsModal } from "../Settings/SettingsModal";
 import { ErrorModal } from "../Modal/ErrorModal";
 import { PasswordModal } from "../Modal/PasswordModal";
 import { ScreenShareModal } from "../Modal/ScreenShareModal";
 import { FileShareModal } from "../Modal/FileShareModal";
-import { SurpriseModal } from "../Modal/SurpriseModal";
 import { HTML } from "./HTML";
 import { YouTube } from "./YouTube";
 import styles from "./App.module.css";
@@ -50,21 +46,14 @@ import {
   IconFile,
   IconList,
   IconMessageCircle,
-  IconMoodSmile,
   IconScreenShare,
   IconSettings,
   IconUser,
-  IconUsersGroup,
   IconVolume,
   IconX,
 } from "@tabler/icons-react";
 import { InviteButton } from "../InviteButton/InviteButton";
 import { t } from "../../i18n";
-import {
-  getFirebaseClient,
-  type FirebaseUnsubscribe,
-  type FirebaseUser,
-} from "../../utils/firebaseClient";
 import type WebTorrent from "webtorrent";
 import type Hls from "hls.js";
 import { type MediaPlayerClass } from "dashjs";
@@ -98,15 +87,22 @@ const DEFAULT_CHAT_NAME = "Convidado";
 const YOUTUBE_QUALITY_STORAGE_KEY = "watchparty-yt-quality";
 const NAME_COLOR_STORAGE_KEY = "watchparty-name-color";
 const DEFAULT_NAME_COLOR = "#FFFFFF";
-const LIVE_REACTION_EMOJIS = [
-  "\u{1F602}",
-  "\u{1F525}",
-  "\u{1F631}",
-  "\u{1F44F}",
-  "\u{1F60D}",
-  "\u{1F480}",
-] as const;
 
+const SettingsModal = React.lazy(() =>
+  import("../Settings/SettingsModal").then((mod) => ({
+    default: mod.SettingsModal,
+  })),
+);
+const SurpriseModal = React.lazy(() =>
+  import("../Modal/SurpriseModal").then((mod) => ({
+    default: mod.SurpriseModal,
+  })),
+);
+const MultiStreamModal = React.lazy(() =>
+  import("../Modal/MultiStreamModal").then((mod) => ({
+    default: mod.MultiStreamModal,
+  })),
+);
 const debugLog = (...args: unknown[]) => {
   if (config.NODE_ENV === "development") {
     console.log(...args);
@@ -120,7 +116,9 @@ function normalizeDisplayName(value: string) {
 type YouTubeQualityMode = "auto" | YT.SuggestedVideoQuality;
 
 function normalizeYouTubeQuality(value: unknown): YouTubeQualityMode {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   switch (normalized) {
     case "auto":
       return "auto";
@@ -216,12 +214,11 @@ interface AppState {
   screenShareQualityMode: ShareQualityMode;
   youtubeQualityMode: YouTubeQualityMode;
   youtubeQualityLevels: YT.SuggestedVideoQuality[];
-  liveReactions: LiveReactionBubble[];
-  showLiveReactionTray: boolean;
   joinToasts: JoinToast[];
   countdownVisible: boolean;
   countdownText: string;
   countdownInProgress: boolean;
+  connectionQuality: "idle" | "good" | "adjusting" | "poor" | "reconnecting";
 }
 
 type ShareQualityMode = "economy" | "auto" | "high";
@@ -234,16 +231,6 @@ type ShareQualityProfile = {
   scaleResolutionDownBy?: number;
 };
 
-type LiveReactionEmoji = (typeof LIVE_REACTION_EMOJIS)[number];
-
-type LiveReactionBubble = {
-  id: string;
-  user: string;
-  emoji: LiveReactionEmoji;
-  timestamp: string;
-  x: number;
-};
-
 type JoinToast = {
   id: string;
   userId: string;
@@ -253,10 +240,10 @@ type JoinToast = {
 };
 
 function normalizeNameColor(value: string | null | undefined) {
-  const normalized = String(value ?? "").trim().toUpperCase();
-  return /^#([0-9A-F]{6})$/.test(normalized)
-    ? normalized
-    : DEFAULT_NAME_COLOR;
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  return /^#([0-9A-F]{6})$/.test(normalized) ? normalized : DEFAULT_NAME_COLOR;
 }
 
 function getDisplayInitials(value: string) {
@@ -367,12 +354,11 @@ export class App extends React.Component<AppProps, AppState> {
       window.localStorage.getItem(YOUTUBE_QUALITY_STORAGE_KEY),
     ),
     youtubeQualityLevels: [],
-    liveReactions: [],
-    showLiveReactionTray: false,
     joinToasts: [],
     countdownVisible: false,
     countdownText: "",
     countdownInProgress: false,
+    connectionQuality: "idle",
   };
   socket: Socket = null!;
   mediasoupPubSocket: Socket | null = null;
@@ -385,19 +371,19 @@ export class App extends React.Component<AppProps, AppState> {
   lastAppliedShareProfileKey = "";
   viewerShareQualityMap: Record<string, ShareQualityMode> = {};
   consumerConn?: RTCPeerConnection;
+  remoteShareStream?: MediaStream;
   progressUpdater?: number;
   heartbeat: number | undefined = undefined;
   syncUpdater: number | undefined = undefined;
+  rtcStatsUpdater: number | undefined = undefined;
+  shareNetworkScale = 1;
+  stableRtcSamples = 0;
   warningMessageTimeout: number | undefined = undefined;
   errorMessageTimeout: number | undefined = undefined;
   successMessageTimeout: number | undefined = undefined;
-  liveReactionCleanupTimeouts = new Map<string, number>();
-  liveReactionTrayHideTimeout: number | undefined = undefined;
   joinToastTimeouts = new Map<string, number>();
   countdownTimeouts: number[] = [];
-  lastLiveReactionSentAt = 0;
   suppressYouTubeStateSyncUntil = 0;
-  authUnsubscribe: FirebaseUnsubscribe | undefined = undefined;
   YouTubeInterface: YouTube = new YouTube(
     null,
     normalizeYouTubeQuality(
@@ -418,9 +404,9 @@ export class App extends React.Component<AppProps, AppState> {
   async componentDidMount() {
     document.addEventListener("fullscreenchange", this.onFullScreenChange);
     document.addEventListener("keydown", this.onKeydown);
-    const leftVideo = document.getElementById("leftVideo") as
-      | HTMLVideoElement
-      | null;
+    const leftVideo = document.getElementById(
+      "leftVideo",
+    ) as HTMLVideoElement | null;
     leftVideo?.addEventListener(
       "enterpictureinpicture",
       this.onPictureInPictureChange,
@@ -448,25 +434,19 @@ export class App extends React.Component<AppProps, AppState> {
     this.setState({ isAutoPlayable: canAutoplay });
     this.loadSettings();
     this.loadYouTube();
-    if (config.VITE_FIREBASE_CONFIG) {
-      const firebaseClient = await getFirebaseClient();
-      this.authUnsubscribe = firebaseClient
-        .auth()
-        .onAuthStateChanged(async (user: FirebaseUser | null) => {
-          if (user) {
-            this.loadSignInData(user);
-          }
-        });
-    }
     this.init();
+    this.rtcStatsUpdater = window.setInterval(
+      () => void this.updateRtcHealth(),
+      2000,
+    );
   }
 
   componentWillUnmount() {
     document.removeEventListener("fullscreenchange", this.onFullScreenChange);
     document.removeEventListener("keydown", this.onKeydown);
-    const leftVideo = document.getElementById("leftVideo") as
-      | HTMLVideoElement
-      | null;
+    const leftVideo = document.getElementById(
+      "leftVideo",
+    ) as HTMLVideoElement | null;
     leftVideo?.removeEventListener(
       "enterpictureinpicture",
       this.onPictureInPictureChange,
@@ -482,18 +462,13 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.heartbeat);
     window.clearInterval(this.progressUpdater);
     window.clearInterval(this.syncUpdater);
+    window.clearInterval(this.rtcStatsUpdater);
     window.clearTimeout(this.warningMessageTimeout);
-    window.clearTimeout(this.liveReactionTrayHideTimeout);
-    this.liveReactionCleanupTimeouts.forEach((timeoutId) => {
-      window.clearTimeout(timeoutId);
-    });
-    this.liveReactionCleanupTimeouts.clear();
     this.joinToastTimeouts.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
     this.joinToastTimeouts.clear();
     this.clearCountdownTimers();
-    this.authUnsubscribe?.();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     window.watchparty.socket = undefined;
@@ -515,7 +490,9 @@ export class App extends React.Component<AppProps, AppState> {
     }, durationMs);
   };
 
-  onProfileUpdated = (event: CustomEvent<{ name?: string; avatar?: string }>) => {
+  onProfileUpdated = (
+    event: CustomEvent<{ name?: string; avatar?: string }>,
+  ) => {
     const newName = String(event.detail?.name ?? "").trim();
     const newAvatar = String(event.detail?.avatar ?? "").trim();
     if (newName) {
@@ -523,12 +500,6 @@ export class App extends React.Component<AppProps, AppState> {
     }
     if (newAvatar) {
       this.updatePicture(newAvatar);
-    } else if (this.context.user) {
-      void getUserImage(this.context.user).then((image) => {
-        if (image) {
-          this.updatePicture(image);
-        }
-      });
     }
   };
 
@@ -557,9 +528,6 @@ export class App extends React.Component<AppProps, AppState> {
 
   join = async (roomId: string) => {
     const password = getSavedPasswords()[roomId] ?? "";
-    const user = this.context.user;
-    const uid = user?.uid ?? "";
-    const token = user ? await user.getIdToken().catch(() => "") : "";
     const response = await fetch(serverPath + "/resolveShard" + roomId);
     const shard = Number(await response.text()) || "";
     const socket = io(serverPath + roomId, {
@@ -572,8 +540,6 @@ export class App extends React.Component<AppProps, AppState> {
       auth: {
         sessionId: getOrCreateSessionId(),
         password,
-        uid,
-        token,
       },
     });
     this.socket = socket;
@@ -591,7 +557,6 @@ export class App extends React.Component<AppProps, AppState> {
         forceFallback: true,
       });
       this.updateNameColor(this.state.myNameColor);
-      this.loadSignInData(this.context.user);
       this.emitViewerShareQualityPreference();
     });
     socket.on("connect_error", (err: any) => {
@@ -727,8 +692,7 @@ export class App extends React.Component<AppProps, AppState> {
               this.setState({
                 loading: false,
                 nonPlayableMedia: true,
-                errorMessage:
-                  "Links magnet estao desativados neste ambiente.",
+                errorMessage: "Links magnet estao desativados neste ambiente.",
               });
               setTimeout(() => {
                 this.setState({ errorMessage: "" });
@@ -997,37 +961,6 @@ export class App extends React.Component<AppProps, AppState> {
     socket.on("REC:pictureMap", (data: StringDict) => {
       this.setState({ pictureMap: data });
     });
-    socket.on("REC:liveReaction", (data: LiveReactionEvent) => {
-      const emoji = data?.emoji as LiveReactionEmoji;
-      if (!LIVE_REACTION_EMOJIS.includes(emoji)) {
-        return;
-      }
-      const bubbleId = `${data.user}-${data.timestamp}-${Math.random()
-        .toString(36)
-        .slice(2, 10)}`;
-      const x = Math.floor(8 + Math.random() * 84);
-      this.setState((prevState) => ({
-        liveReactions: [
-          ...prevState.liveReactions,
-          {
-            id: bubbleId,
-            user: String(data.user ?? ""),
-            emoji,
-            timestamp: String(data.timestamp ?? new Date().toISOString()),
-            x,
-          },
-        ],
-      }));
-      const timeoutId = window.setTimeout(() => {
-        this.setState((prevState) => ({
-          liveReactions: prevState.liveReactions.filter(
-            (reaction) => reaction.id !== bubbleId,
-          ),
-        }));
-        this.liveReactionCleanupTimeouts.delete(bubbleId);
-      }, 2400);
-      this.liveReactionCleanupTimeouts.set(bubbleId, timeoutId);
-    });
     socket.on("REC:lock", (data: string) => {
       this.setState({ roomLock: data });
     });
@@ -1084,24 +1017,10 @@ export class App extends React.Component<AppProps, AppState> {
             .join("\n");
           msg.sdp.sdp = _sdp;
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          // Keep the browser's standards-based Opus negotiation intact.
+          // Rewriting it to multiopus caused intermittent silent playback on
+          // mobile/tablet Chromium clients.
           const answer = await pc.createAnswer();
-          // Allow stereo audio
-          answer.sdp = answer.sdp?.replace(
-            "useinbandfec=1",
-            "useinbandfec=1; stereo=1; maxaveragebitrate=510000",
-          );
-          // debugLog(answer.sdp);
-          // Allow multichannel audio if Chromium
-          //@ts-expect-error
-          const isChromium = Boolean(window.chrome);
-          if (isChromium) {
-            answer.sdp = answer.sdp
-              ?.replace("opus/48000/2", "multiopus/48000/6")
-              .replace(
-                "useinbandfec=1",
-                "channel_mapping=0,4,1,2,3,5; num_streams=4; coupled_streams=2;maxaveragebitrate=510000;minptime=10;useinbandfec=1",
-              );
-          }
           await pc.setLocalDescription(answer);
           this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
         } else if (msg.sdp && msg.sdp.type === "answer") {
@@ -1125,11 +1044,16 @@ export class App extends React.Component<AppProps, AppState> {
     );
     window.clearInterval(this.syncUpdater);
     this.syncUpdater = window.setInterval(() => {
-      if (this.state.roomMedia) {
+      if (
+        this.state.roomMedia &&
+        !this.state.roomPaused &&
+        this.state.participants.length > 1 &&
+        document.visibilityState === "visible"
+      ) {
         const toSend = this.getRoomTSToSet(this.Player().getCurrentTime());
         this.socket.emit("CMD:ts", toSend);
       }
-    }, 1000);
+    }, 2000);
   };
 
   setFileSelection = (
@@ -1150,36 +1074,6 @@ export class App extends React.Component<AppProps, AppState> {
     // Load settings from localstorage
     let settings = getCurrentSettings();
     this.setState({ settings });
-  };
-
-  loadSignInData = async (user: FirebaseUser | undefined) => {
-    if (user && this.socket) {
-      // NOTE: firebase auth doesn't provide the actual first name data that individual providers (G/FB) do
-      // It's accessible at the time the user logs in but not afterward
-      // If we want accurate surname/given name we'll need to save that somewhere
-      const firstName = user.displayName?.split(" ")[0];
-      if (firstName) {
-        // Don't update the username if the user wants to customize their own
-        // Set a flag in localstorage so we only update this once, if the user changes name manually later we won't overwrite
-        // Clear the flag on logout
-        const shouldUseLoginName =
-          !window.localStorage.getItem("watchparty-loginname") &&
-          (!this.state.myName || this.state.myName === DEFAULT_CHAT_NAME);
-        if (shouldUseLoginName) {
-          this.updateName(firstName);
-          window.localStorage.setItem(
-            "watchparty-loginname",
-            Date.now().toString(),
-          );
-        }
-      }
-      const customAvatar = window.localStorage.getItem("watchparty-custom-avatar");
-      const userImage = customAvatar || (await getUserImage(user));
-      if (userImage) {
-        this.updatePicture(userImage);
-      }
-      this.updateUid(user);
-    }
   };
 
   loadYouTube = () => {
@@ -1317,7 +1211,7 @@ export class App extends React.Component<AppProps, AppState> {
     if (!this.state.roomLock) {
       return true;
     }
-    return this.context.user?.uid === this.state.roomLock;
+    return clientId === this.state.roomLock;
   };
 
   setIsChatDisabled = (val: boolean) => this.setState({ isChatDisabled: val });
@@ -1420,12 +1314,15 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   startFileShare = async (useMediaSoup: boolean) => {
-    const files = await openFileSelector("video/*,.mkv,.webm,.mp4,.m4v,.mov,.avi");
+    const files = await openFileSelector(
+      "video/*,.mkv,.webm,.mp4,.m4v,.mov,.avi",
+    );
     if (!files || files.length === 0) {
       return;
     }
     const file = files[0];
-    const leftVideo = this.HTMLInterface.getVideoEl() as HTMLVideoElement | null;
+    const leftVideo =
+      this.HTMLInterface.getVideoEl() as HTMLVideoElement | null;
     if (!leftVideo) {
       this.setState({
         errorMessage: "Não foi possível iniciar o compartilhamento de arquivo.",
@@ -1762,6 +1659,70 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  updateRtcHealth = async () => {
+    const connections = [
+      ...Object.values(this.publisherConns),
+      ...(this.consumerConn ? [this.consumerConn] : []),
+    ].filter((pc) => pc.connectionState !== "closed");
+    if (!connections.length) {
+      if (this.state.connectionQuality !== "idle") {
+        this.setState({ connectionQuality: "idle" });
+      }
+      return;
+    }
+
+    let worstLoss = 0;
+    let worstRtt = 0;
+    let isLimited = false;
+    for (const pc of connections) {
+      if (
+        pc.connectionState === "failed" ||
+        pc.connectionState === "disconnected"
+      ) {
+        this.setState({ connectionQuality: "reconnecting" });
+        try {
+          pc.restartIce();
+        } catch {
+          // Some browsers reject restartIce after the peer is already closed.
+        }
+      }
+      const stats = await pc.getStats();
+      stats.forEach((report: any) => {
+        if (report.type === "remote-inbound-rtp" && report.kind === "video") {
+          worstLoss = Math.max(worstLoss, Number(report.fractionLost ?? 0));
+          worstRtt = Math.max(worstRtt, Number(report.roundTripTime ?? 0));
+        }
+        if (
+          report.type === "outbound-rtp" &&
+          report.kind === "video" &&
+          report.qualityLimitationReason &&
+          report.qualityLimitationReason !== "none"
+        ) {
+          isLimited = true;
+        }
+      });
+    }
+
+    const poor = worstLoss > 0.08 || worstRtt > 0.55;
+    if (poor || isLimited) {
+      this.stableRtcSamples = 0;
+      this.shareNetworkScale = Math.max(0.45, this.shareNetworkScale - 0.15);
+      this.setState({ connectionQuality: poor ? "poor" : "adjusting" });
+      await this.applyAdaptiveShareQuality();
+      return;
+    }
+
+    this.stableRtcSamples += 1;
+    if (this.stableRtcSamples >= 6 && this.shareNetworkScale < 1) {
+      this.shareNetworkScale = Math.min(1, this.shareNetworkScale + 0.1);
+      this.stableRtcSamples = 0;
+      await this.applyAdaptiveShareQuality();
+    }
+    this.setState({
+      connectionQuality: this.shareNetworkScale < 0.95 ? "adjusting" : "good",
+    });
+  };
+
   applyAdaptiveShareQuality = async () => {
     if (!this.localStreamToPublish || this.isLocalStreamAFile) {
       this.lastAppliedShareProfileKey = "";
@@ -1773,7 +1734,26 @@ export class App extends React.Component<AppProps, AppState> {
     }
     videoTrack.contentHint = "detail";
     const peerCount = this.getActiveShareViewerCount();
-    const profile = this.getShareQualityProfile(peerCount);
+    const baseProfile = this.getShareQualityProfile(peerCount);
+    const profile: ShareQualityProfile = {
+      ...baseProfile,
+      captureHeight:
+        this.shareNetworkScale < 0.6
+          ? Math.min(540, baseProfile.captureHeight)
+          : baseProfile.captureHeight,
+      captureWidth:
+        this.shareNetworkScale < 0.6
+          ? Math.min(960, baseProfile.captureWidth)
+          : baseProfile.captureWidth,
+      maxFramerate:
+        this.shareNetworkScale < 0.75
+          ? Math.min(24, baseProfile.maxFramerate)
+          : baseProfile.maxFramerate,
+      maxBitratePerPeer: Math.max(
+        700_000,
+        Math.round(baseProfile.maxBitratePerPeer * this.shareNetworkScale),
+      ),
+    };
     const profileKey = `${profile.captureWidth}x${profile.captureHeight}@${profile.maxFramerate}:${profile.maxBitratePerPeer}`;
     if (profileKey !== this.lastAppliedShareProfileKey) {
       await this.applyShareTrackConstraints(videoTrack, profile);
@@ -1817,6 +1797,12 @@ export class App extends React.Component<AppProps, AppState> {
         });
         this.localStreamToPublish = stream;
         this.isLocalStreamAFile = false;
+        if (stream.getAudioTracks().length === 0) {
+          this.showWarningMessage(
+            "A tela foi compartilhada sem áudio. Para transmitir o som, escolha uma aba e marque “Compartilhar áudio”.",
+            7000,
+          );
+        }
         await this.applyAdaptiveShareQuality();
         this.socket.emit("CMD:joinScreenShare", {
           file: false,
@@ -2201,6 +2187,7 @@ export class App extends React.Component<AppProps, AppState> {
         track.stop();
       });
     this.localStreamToPublish = undefined;
+    this.remoteShareStream = undefined;
     if (this.consumerConn) {
       this.consumerConn.close();
       this.consumerConn = undefined;
@@ -2229,6 +2216,7 @@ export class App extends React.Component<AppProps, AppState> {
     }
     const pc = new RTCPeerConnection({ iceServers: iceServers() });
     this.consumerConn = pc;
+    this.watchPeerConnection(pc, true);
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.sendSignalSS(sharerId, { ice: event.candidate });
@@ -2237,12 +2225,52 @@ export class App extends React.Component<AppProps, AppState> {
     pc.ontrack = (event: RTCTrackEvent) => {
       const leftVideo = this.HTMLInterface.getVideoEl();
       if (leftVideo) {
+        if (!this.remoteShareStream) {
+          this.remoteShareStream = new MediaStream();
+        }
+        if (
+          !this.remoteShareStream
+            .getTracks()
+            .some((track) => track.id === event.track.id)
+        ) {
+          this.remoteShareStream.addTrack(event.track);
+        }
+        event.track.onunmute = () => {
+          void this.localPlay();
+        };
         leftVideo.src = "";
-        leftVideo.srcObject = event.streams[0];
-        this.localPlay();
+        leftVideo.srcObject = this.remoteShareStream;
+        void this.localPlay();
       }
     };
     return pc;
+  };
+
+  watchPeerConnection = (pc: RTCPeerConnection, consumer = false) => {
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === "connected") {
+        this.setState({ connectionQuality: "good" });
+        return;
+      }
+      if (
+        pc.connectionState === "disconnected" ||
+        pc.connectionState === "failed"
+      ) {
+        this.setState({ connectionQuality: "reconnecting" });
+        try {
+          pc.restartIce();
+        } catch {
+          // Recreating the consumer below is the fallback.
+        }
+        if (consumer && pc.connectionState === "failed") {
+          pc.close();
+          if (this.consumerConn === pc) {
+            this.consumerConn = undefined;
+          }
+          window.setTimeout(() => void this.setupRTCConnections(), 750);
+        }
+      }
+    };
   };
 
   setupRTCConnections = async () => {
@@ -2304,6 +2332,7 @@ export class App extends React.Component<AppProps, AppState> {
           // Set up the RTCPeerConnection for sharing media to each member
           const pc = new RTCPeerConnection({ iceServers: iceServers() });
           this.publisherConns[id] = pc;
+          this.watchPeerConnection(pc);
           this.localStreamToPublish?.getTracks().forEach((track) => {
             if (this.localStreamToPublish != null) {
               pc.addTrack(track, this.localStreamToPublish);
@@ -2405,7 +2434,24 @@ export class App extends React.Component<AppProps, AppState> {
         try {
           await this.Player().playVideo();
         } catch (e: any) {
-          console.warn(e, e.name);
+          if (
+            (e?.name === "NotAllowedError" ||
+              e?.name === "AbortError") &&
+            !this.Player().isMuted()
+          ) {
+            // Tablets commonly block the first unmuted play. Start the stream
+            // muted so video/tracks remain connected, then show the explicit
+            // "Ativar som" action which supplies the required user gesture.
+            this.localSetMute(true);
+            this.setState({ isAutoPlayable: false });
+            try {
+              await this.Player().playVideo();
+              return;
+            } catch (mutedError) {
+              console.warn("[autoplay muted fallback]", mutedError);
+            }
+          }
+          console.warn(e, e?.name);
           if (e.name === "NotSupportedError" && this.usingNative()) {
             this.setState({ loading: false, nonPlayableMedia: true });
           }
@@ -2580,8 +2626,8 @@ export class App extends React.Component<AppProps, AppState> {
     const video = this.HTMLInterface.getVideoEl() as HTMLVideoElement | null;
     return Boolean(
       video &&
-        typeof video.requestPictureInPicture === "function" &&
-        typeof doc.exitPictureInPicture === "function",
+      typeof video.requestPictureInPicture === "function" &&
+      typeof doc.exitPictureInPicture === "function",
     );
   };
 
@@ -2598,7 +2644,9 @@ export class App extends React.Component<AppProps, AppState> {
 
   localTogglePictureInPicture = async () => {
     if (!this.isPictureInPictureSupported()) {
-      this.showWarningMessage("Picture in Picture indisponível neste navegador.");
+      this.showWarningMessage(
+        "Picture in Picture indisponível neste navegador.",
+      );
       return;
     }
     const doc = document as Document & {
@@ -2646,7 +2694,8 @@ export class App extends React.Component<AppProps, AppState> {
 
   updateName = (name: string, options?: { forceFallback?: boolean }) => {
     const normalized = normalizeDisplayName(name);
-    const nextName = normalized || (options?.forceFallback ? DEFAULT_CHAT_NAME : "");
+    const nextName =
+      normalized || (options?.forceFallback ? DEFAULT_CHAT_NAME : "");
     this.setState({ myName: nextName });
     if (!nextName) {
       return;
@@ -2670,54 +2719,9 @@ export class App extends React.Component<AppProps, AppState> {
     window.localStorage.setItem(NAME_COLOR_STORAGE_KEY, nextColor);
   };
 
-  showLiveReactionTray = (autoHideMs?: number) => {
-    window.clearTimeout(this.liveReactionTrayHideTimeout);
-    this.setState({ showLiveReactionTray: true });
-    if (autoHideMs && autoHideMs > 0) {
-      this.liveReactionTrayHideTimeout = window.setTimeout(() => {
-        this.setState({ showLiveReactionTray: false });
-      }, autoHideMs);
-    }
-  };
-
-  hideLiveReactionTray = () => {
-    window.clearTimeout(this.liveReactionTrayHideTimeout);
-    this.setState({ showLiveReactionTray: false });
-  };
-
-  toggleLiveReactionTrayMobile = () => {
-    const nextVisible = !this.state.showLiveReactionTray;
-    if (nextVisible) {
-      this.showLiveReactionTray(2600);
-      return;
-    }
-    this.hideLiveReactionTray();
-  };
-
-  sendLiveReaction = (emoji: LiveReactionEmoji) => {
-    const now = Date.now();
-    if (now - this.lastLiveReactionSentAt < 1000) {
-      return;
-    }
-    this.lastLiveReactionSentAt = now;
-    this.socket.emit("CMD:liveReaction", {
-      emoji,
-      nonce: createUuid(),
-    });
-    if (isMobile()) {
-      this.showLiveReactionTray(2600);
-    }
-  };
-
   updatePicture = (url: string) => {
     this.setState({ myPicture: url });
     this.socket.emit("CMD:picture", url);
-  };
-
-  updateUid = async (user: FirebaseUser) => {
-    const uid = user.uid;
-    const token = await user.getIdToken();
-    this.socket.emit("CMD:uid", { uid, token });
   };
 
   getMediaDisplayName = (input?: string) => {
@@ -2741,7 +2745,9 @@ export class App extends React.Component<AppProps, AppState> {
     if (isMagnet(input)) {
       const magnetParsed = new URLSearchParams(input);
       const index = magnetParsed.get("fileIndex");
-      return magnetParsed.get("dn") + (index != null ? ` (arquivo ${index})` : "");
+      return (
+        magnetParsed.get("dn") + (index != null ? ` (arquivo ${index})` : "")
+      );
     }
     if (input.includes("/stream?torrent=magnet")) {
       const search = new URL(input).search;
@@ -2826,7 +2832,9 @@ export class App extends React.Component<AppProps, AppState> {
     if (!userId || userId === clientId) {
       return;
     }
-    const name = normalizeDisplayName(this.state.nameMap[userId] || "Convidado");
+    const name = normalizeDisplayName(
+      this.state.nameMap[userId] || "Convidado",
+    );
     const color = normalizeNameColor(this.state.nameColorMap[userId]);
     const toastId = `${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const toast: JoinToast = {
@@ -2849,7 +2857,9 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   clearCountdownTimers = () => {
-    this.countdownTimeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    this.countdownTimeouts.forEach((timeoutId) =>
+      window.clearTimeout(timeoutId),
+    );
     this.countdownTimeouts = [];
   };
 
@@ -2873,28 +2883,41 @@ export class App extends React.Component<AppProps, AppState> {
       countdownText: sequence[0] ?? "3",
     });
     sequence.forEach((text, index) => {
-      const timeoutId = window.setTimeout(() => {
-        this.setState({ countdownText: text });
-      }, startDelay + index * 1000);
+      const timeoutId = window.setTimeout(
+        () => {
+          this.setState({ countdownText: text });
+        },
+        startDelay + index * 1000,
+      );
       this.countdownTimeouts.push(timeoutId);
     });
-    const playTimeout = window.setTimeout(() => {
-      this.setState({ countdownText: "PLAY!" });
-    }, startDelay + sequence.length * 1000);
+    const playTimeout = window.setTimeout(
+      () => {
+        this.setState({ countdownText: "PLAY!" });
+      },
+      startDelay + sequence.length * 1000,
+    );
     this.countdownTimeouts.push(playTimeout);
-    const hideTimeout = window.setTimeout(() => {
-      this.setState({
-        countdownVisible: false,
-        countdownText: "",
-        countdownInProgress: false,
-      });
-      this.clearCountdownTimers();
-    }, startDelay + sequence.length * 1000 + 800);
+    const hideTimeout = window.setTimeout(
+      () => {
+        this.setState({
+          countdownVisible: false,
+          countdownText: "",
+          countdownInProgress: false,
+        });
+        this.clearCountdownTimers();
+      },
+      startDelay + sequence.length * 1000 + 800,
+    );
     this.countdownTimeouts.push(hideTimeout);
   };
 
   startCountdown = () => {
-    if (!this.haveLock() || this.state.countdownInProgress || !this.state.roomMedia) {
+    if (
+      !this.haveLock() ||
+      this.state.countdownInProgress ||
+      !this.state.roomMedia
+    ) {
       return;
     }
     this.socket?.emit("CMD:startCountdown");
@@ -2903,7 +2926,11 @@ export class App extends React.Component<AppProps, AppState> {
   commitRoomTitle = (nextTitle: string) => {
     const title = normalizeDisplayName(nextTitle).slice(0, 40);
     this.setState({ roomTitle: title });
-    if (!this.socket?.connected || !this.state.owner || this.context.user?.uid !== this.state.owner) {
+    if (
+      !this.socket?.connected ||
+      !this.state.owner ||
+      clientId !== this.state.owner
+    ) {
       return;
     }
     this.socket.emit("CMD:setRoomState", {
@@ -2924,36 +2951,45 @@ export class App extends React.Component<AppProps, AppState> {
     const sharer = this.state.participants.find((p) => p.isScreenShare);
     const selfId = getOrCreateClientId();
     const unreadLabel =
-      this.state.unreadCount === 1 ? "mensagem não lida" : "mensagens não lidas";
+      this.state.unreadCount === 1
+        ? "mensagem não lida"
+        : "mensagens não lidas";
     const unreadAriaLabel = `${this.state.unreadCount} ${unreadLabel}`;
     const unreadBadgeLabel = isMobile()
       ? String(this.state.unreadCount)
       : unreadAriaLabel;
     const canAdjustScreenShareQuality = Boolean(
       sharer &&
-        sharer.id !== selfId &&
-        (this.playingScreenShare() || this.playingFileShare()),
+      sharer.id !== selfId &&
+      (this.playingScreenShare() || this.playingFileShare()),
     );
     const canAdjustYouTubeQuality = Boolean(this.usingYoutube());
     const isHostUser = Boolean(
-      (this.state.owner && this.context.user?.uid === this.state.owner) ||
-        (this.state.roomLock && this.context.user?.uid === this.state.roomLock),
+      (this.state.owner && clientId === this.state.owner) ||
+      (this.state.roomLock && clientId === this.state.roomLock),
     );
     const canTriggerCountdown = Boolean(
       isHostUser &&
-        this.haveLock() &&
-        this.state.roomMedia &&
-        !this.playingScreenShare() &&
-        !this.playingFileShare(),
+      this.haveLock() &&
+      this.state.roomMedia &&
+      !this.playingScreenShare() &&
+      !this.playingFileShare(),
     );
     const canStopHostedMedia = Boolean(
       this.haveLock() &&
-        this.state.roomMedia &&
-        !this.localStreamToPublish &&
-        !this.playingScreenShare() &&
-        !this.playingFileShare(),
+      this.state.roomMedia &&
+      !this.localStreamToPublish &&
+      !this.playingScreenShare() &&
+      !this.playingFileShare(),
     );
     const playlist = this.state.playlist;
+    const connectionQualityLabel = {
+      idle: "",
+      good: "Conexão estável",
+      adjusting: "Ajustando qualidade",
+      poor: "Conexão instável",
+      reconnecting: "Reconectando",
+    }[this.state.connectionQuality];
     const controls = (
       <Controls
         muted={this.Player().isMuted()}
@@ -3099,8 +3135,8 @@ export class App extends React.Component<AppProps, AppState> {
                   {toast.initials}
                 </div>
                 <div className={styles.joinToastText}>
-                  <span style={{ color: toast.color }}>{toast.name}</span> entrou
-                  na sala
+                  <span style={{ color: toast.color }}>{toast.name}</span>{" "}
+                  entrou na sala
                 </div>
               </div>
             ))}
@@ -3113,7 +3149,7 @@ export class App extends React.Component<AppProps, AppState> {
             roomDescription={this.state.roomDescription}
             roomTitleColor={this.state.roomTitleColor}
             roomTitleEditable={Boolean(
-              this.state.owner && this.context.user?.uid === this.state.owner,
+              this.state.owner && clientId === this.state.owner,
             )}
             onRoomTitleCommit={this.commitRoomTitle}
           />
@@ -3184,7 +3220,9 @@ export class App extends React.Component<AppProps, AppState> {
                               data-testid="playlist-button"
                               color="grey"
                               leftSection={<IconList />}
-                              rightSection={<Badge circle>{playlist.length}</Badge>}
+                              rightSection={
+                                <Badge circle>{playlist.length}</Badge>
+                              }
                               className={`${styles.shareButton} ${styles.topActionButton}`}
                             >
                               {t("playlist")}
@@ -3193,62 +3231,47 @@ export class App extends React.Component<AppProps, AppState> {
                           <Menu.Dropdown
                             className={styles.queueDropdown}
                             style={{
-                              overflowY: playlist.length > 0 ? "scroll" : undefined,
+                              overflowY:
+                                playlist.length > 0 ? "scroll" : undefined,
                               maxHeight: 400,
                               maxWidth: "min(92vw, 600px)",
                             }}
                           >
                             {playlist.length === 0 && (
-                              <Menu.Item disabled>Não há itens na fila.</Menu.Item>
+                              <Menu.Item disabled>
+                                Não há itens na fila.
+                              </Menu.Item>
                             )}
-                            {playlist.map((item: PlaylistVideo, index: number) => {
-                              const normalizedItem = Boolean(item.img)
-                                ? { ...item, type: "youtube" }
-                                : item;
-                              return (
-                                <Menu.Item key={index} className={styles.queueItem}>
-                                  <ChatVideoCard
-                                    video={normalizedItem}
-                                    index={index}
-                                    controls
-                                    onPlay={this.roomPlaylistPlay}
-                                    onPlayNext={(index) => {
-                                      this.roomPlaylistMove(index, 0);
-                                    }}
-                                    onRemove={(index) => {
-                                      this.roomPlaylistDelete(index);
-                                    }}
-                                    disabled={!this.haveLock()}
-                                  />
-                                </Menu.Item>
-                              );
-                            })}
+                            {playlist.map(
+                              (item: PlaylistVideo, index: number) => {
+                                const normalizedItem = Boolean(item.img)
+                                  ? { ...item, type: "youtube" }
+                                  : item;
+                                return (
+                                  <Menu.Item
+                                    key={index}
+                                    className={styles.queueItem}
+                                  >
+                                    <ChatVideoCard
+                                      video={normalizedItem}
+                                      index={index}
+                                      controls
+                                      onPlay={this.roomPlaylistPlay}
+                                      onPlayNext={(index) => {
+                                        this.roomPlaylistMove(index, 0);
+                                      }}
+                                      onRemove={(index) => {
+                                        this.roomPlaylistDelete(index);
+                                      }}
+                                      disabled={!this.haveLock()}
+                                    />
+                                  </Menu.Item>
+                                );
+                              },
+                            )}
                           </Menu.Dropdown>
                         </Menu>
                         <InviteButton className={styles.topActionButton} />
-                        <Button
-                          color="grey"
-                          leftSection={<IconUsersGroup />}
-                          rightSection={
-                            <Badge circle>{this.state.participants.length}</Badge>
-                          }
-                          className={styles.topActionButton}
-                          onClick={() =>
-                            this.setState((prevState) => {
-                              window.localStorage.setItem(
-                                "watchparty-showchatcolumn",
-                                "1",
-                              );
-                              return {
-                                showChatColumn: true,
-                                showPeopleColumn: true,
-                                unreadCount: prevState.unreadCount,
-                              };
-                            })
-                          }
-                        >
-                          Pessoas
-                        </Button>
                         <Button
                           data-testid="settings-button"
                           color="grey"
@@ -3272,17 +3295,6 @@ export class App extends React.Component<AppProps, AppState> {
                           title="Nome no chat"
                           leftSection={<IconUser size={14} />}
                         />
-                        <label
-                          className={styles.nameColorControl}
-                          title="Cor do nome"
-                          aria-label="Cor do nome"
-                        >
-                          <input
-                            type="color"
-                            value={this.state.myNameColor}
-                            onChange={(e) => this.updateNameColor(e.target.value)}
-                          />
-                        </label>
                       </div>
                     </div>
                   </section>
@@ -3291,15 +3303,25 @@ export class App extends React.Component<AppProps, AppState> {
                   <div className={styles.playerContainer}>
                     {Boolean(
                       sharer &&
-                        sharer.id !== selfId &&
-                        (this.playingScreenShare() || this.playingFileShare()),
+                      sharer.id !== selfId &&
+                      (this.playingScreenShare() || this.playingFileShare()),
                     ) && (
                       <div className={styles.liveShareBadge}>
                         <span className={styles.liveShareDot} />
                         <span className={styles.liveShareLabel}>AO VIVO</span>
                         <span className={styles.liveShareOwner}>
-                          Tela de {this.state.nameMap[sharer!.id] || "Participante"}
+                          Tela de{" "}
+                          {this.state.nameMap[sharer!.id] || "Participante"}
                         </span>
+                      </div>
+                    )}
+                    {connectionQualityLabel && (
+                      <div
+                        className={styles.connectionQuality}
+                        data-quality={this.state.connectionQuality}
+                        role="status"
+                      >
+                        {connectionQualityLabel}
                       </div>
                     )}
                     {this.state.countdownVisible && (
@@ -3590,7 +3612,8 @@ export class App extends React.Component<AppProps, AppState> {
                                   getColorForStringHex(participant.id),
                                 );
                               const isSelf = participant.id === selfId;
-                              const isOwner = participant.id === this.state.owner;
+                              const isOwner =
+                                participant.id === this.state.owner;
                               return (
                                 <div
                                   key={participant.id}
@@ -3653,55 +3676,6 @@ export class App extends React.Component<AppProps, AppState> {
                   {this.state.roomMedia && (
                     <div className={styles.controlsDock}>{controls}</div>
                   )}
-                  {Boolean(this.state.roomMedia && !this.state.roomPaused) && (
-                    <div className={styles.liveReactionDock}>
-                      <div
-                        className={styles.liveReactionHoverZone}
-                        onMouseEnter={() => this.showLiveReactionTray()}
-                        onMouseMove={() => this.showLiveReactionTray()}
-                        onMouseLeave={() => this.hideLiveReactionTray()}
-                        onTouchStart={() => this.showLiveReactionTray(2600)}
-                      />
-                      <button
-                        type="button"
-                        className={styles.liveReactionToggle}
-                        onClick={this.toggleLiveReactionTrayMobile}
-                        aria-label="Mostrar reações"
-                        title="Mostrar reações"
-                      >
-                        <IconMoodSmile size={18} />
-                      </button>
-                      <div
-                        className={`${styles.liveReactionTray} ${
-                          this.state.showLiveReactionTray
-                            ? styles.liveReactionTrayVisible
-                            : ""
-                        }`}
-                      >
-                        {LIVE_REACTION_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className={styles.liveReactionButton}
-                            onClick={() => this.sendLiveReaction(emoji)}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                      <div className={styles.liveReactionLayer} aria-hidden="true">
-                        {this.state.liveReactions.map((reaction) => (
-                          <div
-                            key={reaction.id}
-                            className={styles.liveReactionBubble}
-                            style={{ left: `${reaction.x}%` }}
-                          >
-                            {reaction.emoji}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -3711,4 +3685,3 @@ export class App extends React.Component<AppProps, AppState> {
     );
   }
 }
-

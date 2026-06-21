@@ -30,13 +30,6 @@ export default {
           ) {
             return "socket-vendor";
           }
-          if (
-            id.includes("/firebase/") ||
-            id.includes("/@firebase/") ||
-            id.includes("/@stripe/stripe-js/")
-          ) {
-            return "auth-billing-vendor";
-          }
           if (id.includes("/hls.js/")) {
             return "hls-vendor";
           }
@@ -45,9 +38,6 @@ export default {
           }
           if (id.includes("/mediasoup-client/")) {
             return "mediasoup-vendor";
-          }
-          if (id.includes("/emoji-mart/")) {
-            return "emoji-vendor";
           }
           return undefined;
         },

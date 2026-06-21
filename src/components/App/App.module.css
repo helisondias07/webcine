@@ -140,6 +140,30 @@
   min-height: 0;
 }
 
+.connectionQuality {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 75;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 10, 10, 0.72);
+  color: #e9f8ed;
+  font-size: 0.72rem;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+
+.connectionQuality[data-quality="adjusting"] {
+  color: #ffe7a3;
+}
+
+.connectionQuality[data-quality="poor"],
+.connectionQuality[data-quality="reconnecting"] {
+  color: #ffb5b5;
+}
+
 .controlsDock {
   position: absolute;
   left: 0;
@@ -151,108 +175,6 @@
 
 .controlsDock > * {
   pointer-events: auto;
-}
-
-.liveReactionDock {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 70;
-}
-
-.liveReactionHoverZone {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 104px;
-  pointer-events: auto;
-}
-
-.liveReactionToggle {
-  position: absolute;
-  right: 12px;
-  bottom: 62px;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
-  color: var(--text-main);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
-}
-
-.liveReactionTray {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 58px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: color-mix(in srgb, var(--bg-panel) 80%, transparent);
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 6px 8px;
-  backdrop-filter: blur(10px);
-  pointer-events: none;
-  opacity: 0;
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-}
-
-.liveReactionTrayVisible {
-  pointer-events: auto;
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.liveReactionButton {
-  border: none;
-  border-radius: 999px;
-  min-width: 28px;
-  height: 28px;
-  font-size: 1rem;
-  background: color-mix(in srgb, var(--bg-surface) 88%, transparent);
-  cursor: pointer;
-}
-
-.liveReactionButton:hover {
-  background: color-mix(in srgb, var(--accent-warm) 18%, transparent);
-}
-
-.liveReactionLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.liveReactionBubble {
-  position: absolute;
-  bottom: 70px;
-  transform: translateX(-50%);
-  font-size: 1.5rem;
-  animation: liveReactionFloat 2.2s ease-out forwards;
-}
-
-@keyframes liveReactionFloat {
-  0% {
-    transform: translate(-50%, 0) scale(0.9);
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -180px) scale(1.08);
-    opacity: 0;
-  }
 }
 
 .videoContent {
@@ -336,7 +258,8 @@
   width: 56px;
   height: 56px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent-warm) 72%, var(--border-soft));
+  border: 1px solid
+    color-mix(in srgb, var(--accent-warm) 72%, var(--border-soft));
   display: grid;
   place-items: center;
   color: var(--accent-warm);
@@ -376,7 +299,8 @@
 
 .emptySurpriseButton {
   margin-top: 4px;
-  border: 1px solid color-mix(in srgb, var(--accent-warm) 46%, var(--border-soft));
+  border: 1px solid
+    color-mix(in srgb, var(--accent-warm) 46%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
   color: var(--text-primary);
   border-radius: 999px;
@@ -384,7 +308,10 @@
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
 }
 
 .emptySurpriseButton:hover:not(:disabled) {
@@ -451,7 +378,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent-warm) 62%, var(--border-soft));
+  border: 1px solid
+    color-mix(in srgb, var(--accent-warm) 62%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
   color: var(--text-primary);
   font-size: 0.72rem;
@@ -955,7 +883,9 @@
   .chatPanel {
     width: min(
       360px,
-      calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px)
+      calc(
+        100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 12px
+      )
     );
     height: min(58vh, 430px);
   }
@@ -979,29 +909,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .liveReactionTray {
-    bottom: 48px;
-  }
-
-  .liveReactionHoverZone {
-    display: none;
-  }
-
-  .liveReactionToggle {
-    display: inline-flex;
-    bottom: 52px;
-  }
-
-  .liveReactionTray {
-    left: auto;
-    right: 10px;
-    transform: translateY(6px);
-  }
-
-  .liveReactionTrayVisible {
-    transform: translateY(0);
   }
 }
 

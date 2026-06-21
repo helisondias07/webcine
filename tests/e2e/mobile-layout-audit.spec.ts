@@ -61,6 +61,7 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   await expectNoHorizontalOverflow(page);
   await expect(page.locator("#inicio")).toBeVisible();
   await expect(page.locator("#recursos")).toBeVisible();
+  await expect(page.getByText(/Premium|Assinar|Família/i)).toHaveCount(0);
   await expectInViewport(page, page.getByRole("button", { name: "Nova sala" }).first(), 6);
 
   await createRoom(page);

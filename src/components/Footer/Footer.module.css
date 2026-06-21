@@ -1,26 +1,26 @@
 .footer {
-  position: fixed;
+  position: relative;
   left: 0;
   right: 0;
   bottom: 0;
   margin: 0;
   border-top: 0.5px solid var(--border-soft);
-  height: 42px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  font-size: 12px;
+  gap: 14px;
+  font-size: 11px;
   color: var(--text-muted);
   background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-align: center;
   padding: 0 12px;
   z-index: 80;
 }
 
 .footerSpacer {
-  height: var(--app-footer-height, 0px);
+  display: none;
 }
 
 .link {
@@ -31,7 +31,7 @@
   min-width: 24px;
   min-height: 24px;
   color: var(--text-muted);
-  opacity: 0.6;
+  opacity: 0.68;
   text-decoration: none;
   white-space: nowrap;
   transition: opacity 0.2s ease;
@@ -54,10 +54,6 @@
     gap: 12px;
     font-size: 0.7rem;
     padding: 10px 12px;
-  }
-
-  .footerSpacer {
-    display: none;
   }
 
   .link {

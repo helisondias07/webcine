@@ -5,7 +5,7 @@
 .roomShell {
   width: 100%;
   margin: 0 auto;
-  padding: 8px 0 12px;
+  padding: 6px 0 10px;
 }
 
 .mobileStack {
@@ -28,15 +28,15 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 10px;
+  gap: 8px;
 }
 
 .commandDeck {
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
   backdrop-filter: blur(16px);
-  padding: 6px 8px;
+  padding: 7px 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -109,9 +109,10 @@
 }
 
 .topActionButton {
-  height: 30px;
-  padding-inline: 10px;
-  font-size: 0.76rem;
+  height: 32px;
+  padding-inline: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
   border-radius: 999px;
 }
 
@@ -188,8 +189,9 @@
   align-items: center;
   justify-content: center;
   overflow-y: auto;
-  border-top: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 62%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--border-soft) 62%, transparent);
   border-left: none;
   border-right: none;
   border-radius: 0;
@@ -197,7 +199,7 @@
   background:
     radial-gradient(
       1200px 380px at 50% 0%,
-      color-mix(in srgb, var(--accent-warm) 6%, transparent),
+      rgba(255, 255, 255, 0.025),
       transparent 70%
     ),
     #050607;
@@ -219,27 +221,27 @@
 
 .emptyStateCard {
   min-width: min(580px, calc(100vw - 34px));
-  max-width: 680px;
+  max-width: 560px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 24px 20px;
+  gap: 12px;
+  padding: 26px 24px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-soft);
   background:
     radial-gradient(
       1000px 360px at 50% -80%,
-      color-mix(in srgb, var(--accent-warm) 8%, transparent),
+      rgba(255, 255, 255, 0.04),
       transparent 72%
     ),
     color-mix(in srgb, #101318 96%, transparent);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .emptyStateTitle {
   font-size: clamp(1rem, 1.8vw, 1.22rem);
-  font-weight: 700;
+  font-weight: 600;
   color: #f4f1ea;
   letter-spacing: 0.01em;
 }
@@ -250,8 +252,8 @@
 }
 
 .emptyStatePulseIcon {
-  width: 56px;
-  height: 56px;
+  width: 50px;
+  height: 50px;
   border-radius: 999px;
   border: 1px solid
     color-mix(in srgb, var(--accent-warm) 72%, var(--border-soft));
@@ -276,7 +278,7 @@
 
 .emptyStateSubtitle {
   color: #a7abb2;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   text-align: center;
 }
 
@@ -321,6 +323,29 @@
 .emptySurpriseButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+:global([data-mantine-color-scheme="light"]) .playerContainer {
+  background: #dfe1e4;
+}
+
+:global([data-mantine-color-scheme="light"]) .emptyStateCard {
+  background: #ffffff;
+  border-color: rgba(20, 22, 26, 0.1);
+  box-shadow: 0 10px 28px rgba(20, 22, 26, 0.1);
+}
+
+:global([data-mantine-color-scheme="light"]) .emptyStateTitle {
+  color: var(--text-main);
+}
+
+:global([data-mantine-color-scheme="light"]) .emptyStateSubtitle {
+  color: var(--text-muted);
+}
+
+:global([data-mantine-color-scheme="light"]) .emptySurpriseButton {
+  background: #ffffff;
+  color: var(--text-main);
 }
 
 .downloadStats {
@@ -394,11 +419,11 @@
   );
   height: min(62vh, 540px);
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
+  border-radius: 14px;
   overflow: hidden;
   background: color-mix(in srgb, var(--bg-panel) 95%, transparent);
   backdrop-filter: blur(16px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   transform-origin: bottom right;

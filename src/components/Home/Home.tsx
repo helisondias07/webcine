@@ -39,14 +39,17 @@ export const Home = () => (
         <div className={`${styles.hero} ${styles.heroMega}`}>
           <div className={styles.heroInner}>
             <div className={styles.heroContent}>
+              <span className={styles.eyebrow}>Sua sessão. Seu cinema.</span>
               <h1 className={styles.heroText}>
-                Assista junto, mesmo à distância.
+                A distância acaba quando o filme começa.
               </h1>
-              <div className={styles.subText}>
+              <p className={styles.subText}>
                 Compartilhe sua tela, sincronize vídeos e converse com seus
                 amigos em uma sala privada. Sem instalar nada.
+              </p>
+              <div className={styles.heroActions}>
+                <NewRoomButton size="xl" roomTitle="" />
               </div>
-              <NewRoomButton size="xl" roomTitle="" />
             </div>
           </div>
         </div>
@@ -54,7 +57,10 @@ export const Home = () => (
 
       <section id="recursos" className={styles.carouselSection}>
         <div className={styles.carouselHeader}>
-          <h2>O essencial para a sessão</h2>
+          <div>
+            <span className={styles.sectionKicker}>Tudo no mesmo lugar</span>
+            <h2>O essencial para a sessão</h2>
+          </div>
         </div>
         <div className={styles.featureGrid}>
           {features.map((feature) => (
@@ -64,7 +70,10 @@ export const Home = () => (
       </section>
 
       <section className={styles.howItWorks} aria-labelledby="como-funciona">
-        <h2 id="como-funciona">Comece em segundos</h2>
+        <div className={styles.stepsHeading}>
+          <span className={styles.sectionKicker}>Sem complicação</span>
+          <h2 id="como-funciona">Comece em segundos</h2>
+        </div>
         <div className={styles.stepsGrid}>
           {["Crie uma sala", "Envie o convite", "Escolha o que assistir"].map(
             (step, index) => (

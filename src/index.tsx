@@ -29,7 +29,7 @@ const theme = createTheme({
   fontFamily: '"Outfit", "Segoe UI", Tahoma, sans-serif',
   headings: {
     fontFamily: '"Sora", "Outfit", "Segoe UI", sans-serif',
-    fontWeight: "800",
+    fontWeight: "700",
   },
   radius: {
     xs: "6px",
@@ -72,6 +72,12 @@ const theme = createTheme({
       defaultProps: {
         radius: "xl",
       },
+      styles: {
+        label: {
+          fontWeight: 650,
+          letterSpacing: "-0.01em",
+        },
+      },
     },
     ActionIcon: {
       defaultProps: {
@@ -81,18 +87,20 @@ const theme = createTheme({
     Menu: {
       styles: {
         dropdown: {
-          background: "var(--card-bg)",
+          background: "var(--bg-panel)",
           border: "1px solid var(--border-soft)",
-          backdropFilter: "blur(12px)",
+          backdropFilter: "blur(18px)",
+          boxShadow: "var(--shadow-md)",
         },
       },
     },
     Modal: {
       styles: {
         content: {
-          background: "var(--card-bg)",
+          background: "var(--bg-panel)",
           border: "1px solid var(--border-soft)",
-          backdropFilter: "blur(12px)",
+          backdropFilter: "blur(18px)",
+          boxShadow: "var(--shadow-lg)",
         },
       },
     },

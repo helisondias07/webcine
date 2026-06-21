@@ -30,14 +30,14 @@
   height: 100%;
   margin-top: 0;
   margin-bottom: 0;
-  padding: 8px;
+  padding: 10px;
   background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
 }
 
 .chatList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chatInput {

@@ -3,13 +3,9 @@
   top: 0;
   z-index: 80;
   min-height: var(--topbar-height);
-  padding: 10px 0;
-  backdrop-filter: blur(18px);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-panel) 96%, transparent) 0%,
-    color-mix(in srgb, var(--bg-panel) 86%, transparent) 100%
-  );
+  padding: 8px 0;
+  backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -52,16 +48,15 @@
 .brandText {
   font-family: "Montserrat", "Sora", "Outfit", sans-serif;
   font-style: italic;
-  font-weight: 800;
-  font-size: 1.8rem;
-  letter-spacing: 0;
+  font-weight: 700;
+  font-size: 1.55rem;
   line-height: 1;
   white-space: nowrap;
 }
 
 .brandWord {
   color: var(--text-main);
-  letter-spacing: 0.24em;
+  letter-spacing: 0.2em;
 }
 
 .brandTv {
@@ -139,11 +134,7 @@
   height: 30px;
   border-radius: 999px;
   border: 1px solid var(--border-soft);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-surface-soft) 86%, transparent),
-    color-mix(in srgb, var(--bg-surface) 92%, transparent)
-  );
+  background: var(--bg-surface);
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -174,11 +165,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: linear-gradient(
-    155deg,
-    color-mix(in srgb, var(--accent-warm) 86%, white),
-    color-mix(in srgb, var(--brand-500) 72%, white)
-  );
+  background: var(--text-main);
   box-shadow: var(--shadow-sm);
   transition: transform 0.24s ease;
 }
@@ -206,9 +193,18 @@
 .newRoomButton :global(.mantine-Button-inner),
 .newRoomButton :global(.mantine-Button-label),
 .newRoomButton :global(.mantine-Button-section) {
-  transition: none !important;
-  animation: none !important;
-  transform: none !important;
+  transition:
+    transform 160ms ease,
+    filter 160ms ease !important;
+}
+
+.newRoomButton:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.newRoomButton:active {
+  transform: translateY(0);
 }
 
 .createRoomToast {
@@ -270,7 +266,7 @@
   }
 
   .brandText {
-    font-size: 1.08rem;
+    font-size: 1.02rem;
   }
 
   .brandWord {

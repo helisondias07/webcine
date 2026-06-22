@@ -76,7 +76,7 @@
     "@types/youtube": "^0.1.2",
     "can-autoplay": "^3.0.2",
     "concurrently": "^9.2.1",
-    "dashjs": "^5.1.1",
+    "dashjs": "^5.2.0",
     "eventemitter3": "^4.0.7",
     "hls.js": "^1.6.15",
     "mediasoup-client": "^3.18.1",

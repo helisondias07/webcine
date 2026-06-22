@@ -75,7 +75,7 @@
     "@types/webtorrent": "^0.110.1",
     "@types/youtube": "^0.1.2",
     "can-autoplay": "^3.0.2",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.3",
     "dashjs": "^5.1.1",
     "eventemitter3": "^4.0.7",
     "hls.js": "^1.6.15",

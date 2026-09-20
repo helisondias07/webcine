@@ -368,6 +368,11 @@ export class App extends React.Component<AppProps, AppState> {
   isLocalStreamAFile = false;
   localFileObjectUrl: string | undefined = undefined;
   publisherConns: PCDict = {};
+  pendingIceCandidates = new WeakMap<
+    RTCPeerConnection,
+    RTCIceCandidateInit[]
+  >();
+  iceRestartAttempts = new WeakMap<RTCPeerConnection, number>();
   lastAppliedShareProfileKey = "";
   viewerShareQualityMap: Record<string, ShareQualityMode> = {};
   consumerConn?: RTCPeerConnection;
@@ -1005,7 +1010,7 @@ export class App extends React.Component<AppProps, AppState> {
           }
         }
         if (msg.ice !== undefined) {
-          pc.addIceCandidate(new RTCIceCandidate(msg.ice));
+          await this.addRemoteIceCandidate(pc, msg.ice);
         } else if (msg.sdp && msg.sdp.type === "offer") {
           // debugLog('offer');
           // TODO Currently ios/Safari cannot handle this property, so remove it from the offer
@@ -1017,6 +1022,7 @@ export class App extends React.Component<AppProps, AppState> {
             .join("\n");
           msg.sdp.sdp = _sdp;
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          await this.flushPendingIceCandidates(pc);
           // Keep the browser's standards-based Opus negotiation intact.
           // Rewriting it to multiopus caused intermittent silent playback on
           // mobile/tablet Chromium clients.
@@ -1024,7 +1030,8 @@ export class App extends React.Component<AppProps, AppState> {
           await pc.setLocalDescription(answer);
           this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
         } else if (msg.sdp && msg.sdp.type === "answer") {
-          pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          await this.flushPendingIceCandidates(pc);
         }
       },
     );
@@ -1445,9 +1452,15 @@ export class App extends React.Component<AppProps, AppState> {
             ? 16_000_000
             : 18_000_000;
     const maxBitratePerPeer = Math.round(
-      Math.max(1_200_000, Math.min(4_000_000, totalBitrateBudget / peers)),
+      Math.max(1_200_000, Math.min(6_000_000, totalBitrateBudget / peers)),
     );
-    let captureHeight = 720;
+    // A screen share contains text and UI details, so 720p is noticeably soft
+    // when it fills a desktop player. Keep a 1080p source while the available
+    // bitrate can support it, then step down only for larger rooms.
+    let captureHeight = 1080;
+    if (maxBitratePerPeer < 3_000_000) {
+      captureHeight = 720;
+    }
     if (maxBitratePerPeer < 1_500_000) {
       captureHeight = 540;
     }
@@ -1652,7 +1665,9 @@ export class App extends React.Component<AppProps, AppState> {
         scaleResolutionDownBy: profile.scaleResolutionDownBy,
       };
       params.encodings = encodings;
-      params.degradationPreference = "balanced";
+      // For a shared screen, preserve pixels and let WebRTC reduce frame rate
+      // first. "balanced" can downscale static text even on healthy links.
+      params.degradationPreference = "maintain-resolution";
       await sender.setParameters(params);
     } catch (e) {
       console.warn("screenshare: failed to apply sender parameters", e);
@@ -1680,11 +1695,7 @@ export class App extends React.Component<AppProps, AppState> {
         pc.connectionState === "disconnected"
       ) {
         this.setState({ connectionQuality: "reconnecting" });
-        try {
-          pc.restartIce();
-        } catch {
-          // Some browsers reject restartIce after the peer is already closed.
-        }
+        this.requestIceRestart(pc);
       }
       const stats = await pc.getStats();
       stats.forEach((report: any) => {
@@ -1782,7 +1793,9 @@ export class App extends React.Component<AppProps, AppState> {
           logicalSurface?: boolean;
         } = {
           logicalSurface: true,
-          height: 720,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 30 },
         };
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: videoConstraints,
@@ -2210,6 +2223,61 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  addRemoteIceCandidate = async (
+    pc: RTCPeerConnection,
+    candidate: RTCIceCandidateInit,
+  ) => {
+    // ICE may arrive before the offer/answer over Socket.IO. Browsers reject
+    // those candidates without a remote description, which used to leave the
+    // stream stuck until the viewer refreshed the page.
+    if (!pc.remoteDescription) {
+      const pending = this.pendingIceCandidates.get(pc) ?? [];
+      pending.push(candidate);
+      this.pendingIceCandidates.set(pc, pending);
+      return;
+    }
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+      console.warn("[screenshare] candidato ICE rejeitado", error);
+    }
+  };
+
+  flushPendingIceCandidates = async (pc: RTCPeerConnection) => {
+    const pending = this.pendingIceCandidates.get(pc);
+    if (!pending?.length) {
+      return;
+    }
+    this.pendingIceCandidates.delete(pc);
+    await Promise.all(
+      pending.map((candidate) => this.addRemoteIceCandidate(pc, candidate)),
+    );
+  };
+
+  requestIceRestart = (pc: RTCPeerConnection) => {
+    const now = Date.now();
+    const lastAttempt = this.iceRestartAttempts.get(pc) ?? 0;
+    // A short network hiccup often repairs itself. Repeated restartIce calls
+    // create competing negotiations and are a common source of frozen video.
+    if (now - lastAttempt < 8_000) {
+      return;
+    }
+    this.iceRestartAttempts.set(pc, now);
+    window.setTimeout(() => {
+      if (
+        pc.connectionState === "connected" ||
+        pc.connectionState === "closed"
+      ) {
+        return;
+      }
+      try {
+        pc.restartIce();
+      } catch {
+        // The failed connection is recreated by watchPeerConnection.
+      }
+    }, 2_000);
+  };
+
   ensureConsumerConnection = (sharerId: string) => {
     if (this.consumerConn || this.isLocalStreamAFile) {
       return this.consumerConn;
@@ -2246,9 +2314,14 @@ export class App extends React.Component<AppProps, AppState> {
     return pc;
   };
 
-  watchPeerConnection = (pc: RTCPeerConnection, consumer = false) => {
+  watchPeerConnection = (
+    pc: RTCPeerConnection,
+    consumer = false,
+    viewerId?: string,
+  ) => {
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
+        this.iceRestartAttempts.delete(pc);
         this.setState({ connectionQuality: "good" });
         return;
       }
@@ -2257,17 +2330,19 @@ export class App extends React.Component<AppProps, AppState> {
         pc.connectionState === "failed"
       ) {
         this.setState({ connectionQuality: "reconnecting" });
-        try {
-          pc.restartIce();
-        } catch {
-          // Recreating the consumer below is the fallback.
-        }
+        this.requestIceRestart(pc);
         if (consumer && pc.connectionState === "failed") {
           pc.close();
           if (this.consumerConn === pc) {
             this.consumerConn = undefined;
           }
-          window.setTimeout(() => void this.setupRTCConnections(), 750);
+          window.setTimeout(() => void this.setupRTCConnections(), 1_500);
+        } else if (viewerId && pc.connectionState === "failed") {
+          pc.close();
+          if (this.publisherConns[viewerId] === pc) {
+            delete this.publisherConns[viewerId];
+          }
+          window.setTimeout(() => void this.setupRTCConnections(), 1_500);
         }
       }
     };
@@ -2332,7 +2407,7 @@ export class App extends React.Component<AppProps, AppState> {
           // Set up the RTCPeerConnection for sharing media to each member
           const pc = new RTCPeerConnection({ iceServers: iceServers() });
           this.publisherConns[id] = pc;
-          this.watchPeerConnection(pc);
+          this.watchPeerConnection(pc, false, id);
           this.localStreamToPublish?.getTracks().forEach((track) => {
             if (this.localStreamToPublish != null) {
               pc.addTrack(track, this.localStreamToPublish);

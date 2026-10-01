@@ -5,6 +5,7 @@ import {
   IconAdjustmentsHorizontal,
   IconCheck,
   IconMaximize,
+  IconRefresh,
   IconVolume,
   IconVolumeOff,
 } from "@tabler/icons-react";
@@ -31,6 +32,8 @@ interface ControlsProps {
   showCountdownControl: boolean;
   countdownInProgress: boolean;
   onStartCountdown: () => void;
+  showAudioRecovery: boolean;
+  onRecoverAudio: () => void;
 }
 
 export const Controls = (props: ControlsProps) => {
@@ -53,6 +56,8 @@ export const Controls = (props: ControlsProps) => {
     showCountdownControl,
     countdownInProgress,
     onStartCountdown,
+    showAudioRecovery,
+    onRecoverAudio,
   } = props;
 
   const getYouTubeQualityLabel = (value: YouTubeQualityMode) => {
@@ -188,6 +193,17 @@ export const Controls = (props: ControlsProps) => {
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
+      )}
+      {showAudioRecovery && (
+        <button
+          type="button"
+          onClick={onRecoverAudio}
+          className={styles.action}
+          title="Ativar ou recuperar o som da transmissão"
+          aria-label="Recuperar som"
+        >
+          <IconRefresh size={18} />
+        </button>
       )}
       {pictureInPictureSupported && (
         <button

@@ -7,6 +7,13 @@ async function prepareIdentity(page: Page, name: string) {
   }, name);
 }
 
+test.beforeEach(({ browserName }) => {
+  test.skip(
+    browserName === "webkit",
+    "O WebKit do Playwright não oferece canvas.captureStream para simular compartilhamento.",
+  );
+});
+
 async function installSyntheticScreenShare(page: Page) {
   await page.addInitScript(() => {
     const install = () => {
@@ -73,6 +80,13 @@ async function startSyntheticShare(page: Page) {
     )
     .toBe(true);
 }
+
+test("endpoint TURN não expõe credenciais sem configuração", async ({
+  request,
+}) => {
+  const response = await request.get("http://127.0.0.1:8091/webrtc/ice");
+  expect(response.status()).toBe(204);
+});
 
 test("refresh do transmissor libera a sala para compartilhar novamente", async ({
   browser,
@@ -159,6 +173,17 @@ test("espectador que entra depois recebe track de audio da transmissao", async (
       }),
     )
     .toEqual({ muted: false, audioState: "live" });
+
+  const recoverAudio = viewer.getByRole("button", { name: "Recuperar som" });
+  await expect(recoverAudio).toBeVisible();
+  await recoverAudio.click();
+  await expect
+    .poll(() =>
+      viewer.evaluate(
+        () => document.querySelector<HTMLVideoElement>("#leftVideo")?.muted,
+      ),
+    )
+    .toBe(false);
 
   await hostContext.close();
   await viewerContext.close();

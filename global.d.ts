@@ -3,6 +3,16 @@ type NumberDict = Record<string, number>;
 type BooleanDict = Record<string, boolean>;
 type AnyDict = Record<string, any>;
 type PCDict = Record<string, RTCPeerConnection>;
+interface MediaHealth {
+  videoWidth: number;
+  videoHeight: number;
+  framesPerSecond: number;
+  bitrateKbps: number;
+  packetLossPercent: number;
+  roundTripMs: number;
+  transport: "relay" | "p2p" | "unknown";
+  audioTrack: "active" | "missing" | "blocked";
+}
 type HTMLVideoElementDict = Record<string, HTMLVideoElement>;
 type MediaType = "vbrowser" | "screenshare" | "video" | "youtube";
 

@@ -96,6 +96,24 @@ transmite. Sem essa variável, o site continua usando P2P.
 Links de plataformas com DRM (Netflix, Prime, etc.) podem ser roteados para o
 VBrowser quando essa infraestrutura estiver configurada.
 
+### Transmissão estável em produção
+
+O frontend pode ficar na Vercel, mas o servidor Socket.IO, coturn e o SFU
+precisam rodar em serviços persistentes com IP/DNS público. Vercel não deve ser
+o host do Socket.IO ou da mídia em tempo real.
+
+1. Execute coturn com `--use-auth-secret` e um `--static-auth-secret` forte.
+2. Defina `TURN_URLS`, `TURN_SHARED_SECRET` e `TURN_TTL_SECONDS` no backend.
+   O endpoint `/webrtc/ice` entrega credenciais temporárias ao navegador.
+3. Libere UDP 3478 e a faixa UDP de relay configurada no coturn; ofereça também
+   TURN/TLS 5349 para redes corporativas.
+4. Para mais de dois espectadores, configure `MEDIASOUP_SERVER` apontando para
+   um SFU compatível. Sem ele, o transmissor envia uma cópia P2P por pessoa.
+
+No player, a etiqueta de diagnóstico mostra resolução, FPS, bitrate e se a
+conexão usa P2P ou relay. O botão de recuperar som força uma nova tentativa de
+reprodução a partir de um gesto do espectador, necessária em tablets/iOS.
+
 ### Room Persistence
 
 - Configure Postgres by adding DATABASE_URL to your .env file and then setting up the database schema

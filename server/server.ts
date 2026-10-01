@@ -21,6 +21,7 @@ import axios from "axios";
 import { resolveShard } from "./utils/resolveShard.ts";
 import { makeRoomName } from "./utils/moniker.ts";
 import { getStats } from "./utils/getStats.ts";
+import { createHmac } from "node:crypto";
 
 if (process.env.NODE_ENV === "development") {
   axios.interceptors.request.use(
@@ -135,7 +136,7 @@ if (config.SSL_KEY_FILE && config.SSL_CRT_FILE) {
 }
 server?.listen(config.PORT, config.HOST);
 
-const io = new Server(server, { cors: {}, transports: ["websocket"] });
+const io = new Server(server, { cors: corsOptions, transports: ["websocket"] });
 io.engine.use(async (req: any, res: Response, next: () => void) => {
   const roomId = req._query.roomId;
   if (!roomId) {
@@ -950,6 +951,23 @@ app.use(bodyParser.raw({ type: "text/plain", limit: 1000000 }));
 
 app.get("/ping", (_req, res) => {
   res.json("pong");
+});
+
+app.get("/webrtc/ice", (_req, res) => {
+  const urls = String(config.TURN_URLS ?? "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+  const secret = String(config.TURN_SHARED_SECRET ?? "").trim();
+  if (!urls.length || !secret) {
+    res.status(204).end();
+    return;
+  }
+  const ttlSeconds = Math.max(60, Number(config.TURN_TTL_SECONDS) || 3600);
+  const username = `${Math.floor(Date.now() / 1000) + ttlSeconds}:webcine`;
+  const credential = createHmac("sha1", secret).update(username).digest("base64");
+  res.set("Cache-Control", "private, max-age=300");
+  res.json({ iceServers: [{ urls, username, credential }] });
 });
 
 app.use(compression());

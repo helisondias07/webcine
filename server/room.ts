@@ -248,10 +248,11 @@ export class Room {
       }
 
       // Replace an existing connection for this client before registering the
-      // new socket, so reconnects cannot leave duplicate roster entries.
+      // new socket, so reconnects cannot leave duplicate roster entries. Do
+      // not clear an ephemeral share here: a transient Socket.IO reconnect
+      // must not stop the broadcaster's active screen capture for the room.
       const previousSocketId = this.socketIdMap[clientId];
       if (previousSocketId) {
-        this.clearEphemeralShare(clientId);
         io.of(roomId).sockets.get(previousSocketId)?.disconnect(true);
       }
       this.roster = this.roster.filter((member) => member.id !== clientId);

@@ -12,14 +12,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : undefined,
+  workers: 2,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: "http://127.0.0.1:5174",
     trace: "on-first-retry",
-    launchOptions: {
-      executablePath: localChromiumExecutable,
-    },
   },
   projects: [
     {
@@ -27,6 +24,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1366, height: 768 },
+        launchOptions: { executablePath: localChromiumExecutable },
       },
     },
     {
@@ -34,6 +32,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 320, height: 720 },
+        launchOptions: { executablePath: localChromiumExecutable },
       },
     },
     {
@@ -41,6 +40,16 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },
+        launchOptions: { executablePath: localChromiumExecutable },
+      },
+    },
+    {
+      name: "tablet-webkit",
+      use: {
+        browserName: "webkit",
+        viewport: { width: 810, height: 1080 },
+        isMobile: true,
+        hasTouch: true,
       },
     },
   ],

@@ -48,6 +48,7 @@ const defaults = {
   CORS_ALLOWED_ORIGINS: "", // Optional, comma-delimited list of allowed CORS origins
   RATE_LIMIT_WINDOW_MS: 60000, // Window size for API rate-limiting
   RATE_LIMIT_MAX: 240, // Max requests per window per IP
+  TRUST_PROXY_HOPS: 2, // Reverse proxies in front of the app (Cloudflare + Render = 2). Needed for the real client IP in rate limiting
   STATS_KEY: "", // Secret string to validate viewing stats
   BETA_USER_EMAILS: "", // Comma-delimited list of user emails to include in the beta
   CUSTOM_SETTINGS_HOSTNAME: "", // Hostname to send different config settings to client

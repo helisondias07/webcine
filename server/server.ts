@@ -37,6 +37,14 @@ if (process.env.NODE_ENV === "development") {
 
 const releaseInterval = 5 * 60 * 1000;
 const app = express();
+// Cloudflare + Render sit in front of this app. Without trusting them every
+// request would share the proxy's IP in the rate limiter. The hop count is
+// explicit (not `true`) so a client cannot spoof X-Forwarded-For.
+const trustProxyHops = Math.max(
+  0,
+  Math.floor(Number(config.TRUST_PROXY_HOPS ?? 2)),
+);
+app.set("trust proxy", Number.isFinite(trustProxyHops) ? trustProxyHops : 2);
 
 function normalizeOrigin(value: unknown) {
   if (typeof value !== "string" || !value.trim()) {
@@ -944,6 +952,16 @@ app.use(
     },
   }),
 );
+// Permissions-Policy: helmet has no option for it. Screen sharing needs
+// display-capture, the mic/camera options stay available to the page itself,
+// and fullscreen/autoplay must remain allowed for the player.
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(), payment=(), usb=(), microphone=(self), camera=(self), display-capture=(self), fullscreen=(self), autoplay=(self)",
+  );
+  next();
+});
 app.use(cors(corsOptions));
 app.use(apiLimiter);
 app.use(bodyParser.json());
@@ -982,11 +1000,18 @@ app.get("/stats", async (req, res) => {
 });
 
 app.get("/health/:metric", async (req, res) => {
-  const vmManagerStats = (
-    await axios.get("http://localhost:" + config.VMWORKER_PORT + "/stats")
-  ).data;
-  const result = vmManagerStats[req.params.metric]?.availableVBrowsers?.length;
-  res.status(result ? 200 : 500).json(result);
+  try {
+    const vmManagerStats = (
+      await axios.get("http://localhost:" + config.VMWORKER_PORT + "/stats", {
+        timeout: 5000,
+      })
+    ).data;
+    const result = vmManagerStats[req.params.metric]?.availableVBrowsers
+      ?.length;
+    res.status(result ? 200 : 500).json(result);
+  } catch (e: any) {
+    res.status(503).json({ error: "health_unavailable" });
+  }
 });
 
 app.get("/timeSeries", async (req, res) => {
@@ -1609,7 +1634,7 @@ async function sendIndexWithPreview(
   let html = await fs.promises.readFile(indexPath, "utf8");
   const origin = getPublicOrigin(req);
   const url = `${origin}${req.originalUrl.split("?")[0] || "/"}`;
-  const image = `${origin}/screenshot_full.png`;
+  const image = `${origin}/og-image.jpg`;
 
   html = html.replace(
     /<title>.*?<\/title>/s,
@@ -1649,19 +1674,37 @@ app.get("/r/:vanity", async (req, res, next) => {
   }
 });
 
+const STATIC_SHORT_CACHE_FILES = new Set([
+  "sw.min.js",
+  "robots.txt",
+  "sitemap.xml",
+  "theme-init.js",
+]);
 app.use(
   express.static(config.BUILD_DIRECTORY, {
     etag: true,
     maxAge: 0,
     setHeaders: (res, filePath) => {
+      const fileName = path.basename(filePath);
       if (filePath.includes(`${path.sep}assets${path.sep}`)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       } else if (filePath.endsWith(".html")) {
         res.setHeader("Cache-Control", "no-cache");
+      } else if (STATIC_SHORT_CACHE_FILES.has(fileName)) {
+        // Service worker and crawler files must stay fresh.
+        res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+      } else if (/\.(png|jpe?g|webp|svg|ico|mp3|webmanifest)$/i.test(fileName)) {
+        // Images, icons, manifest and sounds at stable URLs: cache for a week.
+        res.setHeader("Cache-Control", "public, max-age=604800");
       }
     },
   }),
 );
+// Missing hashed assets must be a real 404; the SPA fallback would serve HTML
+// (200) for a JS/CSS URL, which breaks caches and confuses crawlers.
+app.use("/assets/*splat", (_req, res) => {
+  res.status(404).type("text/plain").send("Not found");
+});
 // Send index.html for all other requests (SPA)
 app.use("/*splat", (_req, res) => {
   res.sendFile(

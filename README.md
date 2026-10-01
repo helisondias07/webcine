@@ -1,6 +1,6 @@
 # WebCineTV
 
-![screenshot](public/screenshot4.png)
+![screenshot](public/screenshot4.webp)
 
 Uma plataforma para assistir videos em sincronia com amigos.
 
@@ -110,9 +110,12 @@ o host do Socket.IO ou da mídia em tempo real.
 4. Para mais de dois espectadores, configure `MEDIASOUP_SERVER` apontando para
    um SFU compatível. Sem ele, o transmissor envia uma cópia P2P por pessoa.
 
-No player, a etiqueta de diagnóstico mostra resolução, FPS, bitrate e se a
-conexão usa P2P ou relay. O botão de recuperar som força uma nova tentativa de
-reprodução a partir de um gesto do espectador, necessária em tablets/iOS.
+O botão de recuperar som força uma nova tentativa de reprodução a partir de um
+gesto do espectador, necessária em tablets/iOS.
+
+### Proxy reverso e rate limit
+
+O site roda atrás de Cloudflare e Render. Defina `TRUST_PROXY_HOPS` (padrão `2`) com o número de proxies na frente do backend para que o rate limit use o IP real do cliente. Use `0` quando o backend for exposto diretamente (ex.: desenvolvimento local). Número maior que o real permite falsificar `X-Forwarded-For`; menor faz todos compartilharem o IP do proxy.
 
 ### Room Persistence
 

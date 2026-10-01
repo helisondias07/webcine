@@ -230,7 +230,7 @@ const SeoManager = () => {
     const pathname = location.pathname.replace(/\/$/, "") || "/";
     const seo = getSeoForPath(pathname);
     const canonicalUrl = `${SITE_URL}${seo.path}`;
-    const imageUrl = `${SITE_URL}/screenshot_full.png`;
+    const imageUrl = `${SITE_URL}/og-image.jpg`;
 
     document.title = seo.title;
     upsertMeta("name", "description", seo.description);

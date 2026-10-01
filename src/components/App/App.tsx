@@ -225,7 +225,6 @@ interface AppState {
   countdownText: string;
   countdownInProgress: boolean;
   connectionQuality: "idle" | "good" | "adjusting" | "poor" | "reconnecting";
-  mediaHealth?: MediaHealth;
 }
 
 type JoinToast = {
@@ -330,7 +329,6 @@ export class App extends React.Component<AppProps, AppState> {
     countdownText: "",
     countdownInProgress: false,
     connectionQuality: "idle",
-    mediaHealth: undefined,
   };
   socket: Socket = null!;
   mediasoupPubSocket: Socket | null = null;
@@ -356,6 +354,9 @@ export class App extends React.Component<AppProps, AppState> {
   publisherNeedsReset = new Set<string>();
   lastResyncByViewer: Record<string, number> = {};
   audioResyncRequests = 0;
+  // Latest RTC stats snapshot. Kept off React state: it is not rendered, and
+  // a setState every 2s would re-render this very large component for nothing.
+  mediaHealth?: MediaHealth;
   shareContentHintOverride?: ShareContentHint;
   audioMeter = new AudioLevelMeter();
   audioMeterFill = React.createRef<HTMLDivElement>();
@@ -1673,15 +1674,23 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  // The quality label is no longer rendered, but the state is kept. Only touch
+  // React when the value really changes, so the 2s stats poll does not
+  // re-render the whole component.
+  setConnectionQuality = (connectionQuality: AppState["connectionQuality"]) => {
+    if (this.state.connectionQuality !== connectionQuality) {
+      this.setState({ connectionQuality });
+    }
+  };
+
   updateRtcHealth = async () => {
     const connections = [
       ...Object.values(this.publisherConns),
       ...(this.consumerConn ? [this.consumerConn] : []),
     ].filter((pc) => pc.connectionState !== "closed");
     if (!connections.length) {
-      if (this.state.connectionQuality !== "idle") {
-        this.setState({ connectionQuality: "idle", mediaHealth: undefined });
-      }
+      this.mediaHealth = undefined;
+      this.setConnectionQuality("idle");
       return;
     }
 
@@ -1693,7 +1702,7 @@ export class App extends React.Component<AppProps, AppState> {
       ) {
         // Recovery (ICE restart / recreation) is driven by
         // watchPeerConnection, which owns the backoff timers.
-        this.setState({ connectionQuality: "reconnecting" });
+        this.setConnectionQuality("reconnecting");
       }
       const stats = await pc.getStats();
       stats.forEach((report: any) => accumulateRtcReport(summary, report));
@@ -1723,22 +1732,20 @@ export class App extends React.Component<AppProps, AppState> {
     )
       ?.getAudioTracks()
       .find((track) => track.readyState === "live");
-    this.setState({
-      mediaHealth: {
-        videoWidth,
-        videoHeight,
-        framesPerSecond: Math.round(framesPerSecond),
-        bitrateKbps,
-        packetLossPercent: Number((worstLoss * 100).toFixed(1)),
-        roundTripMs: Math.round(worstRtt * 1000),
-        transport,
-        audioTrack: remoteAudioTrack
-          ? "active"
-          : this.playingScreenShare() || this.playingFileShare()
-            ? "missing"
-            : "blocked",
-      },
-    });
+    this.mediaHealth = {
+      videoWidth,
+      videoHeight,
+      framesPerSecond: Math.round(framesPerSecond),
+      bitrateKbps,
+      packetLossPercent: Number((worstLoss * 100).toFixed(1)),
+      roundTripMs: Math.round(worstRtt * 1000),
+      transport,
+      audioTrack: remoteAudioTrack
+        ? "active"
+        : this.playingScreenShare() || this.playingFileShare()
+          ? "missing"
+          : "blocked",
+    };
 
     // Browsers report "bandwidth" as a quality limitation even while a stream
     // is healthy. Treating that flag as a failure caused a permanent downscale
@@ -1757,9 +1764,7 @@ export class App extends React.Component<AppProps, AppState> {
     this.stableRtcSamples = result.stableSamples;
     if (result.constrained) {
       if (result.changed) {
-        this.setState({
-          connectionQuality: result.severe ? "poor" : "adjusting",
-        });
+        this.setConnectionQuality(result.severe ? "poor" : "adjusting");
         await this.applyAdaptiveShareQuality();
       }
       return;
@@ -1767,9 +1772,7 @@ export class App extends React.Component<AppProps, AppState> {
     if (result.changed) {
       await this.applyAdaptiveShareQuality();
     }
-    this.setState({
-      connectionQuality: qualityFromScale(this.shareNetworkScale),
-    });
+    this.setConnectionQuality(qualityFromScale(this.shareNetworkScale));
   };
 
   applyAdaptiveShareQuality = async () => {
@@ -2648,11 +2651,11 @@ export class App extends React.Component<AppProps, AppState> {
         } else if (viewerId) {
           this.publisherRecreateAttempts[viewerId] = 0;
         }
-        this.setState({ connectionQuality: "good" });
+        this.setConnectionQuality("good");
         return;
       }
       if (pc.connectionState === "disconnected") {
-        this.setState({ connectionQuality: "reconnecting" });
+        this.setConnectionQuality("reconnecting");
         if (viewerId) {
           // Sharer/offerer: restart ICE after a grace period, with backoff.
           this.requestIceRestart(pc, viewerId);
@@ -2675,7 +2678,7 @@ export class App extends React.Component<AppProps, AppState> {
         return;
       }
       if (pc.connectionState === "failed") {
-        this.setState({ connectionQuality: "reconnecting" });
+        this.setConnectionQuality("reconnecting");
         if (consumer) {
           this.recreateConsumerConnection(pc);
         } else if (viewerId) {

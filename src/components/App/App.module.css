@@ -1041,3 +1041,43 @@
     transform: scale(1.05);
   }
 }
+
+/* Visually hidden but available to assistive tech (room <h1>). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Touch targets: >= 44px on touch devices and tablets, desktop stays compact. */
+@media (pointer: coarse), (max-width: 1024px) {
+  .topActionButton,
+  .shareButton {
+    min-height: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  .emptyActionButton,
+  .emptySurpriseButton {
+    min-height: 44px;
+  }
+
+  .nameInput :global(.mantine-Input-input),
+  .searchField :global(.mantine-Input-input) {
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .nameColorControl {
+    min-height: 44px;
+    height: 44px;
+    width: 44px;
+  }
+}

@@ -12,7 +12,7 @@ export const InviteButton = ({ className }: { className?: string }) => {
         <InviteModal closeInviteModal={() => setInviteModalOpen(false)} />
       )}
       <Button
-        color="grey"
+        color="#666666"
         leftSection={<IconUserPlus />}
         className={className}
         title="Convidar pessoas"

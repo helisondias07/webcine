@@ -16,6 +16,7 @@ import { Home } from "./components/Home/Home";
 import { Privacy, Terms, FAQ } from "./components/Pages/Pages";
 import { TopBar } from "./components/TopBar/TopBar";
 import { Footer } from "./components/Footer/Footer";
+import { RoomSkeleton } from "./components/RoomSkeleton/RoomSkeleton";
 import { serverPath } from "./utils/serverPath";
 import config from "./config";
 import { DEFAULT_STATE, MetadataContext } from "./MetadataContext";
@@ -40,6 +41,20 @@ const theme = createTheme({
   },
   defaultRadius: "md",
   colors: {
+    // Mantine's default red with shade 7 darkened so white labels on filled
+    // red buttons reach >= 4.5:1 (primaryShade is 7 for every color).
+    red: [
+      "#fff5f5",
+      "#ffe3e3",
+      "#ffc9c9",
+      "#ffa8a8",
+      "#ff8787",
+      "#ff6b6b",
+      "#fa5252",
+      "#c92a2a",
+      "#c92a2a",
+      "#a61e1e",
+    ],
     webgreen: [
       "#f8f8f8",
       "#ebebeb",
@@ -66,7 +81,8 @@ const theme = createTheme({
     ],
   },
   primaryColor: "webgold",
-  primaryShade: 6,
+  // Shade 7 keeps white button labels at >= 4.5:1 contrast on gold.
+  primaryShade: 7,
   components: {
     Button: {
       defaultProps: {
@@ -363,7 +379,7 @@ class WebCineTVApp extends React.Component {
             exact
             render={(props) => {
               return (
-                <Suspense fallback={null}>
+                <Suspense fallback={<RoomSkeleton />}>
                   <WatchApp urlRoomId={props.match.params.roomId} />
                 </Suspense>
               );
@@ -374,7 +390,7 @@ class WebCineTVApp extends React.Component {
             exact
             render={(props) => {
               return (
-                <Suspense fallback={null}>
+                <Suspense fallback={<RoomSkeleton />}>
                   <WatchApp vanity={props.match.params.vanity} />
                 </Suspense>
               );

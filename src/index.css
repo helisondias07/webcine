@@ -38,7 +38,7 @@
   --brand-500: #25272a;
   --brand-600: #17181a;
   --brand-700: #0d0e10;
-  --accent-warm: #b77a08;
+  --accent-warm: #955f05;
   --accent-cinema: #9d2430;
   --accent-cinema-soft: rgba(157, 36, 48, 0.1);
   --danger-soft: #b93a3a;
@@ -192,4 +192,103 @@ select {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Keyboard focus must stay visible on Mantine inputs (they reset outline). */
+html .mantine-Input-input:focus-visible,
+html input:focus-visible,
+html textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-warm) 72%, white) !important;
+  outline-offset: 2px;
+}
+
+/* Room loading skeleton (also injected as static HTML from index.html). */
+.wc-skel {
+  min-height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-muted);
+}
+
+.wc-skel-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--topbar-height);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+}
+
+.wc-skel-brand {
+  font-family: "Montserrat", "Sora", "Outfit", sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.wc-skel-brand i {
+  color: var(--accent-warm);
+  font-size: 0.72em;
+  margin-left: 0.22em;
+  letter-spacing: 0.08em;
+}
+
+.wc-skel-deck {
+  width: min(
+    var(--app-shell-max-width),
+    calc(100% - (var(--app-shell-gutter) * 2))
+  );
+  margin: 12px auto 8px;
+}
+
+.wc-skel-bar {
+  height: 44px;
+  max-width: 520px;
+  border-radius: 14px;
+  background: var(--bg-surface-soft);
+}
+
+.wc-skel-player {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - var(--topbar-height) - 90px);
+  min-height: 56vh;
+  background: #050607;
+}
+
+[data-mantine-color-scheme="light"] .wc-skel-player {
+  background: #dfe1e4;
+}
+
+.wc-skel-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--accent-warm) 30%, transparent);
+  border-top-color: var(--accent-warm);
+  animation: wc-skel-spin 0.9s linear infinite;
+}
+
+@keyframes wc-skel-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media only screen and (max-width: 1024px) {
+  .wc-skel-player {
+    height: auto;
+    min-height: 56vh;
+  }
+}
+
+/* On room routes the prerendered landing is hidden until the skeleton (or the
+   room itself) replaces it, so Home never flashes. */
+html.wc-room #root > :not(.wc-skel) {
+  display: none;
 }

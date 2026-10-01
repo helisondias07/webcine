@@ -188,6 +188,12 @@
   color: #080808 !important;
 }
 
+/* Keep the original gold fill (#b77a08) behind the dark label: 5.7:1. */
+.newRoomButton {
+  --button-bg: #b77a08 !important;
+  --button-hover: #c88a12 !important;
+}
+
 .newRoomButton,
 .newRoomButton :global(.mantine-Button-root),
 .newRoomButton :global(.mantine-Button-inner),
@@ -333,5 +339,18 @@
 
   .themeSwitch[data-mode="dark"] .themeThumb {
     transform: translateX(22px);
+  }
+}
+
+/* Touch targets: >= 44px on touch devices and tablets, desktop stays compact. */
+@media (pointer: coarse), (max-width: 1024px) {
+  .brandLink {
+    min-height: 44px;
+  }
+
+  .themeSwitch::after {
+    content: "";
+    position: absolute;
+    inset: -7px -4px;
   }
 }

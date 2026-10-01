@@ -381,8 +381,11 @@ const ChatMessage = ({
             </div>
           )}
           <div className={styles.small + " " + styles.dark}>
-            <div title={new Date(timestamp).toLocaleDateString()}>
-              {new Date(timestamp).toLocaleTimeString()}
+            <div title={new Date(timestamp).toLocaleDateString("pt-BR")}>
+              {new Date(timestamp).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
               {Boolean(videoTS) && " @ "}
               {formatTimestamp(videoTS)}
             </div>

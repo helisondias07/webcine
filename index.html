@@ -44,18 +44,16 @@
     <title>WebCineTV - Sua sala de cinema online</title>
     <script>
       (function () {
+        // Start in the same theme React will use (stored preference, default
+        // light) to avoid a theme flash before hydration.
+        var mode = "light";
         try {
-          // Hard-start dark to avoid any light-theme flash before React hydration.
-          document.documentElement.setAttribute(
-            "data-mantine-color-scheme",
-            "dark",
-          );
-        } catch (_e) {
-          document.documentElement.setAttribute(
-            "data-mantine-color-scheme",
-            "dark",
-          );
-        }
+          var stored = window.localStorage.getItem("webcinetv-theme-preference");
+          if (stored === "dark" || stored === "light") {
+            mode = stored;
+          }
+        } catch (_e) {}
+        document.documentElement.setAttribute("data-mantine-color-scheme", mode);
       })();
     </script>
     <script type="module" src="./src/index.tsx"></script>
@@ -63,6 +61,26 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    <script>
+      // Room routes: swap the (prerendered) landing for a light room skeleton
+      // so the Home content never flashes before the room chunk loads.
+      (function () {
+        var p = window.location.pathname;
+        if (p.indexOf("/watch/") !== 0 && p.indexOf("/r/") !== 0) {
+          return;
+        }
+        var root = document.getElementById("root");
+        if (!root) {
+          return;
+        }
+        root.innerHTML =
+          '<div class="wc-skel" role="status" aria-live="polite" aria-label="Carregando sala">' +
+          '<div class="wc-skel-top"><span class="wc-skel-brand">WEBCINE<i>tv</i></span></div>' +
+          '<div class="wc-skel-deck"><div class="wc-skel-bar"></div></div>' +
+          '<div class="wc-skel-player"><div class="wc-skel-spinner"></div></div>' +
+          "</div>";
+      })();
+    </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.

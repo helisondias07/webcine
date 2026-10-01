@@ -10,7 +10,7 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   background: color-mix(in srgb, var(--bg-panel) 97%, transparent);
   letter-spacing: 0.04em;
@@ -31,14 +31,13 @@
   min-width: 24px;
   min-height: 24px;
   color: var(--text-muted);
-  opacity: 0.68;
   text-decoration: none;
   white-space: nowrap;
-  transition: opacity 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .link:hover {
-  opacity: 1;
+  color: var(--text-main);
 }
 
 .link svg {
@@ -52,11 +51,24 @@
     min-height: 46px;
     height: auto;
     gap: 12px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     padding: 10px 12px;
   }
 
   .link {
     gap: 4px;
+  }
+}
+
+@media (pointer: coarse), (max-width: 1024px) {
+  .footer {
+    height: auto;
+    min-height: 52px;
+  }
+
+  .link {
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 6px;
   }
 }

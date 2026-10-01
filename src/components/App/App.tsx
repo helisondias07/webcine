@@ -3623,7 +3623,8 @@ export class App extends React.Component<AppProps, AppState> {
           />
         )}
         {
-          <div className={`${styles.roomShell} ${styles.mobileStack}`}>
+          <main className={`${styles.roomShell} ${styles.mobileStack}`}>
+            <h1 className={styles.srOnly}>Sala de cinema WebCineTV</h1>
             <div
               className={
                 (this.state.fullScreen
@@ -3686,7 +3687,7 @@ export class App extends React.Component<AppProps, AppState> {
                           <Menu.Target>
                             <Button
                               data-testid="playlist-button"
-                              color="grey"
+                              color="#666666"
                               leftSection={<IconList />}
                               rightSection={
                                 <Badge circle>{playlist.length}</Badge>
@@ -3742,7 +3743,7 @@ export class App extends React.Component<AppProps, AppState> {
                         <InviteButton className={styles.topActionButton} />
                         <Button
                           data-testid="settings-button"
-                          color="grey"
+                          color="#666666"
                           title="Configurações"
                           onClick={() => {
                             this.setSettingsModalOpen(true);
@@ -4164,7 +4165,7 @@ export class App extends React.Component<AppProps, AppState> {
                 </div>
               </div>
             </div>
-          </div>
+          </main>
         }
       </React.Fragment>
     );

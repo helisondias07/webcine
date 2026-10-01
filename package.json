@@ -15,6 +15,7 @@
     "buildReact": "vite build && node scripts/prerender-public.mjs && npm run typecheck",
     "prerender": "node scripts/prerender-public.mjs",
     "test:cors": "node scripts/validate-cors.mjs",
+    "test:unit": "vitest run --dir src",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "pm2": "pm2 start server/server.ts",
@@ -93,6 +94,7 @@
     "socket.io-client": "^4.8.3",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
+    "vitest": "^5.0.3",
     "webtorrent": "^2.8.5"
   },
   "browserslist": {

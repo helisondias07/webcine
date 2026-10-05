@@ -40,7 +40,7 @@
     "ioredis": "^5.10.0",
     "lucide-react": "^0.577.0",
     "node-ssh": "^13.2.1",
-    "pg": "^8.20.0",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.3",
     "twitch-m3u8": "^1.1.5"
   },
@@ -67,7 +67,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.4.0",
-    "@types/pg": "^8.18.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
     "@types/react-onclickoutside": "^6.7.10",

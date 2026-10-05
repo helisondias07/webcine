@@ -1676,6 +1676,7 @@ app.get("/r/:vanity", async (req, res, next) => {
 
 const STATIC_SHORT_CACHE_FILES = new Set([
   "sw.min.js",
+  "manifest.webmanifest",
   "robots.txt",
   "sitemap.xml",
   "theme-init.js",
@@ -1691,8 +1692,13 @@ app.use(
       } else if (filePath.endsWith(".html")) {
         res.setHeader("Cache-Control", "no-cache");
       } else if (STATIC_SHORT_CACHE_FILES.has(fileName)) {
-        // Service worker and crawler files must stay fresh.
+        // Service worker, PWA manifest and crawler files must stay fresh.
         res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        if (fileName === "sw.min.js") {
+          // Root scope for the PWA (the default for a worker at /, explicit
+          // so a future move under a subpath keeps working).
+          res.setHeader("Service-Worker-Allowed", "/");
+        }
       } else if (/\.(png|jpe?g|webp|svg|ico|mp3|webmanifest)$/i.test(fileName)) {
         // Images, icons, manifest and sounds at stable URLs: cache for a week.
         res.setHeader("Cache-Control", "public, max-age=604800");

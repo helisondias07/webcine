@@ -4,8 +4,10 @@
   bottom: 0px;
 }
 
+/* Always over the video's dark scrim (see .controlsDock), so light text in
+   both themes. */
 .controls {
-  color: var(--text-main);
+  color: #f4f1ea;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -37,7 +39,7 @@
 
 .action {
   cursor: pointer;
-  color: var(--text-main);
+  color: #f4f1ea;
   border: none;
   background: transparent;
   padding: 0;
@@ -85,4 +87,57 @@
 .countdownButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.controls .action:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+@media only screen and (min-width: 1600px) {
+  .controls {
+    gap: 14px;
+    padding: 10px 22px 16px;
+  }
+
+  .volumeSlider {
+    width: 150px;
+  }
+
+  .action svg,
+  svg.action {
+    width: 26px;
+    height: 26px;
+  }
+
+  .pipButton,
+  .countdownButton {
+    font-size: 0.78rem;
+    padding: 0 12px;
+  }
+}
+
+/* TV-distance sizing (fullscreen browser with 1080p+ of height). */
+@media only screen and (min-width: 1800px) and (min-height: 1000px) {
+  .action {
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .action svg,
+  svg.action {
+    width: 32px;
+    height: 32px;
+  }
+
+  .volumeSlider {
+    width: 190px;
+  }
+
+  .pipButton,
+  .countdownButton {
+    min-height: 52px;
+    font-size: 0.9rem;
+    padding: 0 16px;
+  }
 }

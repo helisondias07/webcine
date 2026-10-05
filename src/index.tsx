@@ -5,6 +5,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -17,12 +18,21 @@ import { Privacy, Terms, FAQ } from "./components/Pages/Pages";
 import { TopBar } from "./components/TopBar/TopBar";
 import { Footer } from "./components/Footer/Footer";
 import { RoomSkeleton } from "./components/RoomSkeleton/RoomSkeleton";
+import { InstallPrompt } from "./components/InstallPrompt/InstallPrompt";
 import { serverPath } from "./utils/serverPath";
 import config from "./config";
 import { DEFAULT_STATE, MetadataContext } from "./MetadataContext";
 import { createTheme, MantineProvider } from "@mantine/core";
 import { t } from "./i18n";
-import { ThemeModeContext, type ThemeMode } from "./ThemeModeContext";
+import {
+  ThemeModeContext,
+  THEME_EXPLICIT_KEY,
+  THEME_STORAGE_KEY,
+  hasExplicitThemeChoice,
+  resolveThemeMode,
+  getDefaultThemeMode,
+  type ThemeMode,
+} from "./ThemeModeContext";
 import { initAnalytics, runWhenIdle } from "./utils/analytics";
 
 const theme = createTheme({
@@ -305,15 +315,41 @@ if (window.location.hash && window.location.pathname === "/") {
   window.location.href = "/watch/" + hashRoomId;
 }
 
-const THEME_STORAGE_KEY = "webcinetv-theme-preference";
+function readThemePreference() {
+  try {
+    return {
+      stored: window.localStorage.getItem(THEME_STORAGE_KEY),
+      explicit: window.localStorage.getItem(THEME_EXPLICIT_KEY) === "1",
+    };
+  } catch {
+    return { stored: null, explicit: false };
+  }
+}
 
 function getStoredThemeMode(): ThemeMode {
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark") {
-    return stored;
-  }
-  return "light";
+  const { stored, explicit } = readThemePreference();
+  return resolveThemeMode(stored, explicit, window.location.pathname);
 }
+
+function persistThemeMode(mode: ThemeMode) {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+    window.localStorage.setItem(THEME_EXPLICIT_KEY, "1");
+  } catch {
+    // Storage may be unavailable (private mode); the choice lasts this session.
+  }
+}
+
+// Rooms default to dark until the user picks a theme (SPA navigation from the
+// home page to a room keeps working because this follows the route).
+const ThemeRouteSync = () => {
+  const location = useLocation();
+  const { syncRouteDefault } = useContext(ThemeModeContext);
+  useEffect(() => {
+    syncRouteDefault?.(location.pathname);
+  }, [location.pathname, syncRouteDefault]);
+  return null;
+};
 
 class WebCineTVApp extends React.Component {
   public state = DEFAULT_STATE;
@@ -350,6 +386,7 @@ class WebCineTVApp extends React.Component {
       <MetadataContext.Provider value={this.state}>
         <BrowserRouter>
           <SeoManager />
+          <ThemeRouteSync />
           <Route
             path="/"
             exact
@@ -359,6 +396,7 @@ class WebCineTVApp extends React.Component {
                   <TopBar hideNewRoom />
                   <Home />
                   <Footer />
+                  <InstallPrompt />
                 </React.Fragment>
               );
             }}
@@ -425,29 +463,58 @@ class WebCineTVApp extends React.Component {
 }
 
 const RootApp = () => {
-  const [mode, setMode] = useState<ThemeMode>(getStoredThemeMode());
+  const [mode, setModeState] = useState<ThemeMode>(getStoredThemeMode);
 
   useEffect(() => {
     if (config.NODE_ENV !== "production" || !("serviceWorker" in navigator)) {
       return;
     }
+    let lastUpdateCheck = Date.now();
+    let registration: ServiceWorkerRegistration | undefined;
+    // Installed apps stay open for hours: look for a new deploy whenever the
+    // app comes back to the foreground (at most every 30 min).
+    const onVisible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        registration &&
+        Date.now() - lastUpdateCheck > 30 * 60 * 1000
+      ) {
+        lastUpdateCheck = Date.now();
+        registration.update().catch(() => undefined);
+      }
+    };
     runWhenIdle(() => {
       navigator.serviceWorker
         .register("/sw.min.js")
+        .then((reg) => {
+          registration = reg;
+        })
         .catch((error) => console.warn("[serviceWorker]", error));
     }, 2500);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode);
-  }, [mode]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-mantine-color-scheme", mode);
   }, [mode]);
 
+  // Only an explicit choice is persisted; otherwise the route default applies.
+  const setMode = useCallback((next: ThemeMode) => {
+    persistThemeMode(next);
+    setModeState(next);
+  }, []);
+
   const toggleMode = useCallback(() => {
-    setMode((prev) => (prev === "dark" ? "light" : "dark"));
+    setMode(mode === "dark" ? "light" : "dark");
+  }, [mode, setMode]);
+
+  const syncRouteDefault = useCallback((pathname: string) => {
+    const { stored, explicit } = readThemePreference();
+    if (hasExplicitThemeChoice(stored, explicit)) {
+      return;
+    }
+    setModeState(getDefaultThemeMode(pathname));
   }, []);
 
   const value = useMemo(
@@ -455,8 +522,9 @@ const RootApp = () => {
       mode,
       setMode,
       toggleMode,
+      syncRouteDefault,
     }),
-    [mode, toggleMode],
+    [mode, setMode, toggleMode, syncRouteDefault],
   );
 
   return (

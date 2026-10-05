@@ -12,6 +12,7 @@ import {
   getOrCreateClientId,
 } from "../../utils/utils";
 import { UserMenu } from "../UserMenu/UserMenu";
+import { getReadableNameColor } from "../App/helpers";
 import { Socket } from "socket.io-client";
 import { IconSend } from "@tabler/icons-react";
 
@@ -318,6 +319,11 @@ const ChatMessage = ({
   const { id, timestamp, cmd, msg, system, videoTS } = message;
   const commandMessage = cmd ? formatMessage(cmd, msg) : "";
   const imageMsg = renderImageString(msg);
+  const readableNameColor = getReadableNameColor(nameColorMap[id]);
+  const nameColorClass = readableNameColor ? "wc-name-color" : "";
+  const nameColorStyle = readableNameColor
+    ? ({ "--name-color": readableNameColor } as React.CSSProperties)
+    : undefined;
   return (
     <div
       style={{
@@ -359,9 +365,9 @@ const ChatMessage = ({
                   style={{
                     cursor: "pointer",
                     fontWeight: 700,
-                    color: nameColorMap[id] || undefined,
+                    ...nameColorStyle,
                   }}
-                  className={`${styles.light} ${styles.hoverEffect}`}
+                  className={`${styles.light} ${styles.hoverEffect} ${nameColorClass}`}
                 >
                   {Boolean(system) && "Sistema"}
                   {nameMap[id] || id}
@@ -372,9 +378,9 @@ const ChatMessage = ({
             <div
               style={{
                 fontWeight: 700,
-                color: nameColorMap[id] || undefined,
+                ...nameColorStyle,
               }}
-              className={styles.light}
+              className={`${styles.light} ${nameColorClass}`}
             >
               {Boolean(system) && "Sistema"}
               {nameMap[id] || id}

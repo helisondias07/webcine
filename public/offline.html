@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#090909" />
+    <meta name="robots" content="noindex" />
+    <title>Sem conexão - WebCineTV</title>
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex; align-items: center; justify-content: center;
+        background: #090909; color: #f4f1ea; text-align: center;
+        font-family: "Outfit", "Segoe UI", Tahoma, sans-serif; padding: 24px;
+        box-sizing: border-box;
+      }
+      .brand { font-weight: 800; letter-spacing: .08em; font-size: 20px; }
+      .brand i { color: #d0a44c; font-style: normal; }
+      h1 { font-size: 22px; margin: 24px 0 8px; }
+      p { color: #9fa3aa; margin: 0 0 24px; max-width: 360px; line-height: 1.5; }
+      button {
+        background: #b77a08; color: #fff; border: 0; border-radius: 999px;
+        padding: 12px 24px; font-size: 16px; font-weight: 650; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">WEBCINE<i>tv</i></div>
+      <h1>Você está sem conexão</h1>
+      <p>As salas do WebCineTV funcionam em tempo real e precisam de internet. Verifique o Wi-Fi e tente de novo.</p>
+      <button type="button" onclick="location.reload()">Tentar novamente</button>
+    </main>
+    <script>
+      window.addEventListener("online", function () { location.reload(); });
+    </script>
+  </body>
+</html>

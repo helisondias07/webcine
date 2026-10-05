@@ -143,18 +143,31 @@ select {
     overflow-y: auto;
   }
 
+  /* Thin, themed scrollbars: visible so desktop users know a page scrolls. */
+  html,
+  body,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-main) 28%, transparent)
+      transparent;
+  }
+
   ::-webkit-scrollbar {
-    width: 0;
-    height: 0;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--accent-warm) 72%, black);
+    background: color-mix(in srgb, var(--text-main) 28%, transparent);
     border-radius: 20px;
   }
 
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--accent-warm) 72%, var(--text-main));
+  }
+
   ::-webkit-scrollbar-track {
-    background: var(--bg-surface);
+    background: transparent;
   }
 
   ::-webkit-scrollbar-corner {
@@ -291,4 +304,18 @@ html textarea:focus-visible {
    room itself) replaces it, so Home never flashes. */
 html.wc-room #root > :not(.wc-skel) {
   display: none;
+}
+
+/* Chat / people name colors chosen by users: nudged toward the theme text
+   color so light picks stay legible on white and dark picks on black. */
+.wc-name-color {
+  color: var(--name-color);
+}
+
+[data-mantine-color-scheme="light"] .wc-name-color {
+  color: color-mix(in srgb, var(--name-color) 65%, #000);
+}
+
+[data-mantine-color-scheme="dark"] .wc-name-color {
+  color: color-mix(in srgb, var(--name-color) 85%, #fff);
 }

@@ -1,11 +1,15 @@
+/* Fills the viewport on tall screens but grows (and the page scrolls) on
+   short ones, so the hero CTA is never clipped. */
 .container {
   position: relative;
   width: 100%;
-  min-height: calc(100svh - var(--topbar-height) - var(--app-footer-height));
-  height: calc(100svh - var(--topbar-height) - 38px);
+  /* 38px = footer, kept visible on tall screens as before. */
+  min-height: calc(100svh - var(--topbar-height) - 38px);
+  display: flex;
+  flex-direction: column;
   padding: 16px var(--app-shell-gutter);
   color: var(--text-main);
-  overflow: hidden;
+  overflow-x: clip;
 }
 
 .container::before {
@@ -24,10 +28,10 @@
   position: relative;
   z-index: 1;
   width: min(var(--app-shell-max-width), 100%);
-  height: 100%;
+  flex: 1 0 auto;
   margin: 0 auto;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(auto, 1fr) auto auto;
   gap: 20px;
 }
 
@@ -38,7 +42,6 @@
 .hero {
   position: relative;
   min-height: 0;
-  height: 100%;
   overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 24px;
@@ -53,18 +56,23 @@
   top: 50%;
   width: clamp(160px, 24vw, 330px);
   aspect-ratio: 1;
-  border: 1px solid color-mix(in srgb, var(--text-main) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-main) 4%, transparent);
   border-radius: 50%;
   transform: translateY(-50%);
+  pointer-events: none;
+  /* Softer, fading rings: decorative only, should not read as an empty
+     placeholder. */
+  opacity: 0.7;
   box-shadow:
-    0 0 0 34px color-mix(in srgb, var(--text-main) 2.5%, transparent),
-    0 0 0 68px color-mix(in srgb, var(--text-main) 1.5%, transparent);
+    0 0 0 34px color-mix(in srgb, var(--text-main) 1.2%, transparent),
+    0 0 0 68px color-mix(in srgb, var(--text-main) 0.6%, transparent);
 }
 
 .heroInner {
   position: relative;
   z-index: 1;
   width: 100%;
+  height: 100%;
   min-height: inherit;
   display: flex;
   align-items: center;
@@ -358,6 +366,10 @@
     min-height: 410px;
   }
 
+  .hero::after {
+    display: none;
+  }
+
   .heroContent {
     width: min(620px, 78%);
   }
@@ -386,10 +398,6 @@
     min-height: 460px;
     border-radius: 20px;
     box-shadow: var(--shadow-sm);
-  }
-
-  .hero::after {
-    display: none;
   }
 
   .heroInner {

@@ -12,6 +12,40 @@ export function normalizeNameColor(value: string | null | undefined) {
   return /^#([0-9A-F]{6})$/.test(normalized) ? normalized : DEFAULT_NAME_COLOR;
 }
 
+/**
+ * Returns a name color that stays readable on both themes, or `undefined`
+ * when the theme's default text color should be used instead (default white,
+ * invalid values, or near-white / near-black picks that would vanish on the
+ * light or dark chat background).
+ */
+export function getReadableNameColor(
+  value: string | null | undefined,
+): string | undefined {
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  if (!/^#([0-9A-F]{6})$/.test(normalized)) {
+    return undefined;
+  }
+  if (normalized === DEFAULT_NAME_COLOR) {
+    return undefined;
+  }
+  const luminance = getRelativeLuminance(normalized);
+  if (luminance > 0.8 || luminance < 0.03) {
+    return undefined;
+  }
+  return normalized;
+}
+
+export function getRelativeLuminance(hex: string) {
+  const normalized = normalizeNameColor(hex).replace("#", "");
+  const channel = (offset: number) => {
+    const c = Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
 export function getDisplayInitials(value: string) {
   const parts = normalizeDisplayName(value).split(" ").filter(Boolean);
   if (!parts.length) {

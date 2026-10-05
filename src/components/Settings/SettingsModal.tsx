@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Button,
+  ColorInput,
   Modal,
   Alert,
   ActionIcon,
@@ -27,6 +28,37 @@ import {
 import styles from "./Settings.module.css";
 
 const defaultRoomTitleColor = "#FFFFFF";
+// Name color presets that read well on both the light and dark chat.
+const nameColorSwatches = [
+  "#FFFFFF",
+  "#E8590C",
+  "#F59F00",
+  "#2F9E44",
+  "#0CA678",
+  "#1C7ED6",
+  "#7048E8",
+  "#D6336C",
+];
+const PHONE_QUERY = "(max-width: 600px)";
+
+function useMatchMedia(query: string) {
+  const [matches, setMatches] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      Boolean(window.matchMedia?.(query).matches),
+  );
+  useEffect(() => {
+    const mql = window.matchMedia?.(query);
+    if (!mql) {
+      return;
+    }
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener?.("change", onChange);
+    return () => mql.removeEventListener?.("change", onChange);
+  }, [query]);
+  return matches;
+}
 const roomTitleMaxCharLength = 50;
 const roomDescriptionMaxCharLength = 120;
 
@@ -103,6 +135,11 @@ export const SettingsModal = ({
   const [passwordInput, setPasswordInput] = useState<string | undefined>(
     undefined,
   );
+  const isPhone = useMatchMedia(PHONE_QUERY);
+  const [nameColorDraft, setNameColorDraft] = useState(myNameColor);
+  useEffect(() => {
+    setNameColorDraft(myNameColor);
+  }, [myNameColor]);
 
   const setRoomState = useCallback(
     async (data: any) => {
@@ -150,6 +187,8 @@ export const SettingsModal = ({
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
         centered
+        fullScreen={isPhone}
+        size={isPhone ? "100%" : "lg"}
         title={"Configurações"}
       >
         <div>
@@ -205,12 +244,32 @@ export const SettingsModal = ({
             />
             <SettingRow
               content={
-                <TextInput
+                <ColorInput
                   label="Cor do meu nome"
-                  description="Aplica seu nome colorido no chat e na lista de pessoas."
-                  value={myNameColor}
-                  onChange={(e) => setMyNameColor(e.target.value)}
-                  type="color"
+                  description="Aplica seu nome colorido no chat e na lista de pessoas. Branco usa a cor padrão do tema."
+                  format="hex"
+                  value={nameColorDraft}
+                  onChange={(value) => {
+                    setNameColorDraft(value);
+                    // Only commit complete colors (typing "#12" must not
+                    // reset the saved color).
+                    if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+                      setMyNameColor(value);
+                    }
+                  }}
+                  swatches={nameColorSwatches}
+                  swatchesPerRow={8}
+                  withEyeDropper={false}
+                  closeOnColorSwatchClick
+                  // Portal + fixed positioning: <body> is position:relative and
+                  // gets overflow:hidden while the modal is open, which would
+                  // clip an absolutely positioned picker on short pages.
+                  popoverProps={{
+                    withinPortal: true,
+                    zIndex: 400,
+                    floatingStrategy: "fixed",
+                  }}
+                  aria-label="Cor do meu nome"
                 />
               }
               disabled={false}

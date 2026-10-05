@@ -1,11 +1,39 @@
 import { loadEnvFile } from "node:process";
 import fs from "node:fs";
+import path from "node:path";
 
 if (fs.existsSync(".env")) {
   loadEnvFile();
 }
 
+// Stamps a unique build id into the copied service worker so each deploy
+// ships a byte-different /sw.min.js; browsers then install the new worker
+// (skipWaiting + clients.claim) and drop the previous shell cache.
+function serviceWorkerBuildId() {
+  let outDir = "build";
+  return {
+    name: "webcine-sw-build-id",
+    apply: "build" as const,
+    configResolved(config: { root: string; build: { outDir: string } }) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const swPath = path.join(outDir, "sw.min.js");
+      if (!fs.existsSync(swPath)) {
+        return;
+      }
+      const buildId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const source = fs.readFileSync(swPath, "utf8");
+      fs.writeFileSync(
+        swPath,
+        source.replace(/__WEBCINE_BUILD_ID__/g, buildId),
+      );
+    },
+  };
+}
+
 export default {
+  plugins: [serviceWorkerBuildId()],
   build: {
     outDir: "build",
     rollupOptions: {

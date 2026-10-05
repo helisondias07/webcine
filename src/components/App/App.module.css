@@ -183,6 +183,15 @@
   bottom: 0;
   z-index: 80;
   pointer-events: none;
+  padding-top: 28px;
+  /* Dark scrim so our controls never blend with the video or YouTube's own
+     branding, in both themes. */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.45) 55%,
+    rgba(0, 0, 0, 0) 100%
+  );
 }
 
 .controlsDock > * {
@@ -377,7 +386,8 @@
 .chatDock {
   position: fixed;
   right: max(10px, env(safe-area-inset-right));
-  bottom: calc(68px + env(safe-area-inset-bottom));
+  /* Sits above the player controls bar (~74px + shell padding). */
+  bottom: calc(92px + env(safe-area-inset-bottom));
   z-index: 120;
   display: flex;
   justify-content: flex-end;
@@ -403,25 +413,28 @@
   position: relative;
 }
 
+/* Compact count bubble on the toggle (full text is in aria-label/title). */
 .chatUnreadBadge {
   position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%);
+  right: -4px;
+  top: -8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
-  max-width: min(70vw, 240px);
-  overflow: hidden;
-  text-overflow: ellipsis;
   border-radius: 999px;
   border: 1px solid
     color-mix(in srgb, var(--accent-warm) 62%, var(--border-soft));
-  background: color-mix(in srgb, var(--bg-panel) 96%, transparent);
-  color: var(--text-primary);
-  font-size: 0.72rem;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 0.64rem;
   font-weight: 700;
   line-height: 1;
-  padding: 6px 10px;
   box-shadow: var(--shadow-sm);
+  pointer-events: none;
 }
 
 .chatPanel {
@@ -436,8 +449,8 @@
   border: 1px solid var(--border-soft);
   border-radius: 14px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--bg-panel) 95%, transparent);
-  backdrop-filter: blur(16px);
+  /* Opaque: the panel floats over the video, translucency hurt legibility. */
+  background: var(--bg-surface);
   box-shadow: 0 20px 56px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
@@ -929,22 +942,7 @@
 
   .chatDock {
     right: max(6px, env(safe-area-inset-right));
-    bottom: calc(56px + env(safe-area-inset-bottom));
-  }
-
-  .chatUnreadBadge {
-    right: -4px;
-    left: auto;
-    top: -8px;
-    transform: none;
-    min-width: 22px;
-    max-width: none;
-    height: 22px;
-    padding: 0 6px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.64rem;
+    bottom: calc(88px + env(safe-area-inset-bottom));
   }
 
   .chatPanel {
@@ -980,10 +978,6 @@
 }
 
 @media only screen and (max-width: 375px) {
-  .topActions {
-    grid-template-columns: 1fr;
-  }
-
   .emptyActionButton {
     width: 100%;
     min-width: 0;
@@ -1079,5 +1073,268 @@
     min-height: 44px;
     height: 44px;
     width: 44px;
+  }
+}
+
+/* TopBar wrapper: no box of its own, only a hook for the compact landscape. */
+.topBarWrap {
+  display: contents;
+}
+
+/* Red "stop" actions keep their text label in the compact layouts. */
+.topActionDanger {
+  min-width: 0;
+}
+
+/* Phones (incl. fold covers): icon buttons + name on one row instead of a
+   tall 1-2 column stack, so the player stays above the fold. */
+@media only screen and (max-width: 560px) {
+  .topActions {
+    display: grid;
+    grid-template-columns: repeat(3, 48px) minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .topActionDanger {
+    grid-column: 1 / -1;
+  }
+
+  .topActionButton:not(.topActionDanger) {
+    width: 48px;
+    min-width: 0;
+    padding-inline: 0;
+    position: relative;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-label) {
+    display: none;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-section) {
+    margin: 0;
+  }
+
+  .shareButton :global(.mantine-Button-section[data-position="right"]) {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    pointer-events: none;
+  }
+
+  .nameInput {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Portrait phones and tablets: the video keeps 16:9 and the chat is laid out
+   below it instead of floating over the picture. Fullscreen (and browsers
+   without :not(:fullscreen)) keep the floating chat. */
+@media only screen and (orientation: portrait) and (max-width: 1024px) {
+  .playerContainerHasMedia {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+
+  .controlsDock {
+    padding-top: 12px;
+  }
+
+  .playerArea:not(:fullscreen) .chatDock {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    z-index: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 0 0;
+  }
+
+  .playerArea:not(:fullscreen) .chatToggleWrap {
+    align-self: flex-end;
+    margin-inline-end: max(10px, env(safe-area-inset-right));
+  }
+
+  .playerArea:not(:fullscreen) .chatPanel {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: clamp(320px, calc(100svh - 56.25vw - 270px), 760px);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    transform-origin: top center;
+  }
+
+  .playerArea:not(:fullscreen) .chatPanelClosed {
+    display: none;
+  }
+}
+
+/* Phones in landscape: compact top bar and a single-row command deck so the
+   video gets most of the ~390px of height. */
+@media only screen and (orientation: landscape) and (max-height: 540px) {
+  .topBarWrap {
+    --topbar-height: 46px;
+  }
+
+  .topBarWrap > * {
+    min-height: 0;
+    padding-block: 2px;
+  }
+
+  .topBarWrap > * > * {
+    min-height: 40px;
+  }
+
+  .roomShell {
+    padding: 4px max(0px, env(safe-area-inset-right)) 4px
+      max(0px, env(safe-area-inset-left));
+  }
+
+  .leftColumnInner {
+    gap: 6px;
+  }
+
+  .commandDeck {
+    padding: 4px 6px;
+    border-radius: 10px;
+    gap: 4px;
+  }
+
+  .searchRow {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .searchFieldWrap,
+  .searchField {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .topActions {
+    display: flex;
+    flex-wrap: nowrap;
+    width: auto;
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+
+  .topActionButton:not(.topActionDanger) {
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+    position: relative;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-label) {
+    display: none;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-section) {
+    margin: 0;
+  }
+
+  .shareButton :global(.mantine-Button-section[data-position="right"]) {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    pointer-events: none;
+  }
+
+  .nameInput {
+    width: 132px;
+  }
+
+  .playerContainer,
+  .playerContainerHasMedia {
+    min-height: 0;
+    height: calc(100svh - 118px);
+    aspect-ratio: auto;
+  }
+
+  .chatPanel {
+    height: min(calc(100svh - 146px), 460px);
+  }
+}
+
+/* Large / ultrawide screens: command deck aligned with the top bar width and
+   bigger targets for TV-distance use. */
+@media only screen and (min-width: 1600px) {
+  .commandDeck {
+    width: min(var(--app-shell-max-width), 100%);
+    align-self: center;
+    padding: 10px 12px;
+  }
+
+  .topActionButton {
+    height: 40px;
+    padding-inline: 16px;
+    font-size: 0.85rem;
+  }
+
+  .nameInput {
+    width: 210px;
+  }
+
+  .nameInput :global(.mantine-Input-input),
+  .searchField :global(.mantine-Input-input) {
+    height: 40px;
+    font-size: 0.9rem;
+  }
+
+  .chatToggle {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+  }
+
+  .chatPanel {
+    width: 400px;
+    height: min(62vh, 620px);
+  }
+}
+
+/* Fullscreen browser on a TV (1080p+ of usable height). */
+@media only screen and (min-width: 1800px) and (min-height: 1000px) {
+  .commandDeck {
+    width: min(1560px, 100%);
+  }
+
+  .topActionButton {
+    height: 48px;
+    padding-inline: 20px;
+    font-size: 1rem;
+  }
+
+  .nameInput {
+    width: 240px;
+  }
+
+  .nameInput :global(.mantine-Input-input),
+  .searchField :global(.mantine-Input-input) {
+    height: 48px;
+    font-size: 1rem;
+  }
+
+  .chatDock {
+    bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+
+  .chatToggle {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+    min-height: 60px;
+  }
+
+  .chatPanel {
+    width: 440px;
+    height: min(60vh, 680px);
   }
 }

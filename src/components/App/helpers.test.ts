@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   getDisplayInitials,
+  getReadableNameColor,
+  getRelativeLuminance,
   normalizeDisplayName,
   normalizeNameColor,
   normalizeYouTubeQuality,
@@ -17,6 +19,28 @@ describe("helpers", () => {
     expect(normalizeNameColor("#ff00aa")).toBe("#FF00AA");
     expect(normalizeNameColor("red")).toBe("#FFFFFF");
     expect(normalizeNameColor(null)).toBe("#FFFFFF");
+  });
+
+  it("falls back to the theme text color for unreadable name colors", () => {
+    // default white, invalid and empty values use the theme color
+    expect(getReadableNameColor("#FFFFFF")).toBeUndefined();
+    expect(getReadableNameColor("#ffffff")).toBeUndefined();
+    expect(getReadableNameColor("red")).toBeUndefined();
+    expect(getReadableNameColor("")).toBeUndefined();
+    expect(getReadableNameColor(undefined)).toBeUndefined();
+    // near-white and near-black would vanish on light / dark backgrounds
+    expect(getReadableNameColor("#F8F8F0")).toBeUndefined();
+    expect(getReadableNameColor("#050505")).toBeUndefined();
+    // regular colors are kept (normalized to upper case)
+    expect(getReadableNameColor("#e8590c")).toBe("#E8590C");
+    expect(getReadableNameColor("#1C7ED6")).toBe("#1C7ED6");
+    expect(getReadableNameColor("#FFD43B")).toBe("#FFD43B");
+  });
+
+  it("computes relative luminance", () => {
+    expect(getRelativeLuminance("#FFFFFF")).toBeCloseTo(1, 5);
+    expect(getRelativeLuminance("#000000")).toBeCloseTo(0, 5);
+    expect(getRelativeLuminance("#808080")).toBeCloseTo(0.2159, 3);
   });
 
   it("builds initials and rgba strings", () => {

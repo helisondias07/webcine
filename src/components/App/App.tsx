@@ -53,6 +53,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { InviteButton } from "../InviteButton/InviteButton";
+import { isTouchLayout } from "../../utils/touchLayout";
 import { t } from "../../i18n";
 import type WebTorrent from "webtorrent";
 import type Hls from "hls.js";
@@ -61,6 +62,7 @@ import { type Torrent } from "webtorrent";
 import {
   DEFAULT_CHAT_NAME,
   getDisplayInitials,
+  getReadableNameColor,
   normalizeDisplayName,
   normalizeNameColor,
   normalizeYouTubeQuality,
@@ -289,7 +291,7 @@ export class App extends React.Component<AppProps, AppState> {
     successMessage: "",
     warningMessage: "",
     isChatDisabled: false,
-    showChatColumn: isMobile()
+    showChatColumn: isTouchLayout()
       ? false
       : Boolean(
           Number(
@@ -3052,8 +3054,9 @@ export class App extends React.Component<AppProps, AppState> {
   localFullScreen = async (bVideoOnly: boolean) => {
     // Default: fullscreen the body (theater mode)
     let container = document.body as HTMLElement;
-    if (bVideoOnly || isMobile()) {
+    if (bVideoOnly || isTouchLayout()) {
       // fullscreen player shell so floating chat remains available
+      // (phones and touch tablets)
       container =
         (document.getElementById("watchPlayerShell") as HTMLElement) ??
         this.Player().getVideoEl();
@@ -3448,9 +3451,10 @@ export class App extends React.Component<AppProps, AppState> {
         ? "mensagem não lida"
         : "mensagens não lidas";
     const unreadAriaLabel = `${this.state.unreadCount} ${unreadLabel}`;
-    const unreadBadgeLabel = isMobile()
-      ? String(this.state.unreadCount)
-      : unreadAriaLabel;
+    // Compact count bubble everywhere (full text stays in aria-label/title) so
+    // it never spills over the player controls.
+    const unreadBadgeLabel =
+      this.state.unreadCount > 99 ? "99+" : String(this.state.unreadCount);
     const canAdjustScreenShareQuality = Boolean(
       sharer &&
       sharer.id !== selfId &&
@@ -3640,16 +3644,18 @@ export class App extends React.Component<AppProps, AppState> {
           </div>
         )}
         {!this.state.fullScreen && (
-          <TopBar
-            hideNewRoom
-            roomTitle={this.state.roomTitle}
-            roomDescription={this.state.roomDescription}
-            roomTitleColor={this.state.roomTitleColor}
-            roomTitleEditable={Boolean(
-              this.state.owner && clientId === this.state.owner,
-            )}
-            onRoomTitleCommit={this.commitRoomTitle}
-          />
+          <div className={styles.topBarWrap}>
+            <TopBar
+              hideNewRoom
+              roomTitle={this.state.roomTitle}
+              roomDescription={this.state.roomDescription}
+              roomTitleColor={this.state.roomTitleColor}
+              roomTitleEditable={Boolean(
+                this.state.owner && clientId === this.state.owner,
+              )}
+              onRoomTitleCommit={this.commitRoomTitle}
+            />
+          </div>
         )}
         {
           <main className={`${styles.roomShell} ${styles.mobileStack}`}>
@@ -3685,7 +3691,8 @@ export class App extends React.Component<AppProps, AppState> {
                             color="red"
                             onClick={() => this.roomSetMedia("")}
                             leftSection={<IconX />}
-                            className={styles.topActionButton}
+                            className={`${styles.topActionButton} ${styles.topActionDanger}`}
+                            aria-label="Parar transmissão"
                           >
                             Parar transmissão
                           </Button>
@@ -3695,7 +3702,8 @@ export class App extends React.Component<AppProps, AppState> {
                             color="red"
                             onClick={this.stopPublishingLocalStream}
                             leftSection={<IconX />}
-                            className={styles.topActionButton}
+                            className={`${styles.topActionButton} ${styles.topActionDanger}`}
+                            aria-label={t("stopShare")}
                           >
                             {t("stopShare")}
                           </Button>
@@ -3707,7 +3715,8 @@ export class App extends React.Component<AppProps, AppState> {
                               this.state.uploadController?.abort();
                             }}
                             leftSection={<IconX />}
-                            className={styles.topActionButton}
+                            className={`${styles.topActionButton} ${styles.topActionDanger}`}
+                            aria-label="Parar conversão"
                           >
                             Parar conversão
                           </Button>
@@ -3722,6 +3731,8 @@ export class App extends React.Component<AppProps, AppState> {
                                 <Badge circle>{playlist.length}</Badge>
                               }
                               className={`${styles.shareButton} ${styles.topActionButton}`}
+                              title={t("playlist")}
+                              aria-label={`${t("playlist")} (${playlist.length})`}
                             >
                               {t("playlist")}
                             </Button>
@@ -3774,6 +3785,7 @@ export class App extends React.Component<AppProps, AppState> {
                           data-testid="settings-button"
                           color="#666666"
                           title="Configurações"
+                          aria-label="Configurações"
                           onClick={() => {
                             this.setSettingsModalOpen(true);
                           }}
@@ -3798,7 +3810,11 @@ export class App extends React.Component<AppProps, AppState> {
                   </section>
                 )}
                 <div className={styles.playerArea} id="watchPlayerShell">
-                  <div className={styles.playerContainer}>
+                  <div
+                    className={`${styles.playerContainer} ${
+                      this.state.roomMedia ? styles.playerContainerHasMedia : ""
+                    }`}
+                  >
                     {Boolean(
                       sharer &&
                       sharer.id !== selfId &&
@@ -3851,7 +3867,9 @@ export class App extends React.Component<AppProps, AppState> {
                       </div>
                     )}
                     {!this.state.isAutoPlayable && this.state.roomMedia && (
-                      <Overlay className={styles.flexCenter}>
+                      // zIndex below the chat dock (120) so the chat toggle
+                      // stays clickable while the sound prompt is shown.
+                      <Overlay className={styles.flexCenter} zIndex={100}>
                         <div className={styles.soundPrompt}>
                           <Button
                             className={styles.soundPromptButton}
@@ -4007,6 +4025,11 @@ export class App extends React.Component<AppProps, AppState> {
                           " conexões"}
                       </div>
                     )}
+                    {/* Inside the player box so the controls stay pinned to
+                        the video even when the chat is laid out below it. */}
+                    {this.state.roomMedia && (
+                      <div className={styles.controlsDock}>{controls}</div>
+                    )}
                   </div>
                   <div className={styles.chatDock}>
                     {!this.state.showChatColumn && (
@@ -4118,8 +4141,12 @@ export class App extends React.Component<AppProps, AppState> {
                                 this.state.nameMap[participant.id] ||
                                 participant.id;
                               const color =
-                                this.state.nameColorMap[participant.id] ||
-                                `#${getColorForStringHex(participant.id)}`;
+                                getReadableNameColor(
+                                  this.state.nameColorMap[participant.id],
+                                ) ??
+                                getReadableNameColor(
+                                  `#${getColorForStringHex(participant.id)}`,
+                                );
                               const picture =
                                 this.state.pictureMap[participant.id] ||
                                 getDefaultPicture(
@@ -4143,8 +4170,16 @@ export class App extends React.Component<AppProps, AppState> {
                                   <div className={styles.peopleMeta}>
                                     <div className={styles.peopleNameRow}>
                                       <span
-                                        className={styles.peopleName}
-                                        style={{ color }}
+                                        className={`${styles.peopleName} ${
+                                          color ? "wc-name-color" : ""
+                                        }`}
+                                        style={
+                                          color
+                                            ? ({
+                                                "--name-color": color,
+                                              } as React.CSSProperties)
+                                            : undefined
+                                        }
                                         title={name}
                                       >
                                         {name}
@@ -4188,9 +4223,6 @@ export class App extends React.Component<AppProps, AppState> {
                       </div>
                     </div>
                   </div>
-                  {this.state.roomMedia && (
-                    <div className={styles.controlsDock}>{controls}</div>
-                  )}
                 </div>
               </div>
             </div>

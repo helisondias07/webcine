@@ -4,12 +4,16 @@
     <meta charset="utf-8" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon-webcine.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#090909" />
+    <meta name="application-name" content="WebCine" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="WebCineTV" />
+    <!-- iPad/iPhone: open from the home screen without Safari UI -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="WebCine" />
     <meta
       name="description"
       content="Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis."
@@ -44,12 +48,17 @@
     <title>WebCineTV - Sua sala de cinema online</title>
     <script>
       (function () {
-        // Start in the same theme React will use (stored preference, default
-        // light) to avoid a theme flash before hydration.
-        var mode = "light";
+        // Start in the same theme React will use (explicit choice, otherwise
+        // dark in rooms and light elsewhere) to avoid a flash before hydration.
+        // Keep in sync with resolveThemeMode in src/ThemeModeContext.tsx.
+        var mode = /^\/(watch|r)\//.test(window.location.pathname)
+          ? "dark"
+          : "light";
         try {
           var stored = window.localStorage.getItem("webcinetv-theme-preference");
-          if (stored === "dark" || stored === "light") {
+          var explicit =
+            window.localStorage.getItem("webcinetv-theme-explicit") === "1";
+          if (stored === "dark" || (stored === "light" && explicit)) {
             mode = stored;
           }
         } catch (_e) {}

@@ -16,6 +16,7 @@ export const InviteButton = ({ className }: { className?: string }) => {
         leftSection={<IconUserPlus />}
         className={className}
         title="Convidar pessoas"
+        aria-label="Convidar pessoas"
         onClick={() => setInviteModalOpen(true)}
       >
         Convidar pessoas

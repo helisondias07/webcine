@@ -101,6 +101,11 @@ import {
   emptyRtcStatsSummary,
 } from "./screenshare/rtcStats";
 import { AudioLevelMeter } from "./screenshare/audioMeter";
+import {
+  collectRemoteShareTracks,
+  needsRemoteShareReattach,
+  remoteAudioLooksStalled,
+} from "./screenshare/remoteStream";
 
 declare global {
   interface Window {
@@ -228,6 +233,7 @@ interface AppState {
   countdownText: string;
   countdownInProgress: boolean;
   connectionQuality: "idle" | "good" | "adjusting" | "poor" | "reconnecting";
+  shareAudioMissing: boolean;
 }
 
 type JoinToast = {
@@ -332,6 +338,7 @@ export class App extends React.Component<AppProps, AppState> {
     countdownText: "",
     countdownInProgress: false,
     connectionQuality: "idle",
+    shareAudioMissing: false,
   };
   socket: Socket = null!;
   mediasoupPubSocket: Socket | null = null;
@@ -369,6 +376,8 @@ export class App extends React.Component<AppProps, AppState> {
   viewerShareQualityMap: Record<string, ShareQualityMode> = {};
   consumerConn?: RTCPeerConnection;
   remoteShareStream?: MediaStream;
+  remoteShareAttachedIds = new Set<string>();
+  soundVerifyTimer: number | undefined = undefined;
   progressUpdater?: number;
   heartbeat: number | undefined = undefined;
   syncUpdater: number | undefined = undefined;
@@ -2110,36 +2119,35 @@ export class App extends React.Component<AppProps, AppState> {
 
     // =========== media handling ==========
     const addRemoteTrack = (track: MediaStreamTrack) => {
-      let video = this.HTMLInterface.getVideoEl();
-      if (video.srcObject) {
-        // Track already exists, add it
-        (video.srcObject as MediaStream).addTrack(track);
-      } else {
-        const mediaStream = new MediaStream();
-        mediaStream.addTrack(track);
-        video.srcObject = mediaStream;
+      const video = this.HTMLInterface.getVideoEl();
+      // Never addTrack() to the attached stream: Chrome Android may ignore a
+      // late audio track. Attach a fresh stream with every live track instead.
+      const current = (video?.srcObject as MediaStream | null)?.getTracks();
+      this.attachRemoteShareStream(
+        collectRemoteShareTracks(current, undefined, track),
+      );
+      if (track.kind === "audio" && this.state.shareAudioMissing) {
+        this.setState({ shareAudioMissing: false });
       }
-      this.localPlay();
+      void this.localPlay();
     };
 
     async function consumeAndResume(kind: string) {
       const consumer = await consume(consumerTransport, kind);
       if (consumer) {
         debugLog("SUBSCRIBE: -- track exist, consumer ready. kind=" + kind);
-        if (kind === "video") {
-          debugLog("SUBSCRIBE: -- resume kind=" + kind);
-          sendRequest("resume", { kind: kind })
-            .then(() => {
-              debugLog("SUBSCRIBE: resume OK");
-              return consumer;
-            })
-            .catch((err) => {
-              console.error("SUBSCRIBE: resume ERROR:", err);
-              return consumer;
-            });
-        } else {
-          debugLog("SUBSCRIBE: -- do not resume kind=" + kind);
-        }
+        // Resume both kinds. Servers that create audio consumers unpaused
+        // simply ignore it; servers that pause them would otherwise keep the
+        // audio consumer silent forever.
+        debugLog("SUBSCRIBE: -- resume kind=" + kind);
+        sendRequest("resume", { kind: kind })
+          .then(() => {
+            debugLog("SUBSCRIBE: resume OK kind=" + kind);
+          })
+          .catch((err) => {
+            console.error("SUBSCRIBE: resume ERROR:", kind, err);
+          });
+        return consumer;
       } else {
         debugLog("SUBSCRIBE: -- no consumer yet. kind=" + kind);
         return null;
@@ -2598,7 +2606,16 @@ export class App extends React.Component<AppProps, AppState> {
       const hasAudio = stream
         ?.getAudioTracks()
         .some((track) => track.readyState === "live");
-      if (!hasVideo || hasAudio || this.audioResyncRequests >= 2) {
+      if (!hasVideo || hasAudio) {
+        if (hasAudio && this.state.shareAudioMissing) {
+          this.setState({ shareAudioMissing: false });
+        }
+        return;
+      }
+      if (!this.state.shareAudioMissing) {
+        this.setState({ shareAudioMissing: true });
+      }
+      if (this.audioResyncRequests >= 2) {
         return;
       }
       // Video arrived but audio did not. The sharer ignores this request when
@@ -2621,45 +2638,132 @@ export class App extends React.Component<AppProps, AppState> {
         this.sendSignalSS(sharerId, { ice: event.candidate });
       }
     };
+    if (this.state.shareAudioMissing) {
+      this.setState({ shareAudioMissing: false });
+    }
     pc.ontrack = (event: RTCTrackEvent) => {
       const leftVideo = this.HTMLInterface.getVideoEl();
-      if (leftVideo) {
-        if (!this.remoteShareStream) {
-          this.remoteShareStream = new MediaStream();
-        }
-        if (
-          !this.remoteShareStream
-            .getTracks()
-            .some((track) => track.id === event.track.id)
-        ) {
-          this.remoteShareStream.addTrack(event.track);
-        }
-        const startRemoteTrack = () => {
-          if (
-            event.track.kind === "audio" &&
-            navigator.maxTouchPoints > 0 &&
-            !navigator.userActivation?.hasBeenActive
-          ) {
-            // Touch browsers frequently accept a remote track but block its
-            // audio until a real tap. Surface the existing activation control
-            // immediately instead of leaving a silent, apparently-playing feed.
-            this.localSetMute(true);
-            this.setState({ isAutoPlayable: false });
-          }
-          void this.localPlay();
-        };
-        event.track.onunmute = startRemoteTrack;
-        if (event.track.readyState === "live" && !event.track.muted) {
-          startRemoteTrack();
-        }
-        leftVideo.src = "";
-        leftVideo.srcObject = this.remoteShareStream;
-        if (event.track.kind !== "audio") {
-          void this.localPlay();
-        }
+      if (!leftVideo) {
+        return;
       }
+      const tracks = collectRemoteShareTracks(
+        this.remoteShareStream?.getTracks(),
+        event.streams,
+        event.track,
+      );
+      if (
+        leftVideo.srcObject !== this.remoteShareStream ||
+        needsRemoteShareReattach(this.remoteShareAttachedIds, tracks)
+      ) {
+        // Attach before playing. A fresh MediaStream makes Chrome Android
+        // re-evaluate audio when the audio track arrives after the video.
+        this.attachRemoteShareStream(tracks);
+      }
+      if (event.track.kind === "audio" && this.state.shareAudioMissing) {
+        this.setState({ shareAudioMissing: false });
+      }
+      const startRemoteTrack = () => {
+        if (
+          event.track.kind === "audio" &&
+          navigator.maxTouchPoints > 0 &&
+          !navigator.userActivation?.hasBeenActive
+        ) {
+          // Touch browsers frequently accept a remote track but block its
+          // audio until a real tap. Surface the existing activation control
+          // immediately instead of leaving a silent, apparently-playing feed.
+          this.localSetMute(true);
+          this.setState({ isAutoPlayable: false });
+        }
+        // Always call play() again, even if the element already plays: a
+        // reattached srcObject pauses it, and a late audio track needs it.
+        // localPlay re-shows "Ativar som" when the browser refuses.
+        void this.localPlay();
+      };
+      event.track.onunmute = startRemoteTrack;
+      startRemoteTrack();
     };
     return pc;
+  };
+
+  attachRemoteShareStream = (tracks: MediaStreamTrack[]) => {
+    const video = this.HTMLInterface.getVideoEl();
+    const stream = new MediaStream(tracks);
+    this.remoteShareStream = stream;
+    this.remoteShareAttachedIds = new Set(tracks.map((track) => track.id));
+    if (video) {
+      video.removeAttribute("src");
+      video.srcObject = stream;
+    }
+    debugLog(
+      `[share-audio] attached stream video=${stream.getVideoTracks().length} audio=${stream.getAudioTracks().length}`,
+    );
+    return stream;
+  };
+
+  getInboundAudioSamples = async (): Promise<number | undefined> => {
+    const pc = this.consumerConn;
+    if (!pc) {
+      return undefined;
+    }
+    try {
+      const stats = await pc.getStats();
+      let samples: number | undefined;
+      stats.forEach((report: any) => {
+        if (report.type === "inbound-rtp" && report.kind === "audio") {
+          samples =
+            (samples ?? 0) +
+            Number(report.totalSamplesReceived ?? report.packetsReceived ?? 0);
+        }
+      });
+      return samples;
+    } catch {
+      return undefined;
+    }
+  };
+
+  // After "Ativar som"/"Recuperar som": if audio tracks exist but playback
+  // still looks stalled, reattach a fresh stream and play once more.
+  verifyRemoteShareAudio = async () => {
+    const video = this.HTMLInterface.getVideoEl();
+    const stream = video?.srcObject as MediaStream | null;
+    const hasLiveAudio = stream
+      ?.getAudioTracks()
+      .some((track) => track.readyState === "live");
+    if (!video || !stream || !hasLiveAudio || video.muted) {
+      return;
+    }
+    const before = await this.getInboundAudioSamples();
+    await new Promise((resolve) => window.setTimeout(resolve, 1_200));
+    if (video.srcObject !== stream || video.muted) {
+      return;
+    }
+    const after = await this.getInboundAudioSamples();
+    if (!remoteAudioLooksStalled(video.paused, before, after)) {
+      return;
+    }
+    debugLog("[share-audio] audio looks stalled, reattaching once");
+    this.attachRemoteShareStream(
+      collectRemoteShareTracks(stream.getTracks(), undefined),
+    );
+    try {
+      await video.play();
+    } catch (e: any) {
+      console.warn("[share-audio] retry play failed", e?.name);
+      if (e?.name === "NotAllowedError") {
+        this.localSetMute(true);
+        this.setState({ isAutoPlayable: false });
+        void video.play().catch(() => undefined);
+      }
+    }
+  };
+
+  isRemoteShareViewer = () => {
+    const sharer = this.state.participants.find((p) => p.isScreenShare);
+    return Boolean(
+      sharer &&
+        sharer.id !== getOrCreateClientId() &&
+        (this.playingScreenShare() || this.playingFileShare()),
+    );
   };
 
   watchPeerConnection = (
@@ -2867,7 +2971,7 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
-  localPlay = async () => {
+  localPlay = async (attempt = 0) => {
     if (!this.state.roomMedia) {
       return;
     }
@@ -2887,6 +2991,12 @@ export class App extends React.Component<AppProps, AppState> {
         try {
           await this.Player().playVideo();
         } catch (e: any) {
+          if (e?.name === "AbortError" && attempt === 0) {
+            // A new srcObject/load interrupted play(); try once more instead
+            // of leaving the element paused (muted or not).
+            window.setTimeout(() => void this.localPlay(1), 250);
+            return;
+          }
           if (
             (e?.name === "NotAllowedError" ||
               e?.name === "AbortError") &&
@@ -2939,6 +3049,13 @@ export class App extends React.Component<AppProps, AppState> {
     this.localSetVolume(1);
     try {
       await this.Player().playVideo();
+      if (!isOwnShare && this.isRemoteShareViewer()) {
+        window.clearTimeout(this.soundVerifyTimer);
+        this.soundVerifyTimer = window.setTimeout(
+          () => void this.verifyRemoteShareAudio(),
+          300,
+        );
+      }
     } catch {
       // Keep the picture running muted and keep the prompt on screen.
       this.localSetMute(true);
@@ -2958,6 +3075,13 @@ export class App extends React.Component<AppProps, AppState> {
     const hasLiveAudio = stream
       ?.getAudioTracks()
       .some((track) => track.readyState === "live");
+    if (stream && hasLiveAudio) {
+      // Inside the tap: reattach a fresh stream so Chrome Android re-reads
+      // the audio track, then play unmuted from the same gesture.
+      this.attachRemoteShareStream(
+        collectRemoteShareTracks(stream.getTracks(), undefined),
+      );
+    }
     await this.activateSound();
     if (!hasLiveAudio) {
       const sharer = this.state.participants.find((p) => p.isScreenShare);
@@ -3829,6 +3953,17 @@ export class App extends React.Component<AppProps, AppState> {
                         </span>
                       </div>
                     )}
+                    {this.state.shareAudioMissing &&
+                      this.playingScreenShare() &&
+                      Boolean(sharer && sharer.id !== selfId) &&
+                      !this.remoteShareStream
+                        ?.getAudioTracks()
+                        .some((track) => track.readyState === "live") && (
+                        <div className={styles.shareAudioBanner} role="status">
+                          Esta transmissão está sem áudio. Peça para quem
+                          compartilha marcar “Compartilhar áudio”.
+                        </div>
+                      )}
                     {this.localStreamToPublish &&
                       !this.isLocalStreamAFile &&
                       this.playingScreenShare() && (

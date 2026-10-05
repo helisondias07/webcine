@@ -65,6 +65,22 @@ describe("accumulateRtcReport", () => {
     expect(s.videoHeight).toBe(720);
   });
 
+  it("flags cpu quality limitation from outbound video only", () => {
+    const s = emptyRtcStatsSummary();
+    accumulateRtcReport(s, {
+      type: "outbound-rtp",
+      kind: "video",
+      qualityLimitationReason: "bandwidth",
+    });
+    expect(s.cpuLimited).toBe(false);
+    accumulateRtcReport(s, {
+      type: "outbound-rtp",
+      kind: "video",
+      qualityLimitationReason: "cpu",
+    });
+    expect(s.cpuLimited).toBe(true);
+  });
+
   it("detects relay vs p2p from the selected candidate pair", () => {
     const relay = emptyRtcStatsSummary();
     accumulateRtcReport(relay, {

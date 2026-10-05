@@ -8,6 +8,8 @@ export type RtcStatsSummary = {
   videoHeight: number;
   framesPerSecond: number;
   transport: RtcTransport;
+  // True when an outbound video encoder reports qualityLimitationReason "cpu".
+  cpuLimited: boolean;
 };
 
 export function emptyRtcStatsSummary(): RtcStatsSummary {
@@ -19,6 +21,7 @@ export function emptyRtcStatsSummary(): RtcStatsSummary {
     videoHeight: 0,
     framesPerSecond: 0,
     transport: "unknown",
+    cpuLimited: false,
   };
 }
 
@@ -43,6 +46,9 @@ export function accumulateRtcReport(
   ) {
     if (report.type === "outbound-rtp") {
       summary.totalBytesSent += Number(report.bytesSent ?? 0);
+      if (report.qualityLimitationReason === "cpu") {
+        summary.cpuLimited = true;
+      }
     }
     summary.videoWidth = Math.max(
       summary.videoWidth,

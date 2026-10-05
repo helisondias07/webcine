@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyVideoCodecPreferences,
+  evaluateCpuSample,
   evaluateNetworkSample,
   getAdaptiveProfile,
   getSenderEncoding,
@@ -10,16 +11,17 @@ import {
   normalizeShareQualityMode,
   rankVideoCodec,
   sortVideoCodecs,
+  type CpuAdaptState,
   type NetworkAdaptState,
 } from "./quality";
 
 describe("getShareQualityProfile", () => {
-  it("uses 1080p/30 at 4 Mbps for a single viewer", () => {
+  it("uses 1080p/30 at 5 Mbps for a single viewer", () => {
     expect(getShareQualityProfile(1)).toEqual({
       captureWidth: 1920,
       captureHeight: 1080,
       maxFramerate: 30,
-      maxBitratePerPeer: 4_000_000,
+      maxBitratePerPeer: 5_000_000,
     });
   });
 
@@ -28,33 +30,40 @@ describe("getShareQualityProfile", () => {
     expect(getShareQualityProfile(-3)).toEqual(getShareQualityProfile(1));
   });
 
-  it("falls back to 720p/30 at 3.5 Mbps cap for 2 viewers (4 Mbps budget each)", () => {
+  it("keeps 1080p at 5 Mbps for 2 viewers", () => {
     const p = getShareQualityProfile(2);
-    expect(p.maxBitratePerPeer).toBe(3_500_000);
+    expect(p.maxBitratePerPeer).toBe(5_000_000);
     expect(p.captureHeight).toBe(1080);
   });
 
-  it("drops to 720p and 540p/24 as the room grows", () => {
+  it("keeps 1080p up to 6 viewers, then 720p and 540p/24 as the room grows", () => {
     const p4 = getShareQualityProfile(4);
-    expect(p4.maxBitratePerPeer).toBe(2_500_000);
-    expect(p4.captureHeight).toBe(720);
-    expect(p4.captureWidth).toBe(1280);
-    expect(p4.maxFramerate).toBe(30);
-    const p9 = getShareQualityProfile(9);
-    expect(p9.maxBitratePerPeer).toBe(1_555_556);
-    expect(p9.captureHeight).toBe(720);
+    expect(p4.maxBitratePerPeer).toBe(3_500_000);
+    expect(p4.captureHeight).toBe(1080);
+    const p6 = getShareQualityProfile(6);
+    expect(p6.maxBitratePerPeer).toBe(3_000_000);
+    expect(p6.captureHeight).toBe(1080);
+    const p7 = getShareQualityProfile(7);
+    expect(p7.captureHeight).toBe(720);
+    expect(p7.captureWidth).toBe(1280);
+    expect(p7.maxFramerate).toBe(30);
     const p12 = getShareQualityProfile(12);
-    expect(p12.maxBitratePerPeer).toBe(1_200_000);
-    expect(p12.captureHeight).toBe(540);
-    expect(p12.captureWidth).toBe(960);
-    expect(p12.maxFramerate).toBe(24);
+    expect(p12.maxBitratePerPeer).toBe(1_666_667);
+    expect(p12.captureHeight).toBe(720);
+    expect(p12.maxFramerate).toBe(30);
+    const p14 = getShareQualityProfile(14);
+    expect(p14.captureHeight).toBe(540);
+    expect(p14.captureWidth).toBe(960);
+    expect(p14.maxFramerate).toBe(24);
+    const p30 = getShareQualityProfile(30);
+    expect(p30.maxBitratePerPeer).toBe(1_200_000);
   });
 
-  it("never goes below the 1.2 Mbps floor and never exceeds the cap", () => {
+  it("never goes below the 1.2 Mbps floor and never exceeds the 5 Mbps cap", () => {
     for (let peers = 1; peers <= 50; peers++) {
       const { maxBitratePerPeer } = getShareQualityProfile(peers);
       expect(maxBitratePerPeer).toBeGreaterThanOrEqual(1_200_000);
-      expect(maxBitratePerPeer).toBeLessThanOrEqual(4_000_000);
+      expect(maxBitratePerPeer).toBeLessThanOrEqual(5_000_000);
     }
   });
 });
@@ -76,15 +85,17 @@ describe("getViewerSenderProfile", () => {
     expect(p.maxBitratePerPeer).toBe(3_000_000);
   });
 
-  it("high targets 1080p/30 with at least 4.5 Mbps", () => {
+  it("high targets 1080p/30 with 5-8 Mbps", () => {
     const p = getViewerSenderProfile(base, "high");
     expect(p.scaleResolutionDownBy).toBe(1);
     expect(p.maxFramerate).toBe(30);
-    expect(p.maxBitratePerPeer).toBe(5_400_000);
+    expect(p.maxBitratePerPeer).toBe(6_750_000);
+    const big = getViewerSenderProfile(getShareQualityProfile(12), "high");
+    expect(big.maxBitratePerPeer).toBe(5_000_000);
   });
 
   it("does not upscale when the capture is already smaller than the target", () => {
-    const small = getShareQualityProfile(12);
+    const small = getShareQualityProfile(14);
     expect(getViewerSenderProfile(small, "high").scaleResolutionDownBy).toBe(1);
   });
 });
@@ -124,8 +135,8 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
   const base = getShareQualityProfile(1);
 
   it("scales bitrate by the network scale and keeps a floor", () => {
-    expect(getAdaptiveProfile(base, 1, "motion").maxBitratePerPeer).toBe(4_000_000);
-    expect(getAdaptiveProfile(base, 0.5, "motion").maxBitratePerPeer).toBe(2_000_000);
+    expect(getAdaptiveProfile(base, 1, "motion").maxBitratePerPeer).toBe(5_000_000);
+    expect(getAdaptiveProfile(base, 0.5, "motion").maxBitratePerPeer).toBe(2_500_000);
     const tiny = { ...base, maxBitratePerPeer: 1_000_000 };
     expect(getAdaptiveProfile(tiny, 0.4, "motion").maxBitratePerPeer).toBe(700_000);
   });
@@ -136,14 +147,42 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
     expect(getAdaptiveProfile(base, 0.9, "detail").maxFramerate).toBe(30);
   });
 
-  it("chooses degradationPreference from the content hint", () => {
+  it("holds resolution on a healthy link for motion and detail", () => {
     const p = getAdaptiveProfile(base, 1, "motion");
     expect(getSenderEncoding(p, 1, "motion").degradationPreference).toBe(
-      "maintain-framerate",
+      "maintain-resolution",
+    );
+    expect(getSenderEncoding(p, 0.9, "motion").degradationPreference).toBe(
+      "maintain-resolution",
     );
     expect(getSenderEncoding(p, 1, "detail").degradationPreference).toBe(
       "maintain-resolution",
     );
+  });
+
+  it("switches motion to balanced only under network or CPU pressure", () => {
+    const p = getAdaptiveProfile(base, 1, "motion");
+    expect(getSenderEncoding(p, 0.8, "motion").degradationPreference).toBe(
+      "balanced",
+    );
+    expect(getSenderEncoding(p, 1, "motion", true).degradationPreference).toBe(
+      "balanced",
+    );
+    expect(getSenderEncoding(p, 0.5, "detail", true).degradationPreference).toBe(
+      "maintain-resolution",
+    );
+  });
+
+  it("never uses maintain-framerate (it made the share blurry)", () => {
+    for (const scale of [1, 0.8, 0.6, 0.4]) {
+      for (const hint of ["motion", "detail"] as const) {
+        for (const cpu of [false, true]) {
+          expect(
+            getSenderEncoding(base, scale, hint, cpu).degradationPreference,
+          ).not.toBe("maintain-framerate");
+        }
+      }
+    }
   });
 
   it("adds a resolution downscale when the network is weak", () => {
@@ -216,27 +255,66 @@ describe("evaluateNetworkSample", () => {
     expect(bad2.changed).toBe(false);
   });
 
-  it("recovers slowly: +0.05 only after 6 clean samples", () => {
+  it("recovers +0.1 only after 5 clean samples", () => {
     let state: NetworkAdaptState = { ...fresh, scale: 0.7 };
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const r = evaluateNetworkSample(state, 0.01, 0.05);
       expect(r.changed).toBe(false);
       state = r;
     }
     const r = evaluateNetworkSample(state, 0.01, 0.05);
     expect(r.changed).toBe(true);
-    expect(r.scale).toBeCloseTo(0.75);
+    expect(r.scale).toBeCloseTo(0.8);
     expect(r.stableSamples).toBe(0);
   });
 
   it("does not exceed scale 1 when recovering", () => {
     let state: NetworkAdaptState = { ...fresh, scale: 0.98 };
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 5; i++) {
       state = evaluateNetworkSample(state, 0, 0);
     }
     expect(state.scale).toBe(1);
-    const again = evaluateNetworkSample({ ...state, stableSamples: 5 }, 0, 0);
+    const again = evaluateNetworkSample({ ...state, stableSamples: 4 }, 0, 0);
     expect(again.changed).toBe(false);
+  });
+});
+
+describe("evaluateCpuSample", () => {
+  const fresh: CpuAdaptState = {
+    constrained: false,
+    limitedSamples: 0,
+    cleanSamples: 0,
+  };
+
+  it("flags CPU pressure only after 3 consecutive cpu-limited samples", () => {
+    let s = evaluateCpuSample(fresh, true);
+    s = evaluateCpuSample(s, true);
+    expect(s.constrained).toBe(false);
+    s = evaluateCpuSample(s, true);
+    expect(s.constrained).toBe(true);
+    expect(s.changed).toBe(true);
+  });
+
+  it("a clean sample resets the limited streak", () => {
+    let s = evaluateCpuSample(fresh, true);
+    s = evaluateCpuSample(s, true);
+    s = evaluateCpuSample(s, false);
+    s = evaluateCpuSample(s, true);
+    expect(s.constrained).toBe(false);
+  });
+
+  it("recovers after 15 clean samples", () => {
+    let s: CpuAdaptState & { changed?: boolean } = {
+      ...fresh,
+      constrained: true,
+    };
+    for (let i = 0; i < 14; i++) {
+      s = evaluateCpuSample(s, false);
+      expect(s.constrained).toBe(true);
+    }
+    s = evaluateCpuSample(s, false);
+    expect(s.constrained).toBe(false);
+    expect(s.changed).toBe(true);
   });
 });
 

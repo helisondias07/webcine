@@ -14,5 +14,8 @@ export type SenderEncoding = {
   maxBitrate: number;
   maxFramerate: number;
   scaleResolutionDownBy: number;
-  degradationPreference: "maintain-resolution" | "maintain-framerate";
+  degradationPreference:
+    | "maintain-resolution"
+    | "maintain-framerate"
+    | "balanced";
 };

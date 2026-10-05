@@ -74,6 +74,7 @@ import type {
 } from "./screenshare/types";
 import {
   applyVideoCodecPreferences,
+  evaluateCpuSample,
   evaluateNetworkSample,
   getAdaptiveProfile,
   getSenderEncoding,
@@ -373,6 +374,10 @@ export class App extends React.Component<AppProps, AppState> {
   shareNetworkScale = 1;
   stableRtcSamples = 0;
   constrainedRtcSamples = 0;
+  // Sender CPU pressure (qualityLimitationReason "cpu"), see evaluateCpuSample.
+  shareCpuConstrained = false;
+  cpuLimitedRtcSamples = 0;
+  cpuCleanRtcSamples = 0;
   turnIceServers?: RTCIceServer[];
   lastRtcBytesSent = 0;
   lastRtcStatsTimestamp = 0;
@@ -1657,6 +1662,7 @@ export class App extends React.Component<AppProps, AppState> {
         profile,
         this.shareNetworkScale,
         contentHint,
+        this.shareCpuConstrained,
       );
       encodings[0] = {
         ...encodings[0],
@@ -1665,8 +1671,8 @@ export class App extends React.Component<AppProps, AppState> {
         scaleResolutionDownBy: encoding.scaleResolutionDownBy,
       };
       params.encodings = encodings;
-      // Keep the preference consistent with the track's contentHint: movies
-      // ("motion") keep smooth frame rate, text/UI ("detail") keep pixels.
+      // Hold resolution while the link/CPU are healthy; "balanced" only under
+      // measured pressure (see getDegradationPreference in quality.ts).
       params.degradationPreference = encoding.degradationPreference;
       await sender.setParameters(params);
     } catch (e) {
@@ -1715,6 +1721,7 @@ export class App extends React.Component<AppProps, AppState> {
       videoHeight,
       framesPerSecond,
       transport,
+      cpuLimited,
     } = summary;
 
     const now = Date.now();
@@ -1762,6 +1769,25 @@ export class App extends React.Component<AppProps, AppState> {
     this.shareNetworkScale = result.scale;
     this.constrainedRtcSamples = result.constrainedSamples;
     this.stableRtcSamples = result.stableSamples;
+    // Encoder CPU pressure: let it trade pixels for frames ("balanced") only
+    // while the sender machine really cannot keep up.
+    const cpu = evaluateCpuSample(
+      {
+        constrained: this.shareCpuConstrained,
+        limitedSamples: this.cpuLimitedRtcSamples,
+        cleanSamples: this.cpuCleanRtcSamples,
+      },
+      cpuLimited,
+    );
+    this.shareCpuConstrained = cpu.constrained;
+    this.cpuLimitedRtcSamples = cpu.limitedSamples;
+    this.cpuCleanRtcSamples = cpu.cleanSamples;
+    if (cpu.changed && !result.changed) {
+      debugLog(
+        `[screenshare] cpu ${cpu.constrained ? "limited: balanced" : "ok: maintain-resolution"}`,
+      );
+      await this.applyAdaptiveShareQuality();
+    }
     if (result.constrained) {
       if (result.changed) {
         this.setConnectionQuality(result.severe ? "poor" : "adjusting");
@@ -1799,8 +1825,8 @@ export class App extends React.Component<AppProps, AppState> {
       contentHint,
     );
     // Reconfiguring the capture track for every bitrate adjustment is expensive
-    // and can interrupt sharing in Chromium. Keep the 1080p source stable;
-    // only the sender bitrate/frame rate adapts to a weaker viewer connection.
+    // and can interrupt sharing in Chromium. Keep the capture source stable;
+    // only the sender encoding (bitrate, downscale, degradation) adapts.
     const profileKey = `${profile.captureWidth}x${profile.captureHeight}@${profile.maxFramerate}`;
     if (profileKey !== this.lastAppliedShareProfileKey) {
       await this.applyShareTrackConstraints(videoTrack, profile);
@@ -2254,6 +2280,9 @@ export class App extends React.Component<AppProps, AppState> {
     this.constrainedRtcSamples = 0;
     this.stableRtcSamples = 0;
     this.shareNetworkScale = 1;
+    this.shareCpuConstrained = false;
+    this.cpuLimitedRtcSamples = 0;
+    this.cpuCleanRtcSamples = 0;
     window.clearTimeout(this.consumerRecreateTimer);
     window.clearTimeout(this.audioCheckTimer);
     Object.values(this.publisherRecreateTimers).forEach((t) =>

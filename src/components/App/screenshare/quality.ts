@@ -5,8 +5,68 @@ import type {
   SenderEncoding,
 } from "./types";
 
-export const MIN_NETWORK_SCALE = 0.4;
-export const MIN_PEER_BITRATE = 700_000;
+// Single source of truth for screen-share quality. Tune values here instead of
+// scattering numbers through App.tsx.
+//
+// Background: the "stutter less" tweaks (d2ab6719) combined contentHint
+// "motion" with degradationPreference "maintain-framerate", lower bitrate
+// caps and H.264-first. With that combination libwebrtc's quality scaler,
+// initial frame dropper and CPU adaptation are free to shrink the picture
+// (often to 540p or less) even on healthy links, which is what made the
+// received tab look blurry. Now resolution is held while the link is healthy
+// and only traded away when there is real, measured pressure.
+export const SHARE_QUALITY = {
+  // Per-viewer bitrate cap in "auto" mode. 1080p30 film content looks clean
+  // at ~4-6 Mbps; congestion control still sends less when the link is
+  // weaker, this is only the ceiling.
+  perPeerMaxBitrate: 5_000_000,
+  perPeerMinBitrate: 1_200_000,
+  // Total sender uplink budget, split between viewers (mesh: one encode per
+  // viewer).
+  totalBudgetByPeers: [
+    { maxPeers: 2, bitrate: 10_000_000 },
+    { maxPeers: 4, bitrate: 14_000_000 },
+    { maxPeers: 8, bitrate: 18_000_000 },
+    { maxPeers: Infinity, bitrate: 20_000_000 },
+  ],
+  // Capture resolution chosen from the per-viewer budget.
+  minBitrateFor1080p: 3_000_000,
+  minBitrateFor720p: 1_500_000,
+  maxFramerate: 30,
+  lowBitrateFramerate: 24,
+  lowBitrateFramerateBelow: 1_600_000,
+  // Viewer-selected modes.
+  high: { minBitrate: 5_000_000, maxBitrate: 8_000_000, factor: 1.35 },
+  economy: {
+    minBitrate: 1_000_000,
+    maxBitrate: 3_000_000,
+    factor: 0.85,
+    maxFramerate: 24,
+    targetHeight: 720,
+  },
+  // Network adaptation (loss/RTT driven, see evaluateNetworkSample).
+  adaptiveMinBitrate: 700_000,
+  minNetworkScale: 0.4,
+  // Below this network scale "motion" content may also lower resolution
+  // ("balanced"); above it resolution is held ("maintain-resolution").
+  balancedBelowScale: 0.85,
+  // Explicit downscale steps on a clearly weak link (first match wins).
+  networkDownscale: [
+    { belowScale: 0.5, scaleResolutionDownBy: 2 },
+    { belowScale: 0.7, scaleResolutionDownBy: 1.5 },
+  ],
+  // Recovery after the link is clean again: +step every N clean 2s samples.
+  recoveryStableSamples: 5,
+  recoveryStep: 0.1,
+  // CPU adaptation: after N consecutive "cpu" limited samples the sender
+  // switches to "balanced" (fewer pixels instead of dropped frames), and goes
+  // back to holding resolution after M clean samples.
+  cpuLimitedSamplesToAdapt: 3,
+  cpuCleanSamplesToRecover: 15,
+} as const;
+
+export const MIN_NETWORK_SCALE = SHARE_QUALITY.minNetworkScale;
+export const MIN_PEER_BITRATE = SHARE_QUALITY.adaptiveMinBitrate;
 
 export function normalizeShareQualityMode(value: unknown): ShareQualityMode {
   if (value === "economy" || value === "high") {
@@ -25,35 +85,42 @@ export function getShareQualityLabel(mode: ShareQualityMode): string {
   return "Auto";
 }
 
-// Conservative defaults: a movie share to one or two people is more stable at
-// ~3.5-4 Mbps than at 6 Mbps (tablets and home uplinks stall when the sender
-// probes higher). Larger rooms split a smaller total budget.
+function getTotalBitrateBudget(peers: number): number {
+  const tier =
+    SHARE_QUALITY.totalBudgetByPeers.find((t) => peers <= t.maxPeers) ??
+    SHARE_QUALITY.totalBudgetByPeers[
+      SHARE_QUALITY.totalBudgetByPeers.length - 1
+    ];
+  return tier.bitrate;
+}
+
+// Base profile for the room size. Small rooms keep a 1080p source at up to
+// 5 Mbps per viewer; larger rooms split the total budget and step down to
+// 720p (and 540p/24 only for very large rooms).
 export function getShareQualityProfile(peerCount: number): ShareQualityProfile {
   const peers = Math.max(1, peerCount);
-  const totalBitrateBudget =
-    peers <= 2
-      ? 8_000_000
-      : peers <= 4
-        ? 10_000_000
-        : peers <= 8
-          ? 12_000_000
-          : 14_000_000;
-  const perPeerCap = peers <= 1 ? 4_000_000 : 3_500_000;
   const maxBitratePerPeer = Math.round(
-    Math.max(1_200_000, Math.min(perPeerCap, totalBitrateBudget / peers)),
+    Math.max(
+      SHARE_QUALITY.perPeerMinBitrate,
+      Math.min(
+        SHARE_QUALITY.perPeerMaxBitrate,
+        getTotalBitrateBudget(peers) / peers,
+      ),
+    ),
   );
-  // Keep a 1080p source only while the budget supports it; otherwise use
-  // 720p/30, which holds frame rate much better on weak links.
   let captureHeight = 1080;
-  if (maxBitratePerPeer < 3_500_000) {
+  if (maxBitratePerPeer < SHARE_QUALITY.minBitrateFor1080p) {
     captureHeight = 720;
   }
-  if (maxBitratePerPeer < 1_500_000) {
+  if (maxBitratePerPeer < SHARE_QUALITY.minBitrateFor720p) {
     captureHeight = 540;
   }
   const captureWidth =
     captureHeight >= 1080 ? 1920 : captureHeight >= 720 ? 1280 : 960;
-  const maxFramerate = maxBitratePerPeer < 1_600_000 ? 24 : 30;
+  const maxFramerate =
+    maxBitratePerPeer < SHARE_QUALITY.lowBitrateFramerateBelow
+      ? SHARE_QUALITY.lowBitrateFramerate
+      : SHARE_QUALITY.maxFramerate;
   return {
     captureWidth,
     captureHeight,
@@ -77,28 +144,36 @@ export function getViewerSenderProfile(
   mode: ShareQualityMode,
 ): ShareQualityProfile {
   if (mode === "economy") {
+    const economy = SHARE_QUALITY.economy;
     return {
       ...baseProfile,
       maxBitratePerPeer: Math.max(
-        1_000_000,
-        Math.min(3_000_000, Math.round(baseProfile.maxBitratePerPeer * 0.85)),
+        economy.minBitrate,
+        Math.min(
+          economy.maxBitrate,
+          Math.round(baseProfile.maxBitratePerPeer * economy.factor),
+        ),
       ),
-      maxFramerate: Math.min(baseProfile.maxFramerate, 24),
+      maxFramerate: Math.min(baseProfile.maxFramerate, economy.maxFramerate),
       // Target quality: 720p for this viewer, when host capture allows it.
       scaleResolutionDownBy: resolveScaleResolutionDownBy(
         baseProfile.captureHeight,
-        720,
+        economy.targetHeight,
       ),
     };
   }
   if (mode === "high") {
+    const high = SHARE_QUALITY.high;
     return {
       ...baseProfile,
       maxBitratePerPeer: Math.min(
-        10_000_000,
-        Math.max(4_500_000, Math.round(baseProfile.maxBitratePerPeer * 1.35)),
+        high.maxBitrate,
+        Math.max(
+          high.minBitrate,
+          Math.round(baseProfile.maxBitratePerPeer * high.factor),
+        ),
       ),
-      maxFramerate: 30,
+      maxFramerate: SHARE_QUALITY.maxFramerate,
       // Target quality: 1080p for this viewer, when host capture allows it.
       scaleResolutionDownBy: resolveScaleResolutionDownBy(
         baseProfile.captureHeight,
@@ -112,8 +187,10 @@ export function getViewerSenderProfile(
   };
 }
 
-// Movies are the main use case, so every surface defaults to "motion".
-// "detail" is only used for an explicit text/UI override.
+// Movies are the main use case, so every surface defaults to "motion" (the
+// realtime video encoder mode, smooth motion). "detail" (screenshare encoder
+// mode, sharp text but it drops frames on motion) is only used for an
+// explicit text/UI override.
 export function getShareContentHint(
   track: Pick<MediaStreamTrack, "getSettings"> | undefined,
   override?: ShareContentHint,
@@ -140,11 +217,11 @@ export function getAdaptiveProfile(
 ): ShareQualityProfile {
   return {
     ...baseProfile,
-    // For "motion" (movies) keep the frame rate and let the encoder lower
-    // resolution instead; only "detail" content trades frames for pixels.
+    // Motion keeps its frame rate; only "detail" content trades frames for
+    // pixels on a weak link.
     maxFramerate:
       contentHint === "detail" && networkScale < 0.7
-        ? Math.min(24, baseProfile.maxFramerate)
+        ? Math.min(SHARE_QUALITY.lowBitrateFramerate, baseProfile.maxFramerate)
         : baseProfile.maxFramerate,
     maxBitratePerPeer: Math.max(
       MIN_PEER_BITRATE,
@@ -153,23 +230,55 @@ export function getAdaptiveProfile(
   };
 }
 
+// Decides what the encoder may sacrifice under pressure.
+// - "detail": always keep pixels (text must stay readable).
+// - "motion" on a healthy link with spare CPU: keep pixels too. This disables
+//   libwebrtc's quality scaler / CPU-driven downscaling, which is what made
+//   the stream blurry with "maintain-framerate".
+// - "motion" under measured network or CPU pressure: "balanced", so the
+//   encoder can lower resolution a bit instead of freezing frames.
+export function getDegradationPreference(
+  contentHint: ShareContentHint,
+  networkScale: number,
+  cpuConstrained = false,
+): SenderEncoding["degradationPreference"] {
+  if (contentHint === "detail") {
+    return "maintain-resolution";
+  }
+  if (cpuConstrained || networkScale < SHARE_QUALITY.balancedBelowScale) {
+    return "balanced";
+  }
+  return "maintain-resolution";
+}
+
+function getNetworkDownscale(networkScale: number): number {
+  const step = SHARE_QUALITY.networkDownscale.find(
+    (s) => networkScale < s.belowScale,
+  );
+  return step ? step.scaleResolutionDownBy : 1;
+}
+
 // Final per-sender encoding. When the network is clearly struggling the
-// picture is also shrunk, because "maintain-resolution" alone only drops
-// frames. The degradation preference follows the content hint.
+// picture is also shrunk explicitly (1080p -> 720p -> 540p) so the bitrate
+// left per pixel stays reasonable.
 export function getSenderEncoding(
   profile: ShareQualityProfile,
   networkScale: number,
   contentHint: ShareContentHint,
+  cpuConstrained = false,
 ): SenderEncoding {
   return {
     maxBitrate: profile.maxBitratePerPeer,
     maxFramerate: profile.maxFramerate,
     scaleResolutionDownBy: Math.max(
       profile.scaleResolutionDownBy ?? 1,
-      networkScale < 0.5 ? 2 : networkScale < 0.7 ? 1.5 : 1,
+      getNetworkDownscale(networkScale),
     ),
-    degradationPreference:
-      contentHint === "detail" ? "maintain-resolution" : "maintain-framerate",
+    degradationPreference: getDegradationPreference(
+      contentHint,
+      networkScale,
+      cpuConstrained,
+    ),
   };
 }
 
@@ -186,8 +295,9 @@ export type NetworkAdaptResult = NetworkAdaptState & {
 };
 
 // Decides how the network scale moves for one stats sample. Loss/RTT must stay
-// bad for 2 consecutive samples to degrade; recovery needs 6 clean samples and
-// is slower (+0.05) than degradation (-0.1 / -0.2 when severe).
+// bad for 2 consecutive samples to degrade; recovery needs a few clean samples
+// (+0.1 every 5 samples, ~10s) so a short hiccup does not leave the picture
+// soft for minutes.
 export function evaluateNetworkSample(
   state: NetworkAdaptState,
   loss: number,
@@ -209,12 +319,46 @@ export function evaluateNetworkSample(
   }
   constrainedSamples = 0;
   stableSamples += 1;
-  if (stableSamples >= 6 && scale < 1) {
-    scale = Math.min(1, scale + 0.05);
+  if (stableSamples >= SHARE_QUALITY.recoveryStableSamples && scale < 1) {
+    scale = Math.min(1, Number((scale + SHARE_QUALITY.recoveryStep).toFixed(2)));
     stableSamples = 0;
     changed = true;
   }
   return { scale, constrainedSamples, stableSamples, changed, constrained, severe };
+}
+
+export type CpuAdaptState = {
+  constrained: boolean;
+  limitedSamples: number;
+  cleanSamples: number;
+};
+
+// Tracks the encoder's "cpu" quality limitation. Only CPU is used here: the
+// "bandwidth" flag is reported even on healthy streams and is handled by the
+// loss/RTT logic above.
+export function evaluateCpuSample(
+  state: CpuAdaptState,
+  cpuLimited: boolean,
+): CpuAdaptState & { changed: boolean } {
+  let { constrained, limitedSamples, cleanSamples } = state;
+  let changed = false;
+  if (cpuLimited) {
+    cleanSamples = 0;
+    limitedSamples += 1;
+    if (!constrained && limitedSamples >= SHARE_QUALITY.cpuLimitedSamplesToAdapt) {
+      constrained = true;
+      changed = true;
+    }
+  } else {
+    limitedSamples = 0;
+    cleanSamples += 1;
+    if (constrained && cleanSamples >= SHARE_QUALITY.cpuCleanSamplesToRecover) {
+      constrained = false;
+      cleanSamples = 0;
+      changed = true;
+    }
+  }
+  return { constrained, limitedSamples, cleanSamples, changed };
 }
 
 export type ConnectionQuality =

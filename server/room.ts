@@ -672,11 +672,9 @@ export class Room {
     }
     this.video = data;
     this.videoTS = 0;
-    const isLiveShare =
-      data.startsWith("screenshare://") || data.startsWith("fileshare://");
-    // Synced videos start paused. Play is an explicit gesture, so the other
-    // person is not left behind by an autoplay the browser blocks.
-    this.paused = Boolean(data) && !isLiveShare;
+    // Choosing a video starts the room. Other browsers block unmuted autoplay,
+    // so those clients start muted and ask for a tap.
+    this.paused = false;
     this.loop = false;
     this.playbackRate = 1;
     this.tsMap = {};

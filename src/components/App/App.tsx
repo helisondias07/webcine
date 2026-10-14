@@ -364,6 +364,10 @@ export class App extends React.Component<AppProps, AppState> {
   youtubePauseTimer: number | undefined = undefined;
   playbackGestureTimer: number | undefined = undefined;
   soundUnlockedMedia = "";
+  youtubeStartByMe = false;
+  youtubeStartUrl = "";
+  youtubeStartTimer: number | undefined = undefined;
+  youtubeSoundUnlocked = false;
   localStreamToPublish?: MediaStream;
   isLocalStreamAFile = false;
   localFileObjectUrl: string | undefined = undefined;
@@ -501,6 +505,7 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearTimeout(this.warningMessageTimeout);
     window.clearTimeout(this.youtubePauseTimer);
     window.clearTimeout(this.playbackGestureTimer);
+    window.clearTimeout(this.youtubeStartTimer);
     this.joinToastTimeouts.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
@@ -673,30 +678,20 @@ export class App extends React.Component<AppProps, AppState> {
     socket.on("REC:play", () => {
       this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
       if (this.usingYoutube()) {
-        this.YouTubeInterface.playVideo();
-        window.clearTimeout(this.playbackGestureTimer);
-        this.playbackGestureTimer = window.setTimeout(() => {
-          const state =
-            this.YouTubeInterface.watchPartyYTPlayer?.getPlayerState();
-          const started =
-            state === window.YT?.PlayerState?.PLAYING ||
-            state === window.YT?.PlayerState?.BUFFERING;
-          if (started) {
-            this.setState({
-              roomPaused: false,
-              playbackNeedsGesture: false,
-            });
-            return;
-          }
-          this.setState({ playbackNeedsGesture: true, roomPaused: true });
-        }, 800);
+        this.playYouTubeWithRoom(this.youtubeStartByMe);
         return;
       }
       this.localPlay();
     });
     socket.on("REC:pause", () => {
       this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
-      this.setState({ playbackNeedsGesture: false });
+      this.setState({
+        playbackNeedsGesture: false,
+        soundPromptMedia:
+          this.playingScreenShare() || this.playingFileShare()
+            ? this.state.soundPromptMedia
+            : "",
+      });
       this.localPause();
     });
     socket.on("REC:seek", (data: number) => {
@@ -720,6 +715,12 @@ export class App extends React.Component<AppProps, AppState> {
     });
     socket.on("REC:host", async (data: HostState) => {
       let currentMedia = data.video || "";
+      this.suppressYouTubeStateSyncUntil = Date.now() + 2500;
+      const startedHere =
+        this.youtubeStartByMe && currentMedia === this.youtubeStartUrl;
+      if (currentMedia !== this.youtubeStartUrl) {
+        this.youtubeSoundUnlocked = false;
+      }
       if (
         currentMedia === "" &&
         this.playingScreenShare() &&
@@ -751,7 +752,11 @@ export class App extends React.Component<AppProps, AppState> {
           nonPlayableMedia: false,
           controller: data.controller,
           isLiveStream: false,
-          playbackNeedsGesture: false,
+          playbackNeedsGesture:
+            Boolean(currentMedia) &&
+            isYouTube(currentMedia) &&
+            !data.paused &&
+            !startedHere,
           soundPromptMedia: "",
         },
         async () => {
@@ -926,8 +931,16 @@ export class App extends React.Component<AppProps, AppState> {
             }
             await this.Player().setSrcAndTime(src, time);
           }
-          // Start this video
-          if (!data.paused) {
+          // Start this video. The person who picked it has a click gesture, so
+          // their YouTube can play with sound. Everyone else is muted until
+          // they tap — otherwise the browser leaves them on the poster.
+          if (this.usingYoutube() && (startedHere || !data.paused)) {
+            this.playYouTubeWithRoom(startedHere);
+            if (startedHere) {
+              this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+              this.socket.emit("CMD:play");
+            }
+          } else if (!data.paused) {
             this.localPlay();
           }
           // Do right before playing
@@ -1282,12 +1295,15 @@ export class App extends React.Component<AppProps, AppState> {
               e.data === window.YT?.PlayerState?.PLAYING
             ) {
               window.clearTimeout(this.youtubePauseTimer);
-              if (this.state.playbackNeedsGesture || this.state.roomPaused) {
-                this.setState({
-                  playbackNeedsGesture: false,
-                  roomPaused: false,
-                });
-              }
+              const needsSound =
+                !this.youtubeStartByMe &&
+                !this.youtubeSoundUnlocked &&
+                this.YouTubeInterface.isMuted();
+              this.setState({
+                playbackNeedsGesture: false,
+                roomPaused: false,
+                soundPromptMedia: needsSound ? this.state.roomMedia : "",
+              });
               if (
                 this.ytDebounce &&
                 Date.now() >= this.suppressYouTubeStateSyncUntil &&
@@ -3085,6 +3101,34 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  // fromGesture is only true for the person who just chose the video.
+  // Everyone else starts muted: Chrome will play a muted YouTube video
+  // without a tap, then "Ativar som" turns the sound on in that tap.
+  playYouTubeWithRoom = (fromGesture: boolean) => {
+    if (fromGesture || this.youtubeSoundUnlocked) {
+      this.youtubeSoundUnlocked = true;
+      this.YouTubeInterface.setMute(false);
+      if (this.YouTubeInterface.getVolume() === 0) {
+        this.YouTubeInterface.setVolume(1);
+      }
+      void this.YouTubeInterface.playVideo();
+      this.setState({
+        roomPaused: false,
+        playbackNeedsGesture: false,
+        soundPromptMedia: "",
+        isAutoPlayable: true,
+      });
+      return;
+    }
+    this.YouTubeInterface.setMute(true);
+    void this.YouTubeInterface.playVideo();
+    this.setState({
+      roomPaused: false,
+      playbackNeedsGesture: true,
+      isAutoPlayable: false,
+    });
+  };
+
   localPlay = async (attempt = 0) => {
     if (!this.state.roomMedia) {
       return;
@@ -3206,14 +3250,38 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
     if (this.usingYoutube()) {
+      this.youtubeSoundUnlocked = true;
       this.YouTubeInterface.setMute(false);
-      this.YouTubeInterface.setVolume(1);
+      if (this.YouTubeInterface.getVolume() === 0) {
+        this.YouTubeInterface.setVolume(1);
+      }
       void this.YouTubeInterface.playVideo();
+      if (
+        (this.state.roomPaused || this.state.playbackNeedsGesture) &&
+        this.haveLock()
+      ) {
+        this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+        this.socket.emit("CMD:play");
+      }
       this.setState({
         playbackNeedsGesture: false,
+        soundPromptMedia: "",
         roomPaused: false,
         isAutoPlayable: true,
       });
+      window.clearTimeout(this.playbackGestureTimer);
+      this.playbackGestureTimer = window.setTimeout(() => {
+        const state =
+          this.YouTubeInterface.watchPartyYTPlayer?.getPlayerState();
+        if (
+          state !== window.YT?.PlayerState?.PLAYING &&
+          this.usingYoutube() &&
+          !this.state.roomPaused
+        ) {
+          this.youtubeSoundUnlocked = false;
+          this.setState({ playbackNeedsGesture: true });
+        }
+      }, 700);
       return;
     }
     const video = this.HTMLInterface.getVideoEl();
@@ -3499,6 +3567,15 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomSetMedia = (value: string) => {
+    if (isYouTube(value)) {
+      this.youtubeStartByMe = true;
+      this.youtubeStartUrl = value;
+      this.youtubeSoundUnlocked = true;
+      window.clearTimeout(this.youtubeStartTimer);
+      this.youtubeStartTimer = window.setTimeout(() => {
+        this.youtubeStartByMe = false;
+      }, 5000);
+    }
     this.socket.emit("CMD:host", value);
   };
 
@@ -4231,31 +4308,6 @@ export class App extends React.Component<AppProps, AppState> {
                         </div>
                       </div>
                     )}
-                    {(this.state.soundPromptMedia === this.state.roomMedia &&
-                      Boolean(this.state.roomMedia)) ||
-                    this.state.playbackNeedsGesture ? (
-                      // zIndex below the chat dock (120) so the chat toggle
-                      // stays clickable while the sound prompt is shown.
-                      <Overlay className={styles.flexCenter} zIndex={100}>
-                        <div className={styles.soundPrompt}>
-                          <Button
-                            className={styles.soundPromptButton}
-                            onClick={() => this.activateSound()}
-                            leftSection={<IconVolume />}
-                            size="xl"
-                          >
-                            {this.state.soundPromptMedia === this.state.roomMedia
-                              ? "Ativar som"
-                              : "Toque para assistir"}
-                          </Button>
-                          <div className={styles.soundPromptHint}>
-                            {this.state.soundPromptMedia === this.state.roomMedia
-                              ? "Toque para ouvir a transmissão"
-                              : "Toque para acompanhar a sala"}
-                          </div>
-                        </div>
-                      </Overlay>
-                    ) : null}
                     {(this.state.loading ||
                       !this.state.roomMedia ||
                       this.state.nonPlayableMedia) &&
@@ -4383,6 +4435,31 @@ export class App extends React.Component<AppProps, AppState> {
                       playsInline
                       onClick={this.roomTogglePlay}
                     ></video>
+                    {((this.state.soundPromptMedia === this.state.roomMedia &&
+                      Boolean(this.state.roomMedia)) ||
+                      this.state.playbackNeedsGesture) && (
+                      <div className={styles.watchPrompt}>
+                        <div className={styles.soundPrompt}>
+                          <Button
+                            className={styles.soundPromptButton}
+                            onClick={() => this.activateSound()}
+                            leftSection={<IconVolume />}
+                            size="xl"
+                          >
+                            {this.state.soundPromptMedia ===
+                            this.state.roomMedia
+                              ? "Ativar som"
+                              : "Toque para assistir"}
+                          </Button>
+                          <div className={styles.soundPromptHint}>
+                            {this.state.soundPromptMedia ===
+                            this.state.roomMedia
+                              ? "Toque para ouvir a transmissão"
+                              : "Toque para acompanhar a sala"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {Boolean(this.state.total) && (
                       <div className={styles.downloadStats}>
                         {Math.min(

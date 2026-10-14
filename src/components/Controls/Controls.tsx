@@ -4,8 +4,13 @@ import styles from "./Controls.module.css";
 import {
   IconAdjustmentsHorizontal,
   IconCheck,
+  IconBadgeCc,
   IconMaximize,
+  IconPlayerPause,
+  IconPlayerPlay,
   IconRefresh,
+  IconRewindBackward10,
+  IconRewindForward10,
   IconVolume,
   IconVolumeOff,
 } from "@tabler/icons-react";
@@ -34,6 +39,14 @@ interface ControlsProps {
   onStartCountdown: () => void;
   showAudioRecovery: boolean;
   onRecoverAudio: () => void;
+  showTransportControls: boolean;
+  transportDisabled: boolean;
+  paused: boolean;
+  onTogglePlay: () => void;
+  onSeekBy: (seconds: number) => void;
+  captionsEnabled: boolean;
+  showCaptionsControl: boolean;
+  onToggleCaptions: () => void;
 }
 
 export const Controls = (props: ControlsProps) => {
@@ -58,6 +71,14 @@ export const Controls = (props: ControlsProps) => {
     onStartCountdown,
     showAudioRecovery,
     onRecoverAudio,
+    showTransportControls,
+    transportDisabled,
+    paused,
+    onTogglePlay,
+    onSeekBy,
+    captionsEnabled,
+    showCaptionsControl,
+    onToggleCaptions,
   } = props;
 
   const getYouTubeQualityLabel = (value: YouTubeQualityMode) => {
@@ -84,6 +105,40 @@ export const Controls = (props: ControlsProps) => {
 
   return (
     <div className={styles.controls}>
+      {showTransportControls && (
+        <>
+          <button
+            type="button"
+            className={styles.action}
+            disabled={transportDisabled}
+            onClick={() => onSeekBy(-10)}
+            aria-label="Voltar 10 segundos"
+            title="Voltar 10 segundos"
+          >
+            <IconRewindBackward10 />
+          </button>
+          <button
+            type="button"
+            className={styles.action}
+            disabled={transportDisabled}
+            onClick={onTogglePlay}
+            aria-label={paused ? "Reproduzir" : "Pausar"}
+            title={paused ? "Reproduzir" : "Pausar"}
+          >
+            {paused ? <IconPlayerPlay /> : <IconPlayerPause />}
+          </button>
+          <button
+            type="button"
+            className={styles.action}
+            disabled={transportDisabled}
+            onClick={() => onSeekBy(10)}
+            aria-label="Avançar 10 segundos"
+            title="Avançar 10 segundos"
+          >
+            <IconRewindForward10 />
+          </button>
+        </>
+      )}
       {muted ? (
         <button
           type="button"
@@ -117,6 +172,18 @@ export const Controls = (props: ControlsProps) => {
           }}
         />
       </div>
+      {showCaptionsControl && (
+        <button
+          type="button"
+          className={`${styles.action} ${captionsEnabled ? styles.actionActive : ""}`}
+          onClick={onToggleCaptions}
+          aria-pressed={captionsEnabled}
+          aria-label={captionsEnabled ? "Desligar legendas" : "Ligar legendas"}
+          title={captionsEnabled ? "Desligar legendas" : "Ligar legendas"}
+        >
+          <IconBadgeCc />
+        </button>
+      )}
       {showYouTubeQualityControl && (
         <Menu>
           <Menu.Target>

@@ -3,6 +3,7 @@ import {
   getDisplayInitials,
   getReadableNameColor,
   getRelativeLuminance,
+  isPlaybackJump,
   normalizeDisplayName,
   normalizeNameColor,
   normalizeYouTubeQuality,
@@ -35,6 +36,13 @@ describe("helpers", () => {
     expect(getReadableNameColor("#e8590c")).toBe("#E8590C");
     expect(getReadableNameColor("#1C7ED6")).toBe("#1C7ED6");
     expect(getReadableNameColor("#FFD43B")).toBe("#FFD43B");
+  });
+
+  it("detects a seek and ignores normal playback", () => {
+    expect(isPlaybackJump(10, 20, 1, 1)).toBe(true);
+    expect(isPlaybackJump(40, 30, 1, 0)).toBe(true);
+    expect(isPlaybackJump(10, 11.2, 1, 1)).toBe(false);
+    expect(isPlaybackJump(10, 30, 12, 1)).toBe(false);
   });
 
   it("computes relative luminance", () => {

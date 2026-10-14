@@ -37,6 +37,26 @@ export function getReadableNameColor(
   return normalized;
 }
 
+/**
+ * True when playback jumped instead of advancing with the clock.
+ * Used to publish a room seek when the YouTube player moves on its own.
+ */
+export function isPlaybackJump(
+  previousTime: number,
+  nextTime: number,
+  elapsedSeconds: number,
+  playbackRate: number,
+): boolean {
+  if (!Number.isFinite(previousTime) || !Number.isFinite(nextTime)) {
+    return false;
+  }
+  if (elapsedSeconds <= 0 || elapsedSeconds > 8) {
+    return false;
+  }
+  const expected = previousTime + elapsedSeconds * (playbackRate || 1);
+  return Math.abs(nextTime - expected) > 2.5;
+}
+
 export function getRelativeLuminance(hex: string) {
   const normalized = normalizeNameColor(hex).replace("#", "");
   const channel = (offset: number) => {

@@ -6,7 +6,6 @@ import { SecureLink } from "react-secure-link";
 import styles from "./Chat.module.css";
 
 import {
-  formatTimestamp,
   getColorForStringHex,
   getDefaultPicture,
   getOrCreateClientId,
@@ -316,7 +315,7 @@ const ChatMessage = ({
   isChatDisabled: boolean | undefined;
   className: string;
 }) => {
-  const { id, timestamp, cmd, msg, system, videoTS } = message;
+  const { id, timestamp, cmd, msg, system } = message;
   const commandMessage = cmd ? formatMessage(cmd, msg) : "";
   const imageMsg = renderImageString(msg);
   const readableNameColor = getReadableNameColor(nameColorMap[id]);
@@ -392,8 +391,6 @@ const ChatMessage = ({
                 hour: "2-digit",
                 minute: "2-digit",
               })}
-              {Boolean(videoTS) && " @ "}
-              {formatTimestamp(videoTS)}
             </div>
           </div>
         </div>

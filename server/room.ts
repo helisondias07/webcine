@@ -74,6 +74,7 @@ export class Room {
   public lastUpdateTime: Date = new Date();
   public dirty = true;
   private preventTSUpdate = false;
+  private seekGuardUntil = 0;
   // Not really a queue since there's no ordering, we just retry as long as this is set
   // If we want a real queue then we need external processing of the jobs and a way to update the room from outside
   public vBrowserQueue:
@@ -671,7 +672,11 @@ export class Room {
     }
     this.video = data;
     this.videoTS = 0;
-    this.paused = false;
+    const isLiveShare =
+      data.startsWith("screenshare://") || data.startsWith("fileshare://");
+    // Synced videos start paused. Play is an explicit gesture, so the other
+    // person is not left behind by an autoplay the browser blocks.
+    this.paused = Boolean(data) && !isLiveShare;
     this.loop = false;
     this.playbackRate = 1;
     this.tsMap = {};
@@ -942,11 +947,14 @@ export class Room {
   };
 
   private seekVideo = (socket: Socket, data: number) => {
-    if (String(data).length > 100) {
+    if (!Number.isFinite(data) || String(data).length > 100) {
       return;
     }
     this.videoTS = data;
+    this.tsMap = {};
+    this.seekGuardUntil = Date.now() + 2500;
     this.dirty = true;
+    this.io.of(this.roomId).emit("REC:tsMap", this.tsMap);
     socket.broadcast.emit("REC:seek", data);
   };
 
@@ -973,6 +981,13 @@ export class Room {
     }
     // Prevent lagging TS updates from the old video from messing up our timestamps
     if (this.preventTSUpdate) {
+      return;
+    }
+    // Right after a seek, ignore positions that still belong to the old time.
+    if (
+      Date.now() < this.seekGuardUntil &&
+      Math.abs(data - this.videoTS) > 2
+    ) {
       return;
     }
     // This is negative for live streams, so allow overwriting

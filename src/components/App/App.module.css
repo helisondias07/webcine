@@ -183,15 +183,8 @@
   bottom: 0;
   z-index: 80;
   pointer-events: none;
-  padding-top: 28px;
-  /* Dark scrim so our controls never blend with the video or YouTube's own
-     branding, in both themes. */
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.78) 0%,
-    rgba(0, 0, 0, 0.45) 55%,
-    rgba(0, 0, 0, 0) 100%
-  );
+  padding-top: 0;
+  background: none;
 }
 
 .controlsDock > * {
@@ -578,13 +571,6 @@
   color: var(--text-muted);
   font-size: 0.64rem;
   font-weight: 800;
-}
-
-.peopleTimestamp {
-  margin-top: 4px;
-  color: var(--text-subtle);
-  font-size: 0.72rem;
-  font-weight: 700;
 }
 
 .shareAudioBanner {
@@ -1034,7 +1020,9 @@
   min-height: 64px;
   padding-inline: 32px;
   font-size: 1.25rem;
-  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.18), 0 8px 30px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, 0.18),
+    0 8px 30px rgba(0, 0, 0, 0.6);
   animation: soundPromptPulse 1.6s ease-in-out infinite;
 }
 
@@ -1070,6 +1058,29 @@
 
 /* Touch targets: >= 44px on touch devices and tablets, desktop stays compact. */
 @media (pointer: coarse), (max-width: 1024px) {
+  /* The empty state is absolutely positioned. On a short tablet or phone it
+     was clipped, so "Compartilhar tela" sat outside the tap area. */
+  .playerContainer:has(.emptyStage) {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .emptyStage {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    padding-block: 12px;
+  }
+
+  .emptyStateCard {
+    width: min(560px, calc(100% - 24px));
+    min-width: 0;
+    margin-inline: auto;
+  }
+
   .topActionButton,
   .shareButton {
     min-height: 44px;
@@ -1157,7 +1168,7 @@
   }
 
   .controlsDock {
-    padding-top: 12px;
+    padding-top: 0;
   }
 
   .playerArea:not(:fullscreen) .chatDock {

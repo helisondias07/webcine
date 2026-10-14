@@ -9,7 +9,6 @@ import {
   serverPath,
   testAutoplay,
   openFileSelector,
-  formatTimestamp,
   getColorForStringHex,
   getDefaultPicture,
   getOrCreateClientId,
@@ -66,6 +65,7 @@ import {
   normalizeDisplayName,
   normalizeNameColor,
   normalizeYouTubeQuality,
+  isPlaybackJump,
   toRgba,
   type YouTubeQualityMode,
 } from "./helpers";
@@ -106,6 +106,14 @@ import {
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
 } from "./screenshare/remoteStream";
+import {
+  getDisplayMediaRequest,
+  getScreenShareMode,
+  isHandheldShareDevice,
+  limitShareProfileForDevice,
+  readShareCaptureEnv,
+  screenShareUnsupportedMessage,
+} from "./screenshare/capture";
 
 declare global {
   interface Window {
@@ -228,6 +236,9 @@ interface AppState {
   screenShareQualityMode: ShareQualityMode;
   youtubeQualityMode: YouTubeQualityMode;
   youtubeQualityLevels: YT.SuggestedVideoQuality[];
+  youtubeCaptionsEnabled: boolean;
+  soundPromptMedia: string;
+  playbackNeedsGesture: boolean;
   joinToasts: JoinToast[];
   countdownVisible: boolean;
   countdownText: string;
@@ -333,6 +344,9 @@ export class App extends React.Component<AppProps, AppState> {
       window.localStorage.getItem(YOUTUBE_QUALITY_STORAGE_KEY),
     ),
     youtubeQualityLevels: [],
+    youtubeCaptionsEnabled: false,
+    soundPromptMedia: "",
+    playbackNeedsGesture: false,
     joinToasts: [],
     countdownVisible: false,
     countdownText: "",
@@ -344,6 +358,12 @@ export class App extends React.Component<AppProps, AppState> {
   mediasoupPubSocket: Socket | null = null;
   mediasoupSubSocket: Socket | null = null;
   ytDebounce = true;
+  observedMediaTime = 0;
+  observedAt = 0;
+  suppressSeekPublishUntil = 0;
+  youtubePauseTimer: number | undefined = undefined;
+  playbackGestureTimer: number | undefined = undefined;
+  soundUnlockedMedia = "";
   localStreamToPublish?: MediaStream;
   isLocalStreamAFile = false;
   localFileObjectUrl: string | undefined = undefined;
@@ -479,6 +499,8 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.syncUpdater);
     window.clearInterval(this.rtcStatsUpdater);
     window.clearTimeout(this.warningMessageTimeout);
+    window.clearTimeout(this.youtubePauseTimer);
+    window.clearTimeout(this.playbackGestureTimer);
     this.joinToastTimeouts.forEach((timeoutId) => {
       window.clearTimeout(timeoutId);
     });
@@ -650,13 +672,38 @@ export class App extends React.Component<AppProps, AppState> {
     });
     socket.on("REC:play", () => {
       this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+      if (this.usingYoutube()) {
+        this.YouTubeInterface.playVideo();
+        window.clearTimeout(this.playbackGestureTimer);
+        this.playbackGestureTimer = window.setTimeout(() => {
+          const state =
+            this.YouTubeInterface.watchPartyYTPlayer?.getPlayerState();
+          const started =
+            state === window.YT?.PlayerState?.PLAYING ||
+            state === window.YT?.PlayerState?.BUFFERING;
+          if (started) {
+            this.setState({
+              roomPaused: false,
+              playbackNeedsGesture: false,
+            });
+            return;
+          }
+          this.setState({ playbackNeedsGesture: true, roomPaused: true });
+        }, 800);
+        return;
+      }
       this.localPlay();
     });
     socket.on("REC:pause", () => {
       this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+      this.setState({ playbackNeedsGesture: false });
       this.localPause();
     });
     socket.on("REC:seek", (data: number) => {
+      this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+      this.suppressSeekPublishUntil = Date.now() + 1500;
+      this.observedMediaTime = data;
+      this.observedAt = Date.now();
       this.localSeek(data);
     });
     socket.on("REC:playbackRate", (data: number) => {
@@ -704,8 +751,11 @@ export class App extends React.Component<AppProps, AppState> {
           nonPlayableMedia: false,
           controller: data.controller,
           isLiveStream: false,
+          playbackNeedsGesture: false,
+          soundPromptMedia: "",
         },
         async () => {
+          this.soundUnlockedMedia = "";
           const leftVideo = this.HTMLInterface.getVideoEl();
 
           // Stop all players
@@ -730,6 +780,7 @@ export class App extends React.Component<AppProps, AppState> {
             if (this.playingScreenShare() || this.playingFileShare()) {
               await this.setupRTCConnections();
             }
+            this.armShareSoundPrompt();
             return;
           }
           if (this.usingYoutube() && !this.YouTubeInterface.isReady()) {
@@ -1113,15 +1164,34 @@ export class App extends React.Component<AppProps, AppState> {
     window.clearInterval(this.syncUpdater);
     this.syncUpdater = window.setInterval(() => {
       if (
-        this.state.roomMedia &&
-        !this.state.roomPaused &&
-        this.state.participants.length > 1 &&
-        document.visibilityState === "visible"
+        !this.state.roomMedia ||
+        document.visibilityState !== "visible" ||
+        this.state.participants.length < 2
       ) {
-        const toSend = this.getRoomTSToSet(this.Player().getCurrentTime());
-        this.socket.emit("CMD:ts", toSend);
+        return;
       }
-    }, 2000);
+      const current = this.Player().getCurrentTime();
+      const elapsed = (Date.now() - this.observedAt) / 1000;
+      const rate = this.state.roomPaused
+        ? 0
+        : this.Player().getPlaybackRate() || 1;
+      if (
+        this.observedAt > 0 &&
+        Date.now() >= this.suppressSeekPublishUntil &&
+        this.haveLock() &&
+        !this.playingScreenShare() &&
+        !this.playingFileShare() &&
+        !this.state.isLiveStream &&
+        isPlaybackJump(this.observedMediaTime, current, elapsed, rate)
+      ) {
+        this.publishSeek(current);
+      }
+      this.observedMediaTime = current;
+      this.observedAt = Date.now();
+      if (!this.state.roomPaused && Date.now() >= this.suppressSeekPublishUntil) {
+        this.socket.emit("CMD:ts", this.getRoomTSToSet(current));
+      }
+    }, 1000);
   };
 
   setFileSelection = (
@@ -1156,6 +1226,8 @@ export class App extends React.Component<AppProps, AppState> {
           controls: 0,
           rel: 0,
           playsinline: 1,
+          cc_load_policy: 0,
+          iv_load_policy: 3,
         },
         events: {
           onReady: () => {
@@ -1163,6 +1235,9 @@ export class App extends React.Component<AppProps, AppState> {
             this.YouTubeInterface = new YouTube(
               ytPlayer,
               this.state.youtubeQualityMode,
+            );
+            this.YouTubeInterface.setCaptionsEnabled(
+              this.state.youtubeCaptionsEnabled,
             );
             this.applyYouTubeQualityPreference();
             this.setState({ loading: false });
@@ -1172,12 +1247,18 @@ export class App extends React.Component<AppProps, AppState> {
               this.socket.emit("CMD:askHost");
             }
           },
+          onApiChange: () => {
+            this.YouTubeInterface?.setCaptionsEnabled(
+              this.state.youtubeCaptionsEnabled,
+            );
+          },
           onStateChange: (e) => {
             if (
               this.usingYoutube() &&
               e.data === window.YT?.PlayerState?.CUED
             ) {
               this.applyYouTubeQualityPreference();
+              this.YouTubeInterface.applyCaptionsPreference();
               this.setState({ loading: false });
             }
             if (
@@ -1185,7 +1266,9 @@ export class App extends React.Component<AppProps, AppState> {
               (e.data === window.YT?.PlayerState?.PLAYING ||
                 e.data === window.YT?.PlayerState?.BUFFERING)
             ) {
+              window.clearTimeout(this.youtubePauseTimer);
               this.refreshYouTubeQualityLevels();
+              this.YouTubeInterface.applyCaptionsPreference();
             }
             if (
               this.usingYoutube() &&
@@ -1195,23 +1278,52 @@ export class App extends React.Component<AppProps, AppState> {
               this.onVideoEnded(e.target.getVideoUrl());
             }
             if (
-              this.ytDebounce &&
-              Date.now() >= this.suppressYouTubeStateSyncUntil &&
-              ((e.data === window.YT?.PlayerState?.PLAYING &&
-                (this.state.roomPaused ||
-                  this.Player().getCurrentTime() <= 1)) ||
-                (e.data === window.YT?.PlayerState?.PAUSED &&
-                  !this.state.roomPaused))
+              this.usingYoutube() &&
+              e.data === window.YT?.PlayerState?.PLAYING
             ) {
-              this.ytDebounce = false;
-              if (e.data === window.YT?.PlayerState?.PLAYING) {
-                this.socket.emit("CMD:play");
-                this.localPlay();
-              } else {
-                this.socket.emit("CMD:pause");
-                this.localPause();
+              window.clearTimeout(this.youtubePauseTimer);
+              if (this.state.playbackNeedsGesture || this.state.roomPaused) {
+                this.setState({
+                  playbackNeedsGesture: false,
+                  roomPaused: false,
+                });
               }
-              window.setTimeout(() => (this.ytDebounce = true), 500);
+              if (
+                this.ytDebounce &&
+                Date.now() >= this.suppressYouTubeStateSyncUntil &&
+                this.state.roomPaused &&
+                this.haveLock()
+              ) {
+                this.ytDebounce = false;
+                this.socket.emit("CMD:play");
+                window.setTimeout(() => (this.ytDebounce = true), 500);
+              }
+            }
+            if (
+              this.usingYoutube() &&
+              e.data === window.YT?.PlayerState?.PAUSED
+            ) {
+              window.clearTimeout(this.youtubePauseTimer);
+              this.youtubePauseTimer = window.setTimeout(() => {
+                if (
+                  !this.ytDebounce ||
+                  Date.now() < this.suppressYouTubeStateSyncUntil ||
+                  this.state.roomPaused ||
+                  !this.haveLock() ||
+                  !this.usingYoutube()
+                ) {
+                  return;
+                }
+                const state =
+                  this.YouTubeInterface.watchPartyYTPlayer?.getPlayerState();
+                if (state !== window.YT?.PlayerState?.PAUSED) {
+                  return;
+                }
+                this.ytDebounce = false;
+                this.socket.emit("CMD:pause");
+                this.setState({ roomPaused: true });
+                window.setTimeout(() => (this.ytDebounce = true), 500);
+              }, 450);
             }
           },
         },
@@ -1829,7 +1941,10 @@ export class App extends React.Component<AppProps, AppState> {
       videoTrack.contentHint = contentHint;
     }
     const peerCount = this.getActiveShareViewerCount();
-    const baseProfile = getShareQualityProfile(peerCount);
+    const baseProfile = limitShareProfileForDevice(
+      getShareQualityProfile(peerCount),
+      isHandheldShareDevice(readShareCaptureEnv()),
+    );
     const profile = getAdaptiveProfile(
       baseProfile,
       this.shareNetworkScale,
@@ -1860,53 +1975,51 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   startScreenShare = async (useMediaSoup: boolean) => {
-    if (navigator.mediaDevices?.getDisplayMedia) {
-      try {
-        const videoConstraints: MediaTrackConstraints & {
-          logicalSurface?: boolean;
-        } = {
-          logicalSurface: true,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30, max: 30 },
-        };
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: videoConstraints,
-          audio: {
-            autoGainControl: false,
-            channelCount: 2,
-            echoCancellation: false,
-            noiseSuppression: false,
-            sampleRate: 48000,
-            sampleSize: 16,
-          },
-        });
-        this.localStreamToPublish = stream;
-        this.isLocalStreamAFile = false;
-        if (stream.getAudioTracks().length === 0) {
-          this.showWarningMessage(
-            "A tela foi compartilhada sem áudio. Para transmitir o som, escolha uma aba e marque “Compartilhar áudio”.",
-            15000,
-          );
-        }
-        await this.applyAdaptiveShareQuality();
-        this.startAudioMeter();
-        this.forceUpdate();
-        this.socket.emit("CMD:joinScreenShare", {
-          file: false,
-          mediasoup: useMediaSoup,
-        });
-      } catch (e: any) {
-        if (e?.name !== "NotAllowedError") {
-          this.showWarningMessage(
-            "Não foi possível iniciar o compartilhamento de tela.",
-          );
-        }
+    const captureEnv = readShareCaptureEnv();
+    const mode = getScreenShareMode(captureEnv);
+    const getDisplayMedia = navigator.mediaDevices?.getDisplayMedia?.bind(
+      navigator.mediaDevices,
+    );
+    if (mode === "unsupported" || !getDisplayMedia) {
+      this.showWarningMessage(screenShareUnsupportedMessage(captureEnv), 12000);
+      return;
+    }
+    try {
+      const stream = await getDisplayMedia(getDisplayMediaRequest(mode));
+      this.localStreamToPublish = stream;
+      this.isLocalStreamAFile = false;
+      if (stream.getAudioTracks().length === 0) {
+        this.showWarningMessage(
+          mode === "handheld"
+            ? "A tela foi compartilhada sem áudio. No celular e no tablet o navegador não captura o som de outros aplicativos."
+            : "A tela foi compartilhada sem áudio. Para transmitir o som, escolha uma aba e marque “Compartilhar áudio”.",
+          15000,
+        );
       }
-    } else {
-      this.showWarningMessage(
-        "Compartilhar tela ainda não é suportado em navegadores mobile.",
-      );
+      await this.applyAdaptiveShareQuality();
+      this.startAudioMeter();
+      this.forceUpdate();
+      this.socket.emit("CMD:joinScreenShare", {
+        file: false,
+        mediasoup: useMediaSoup,
+      });
+    } catch (e: any) {
+      const cancelled =
+        e?.name === "NotAllowedError" || e?.name === "AbortError";
+      if (mode === "handheld") {
+        this.showWarningMessage(
+          cancelled
+            ? "O compartilhamento não começou. Aceite a permissão de gravar a tela quando o sistema pedir."
+            : "Não foi possível compartilhar a tela neste aparelho. Atualize o Chrome no Android e aceite gravar a tela.",
+          12000,
+        );
+        return;
+      }
+      if (!cancelled) {
+        this.showWarningMessage(
+          "Não foi possível iniciar o compartilhamento de tela.",
+        );
+      }
     }
   };
 
@@ -2666,13 +2779,14 @@ export class App extends React.Component<AppProps, AppState> {
         if (
           event.track.kind === "audio" &&
           navigator.maxTouchPoints > 0 &&
-          !navigator.userActivation?.hasBeenActive
+          !navigator.userActivation?.hasBeenActive &&
+          this.soundUnlockedMedia !== this.state.roomMedia
         ) {
           // Touch browsers frequently accept a remote track but block its
           // audio until a real tap. Surface the existing activation control
           // immediately instead of leaving a silent, apparently-playing feed.
           this.localSetMute(true);
-          this.setState({ isAutoPlayable: false });
+          this.armShareSoundPrompt();
         }
         // Always call play() again, even if the element already plays: a
         // reattached srcObject pauses it, and a late audio track needs it.
@@ -2979,7 +3093,13 @@ export class App extends React.Component<AppProps, AppState> {
     this.setState(
       { roomPaused: false, isAutoPlayable: canAutoplay },
       async () => {
-        if (
+        const remoteShareUnlocked =
+          this.soundUnlockedMedia === this.state.roomMedia &&
+          this.isRemoteShareViewer();
+        if (remoteShareUnlocked) {
+          this.localSetMute(false);
+          this.localSetVolume(1);
+        } else if (
           !this.state.isAutoPlayable ||
           (this.localStreamToPublish && !this.isLocalStreamAFile)
         ) {
@@ -3007,6 +3127,7 @@ export class App extends React.Component<AppProps, AppState> {
             // "Ativar som" action which supplies the required user gesture.
             this.localSetMute(true);
             this.setState({ isAutoPlayable: false });
+            this.armShareSoundPrompt();
             try {
               await this.Player().playVideo();
               return;
@@ -3039,34 +3160,109 @@ export class App extends React.Component<AppProps, AppState> {
     this.refreshControls();
   };
 
-  // Must run from a user gesture (tap): unmutes and starts playback.
-  activateSound = async () => {
+  // Must run from a user gesture (tap): unmutes and starts playback in this
+  // same turn. Waiting on setState drops the gesture and tablets stay silent.
+  activateSound = () => {
+    const media = this.state.roomMedia;
     const isOwnShare = Boolean(
       this.localStreamToPublish && !this.isLocalStreamAFile,
     );
-    this.setState({ isAutoPlayable: true });
-    this.localSetMute(isOwnShare);
-    this.localSetVolume(1);
-    try {
-      await this.Player().playVideo();
-      if (!isOwnShare && this.isRemoteShareViewer()) {
-        window.clearTimeout(this.soundVerifyTimer);
-        this.soundVerifyTimer = window.setTimeout(
-          () => void this.verifyRemoteShareAudio(),
-          300,
+    if (!isOwnShare && this.isRemoteShareViewer()) {
+      this.soundUnlockedMedia = media;
+      const video = this.HTMLInterface.getVideoEl();
+      const current =
+        (video?.srcObject as MediaStream | null) ?? this.remoteShareStream;
+      if (current) {
+        this.attachRemoteShareStream(
+          collectRemoteShareTracks(current.getTracks(), undefined),
         );
       }
-    } catch {
-      // Keep the picture running muted and keep the prompt on screen.
-      this.localSetMute(true);
-      this.setState({ isAutoPlayable: false });
-      try {
-        await this.Player().playVideo();
-      } catch {
-        // ignore
+      if (!video) {
+        return;
       }
-      this.showWarningMessage("Toque novamente para ativar o som.", 4000);
+      video.muted = false;
+      video.volume = 1;
+      const playPromise = video.play();
+      this.setState({
+        isAutoPlayable: true,
+        soundPromptMedia: "",
+        roomPaused: false,
+      });
+      void playPromise
+        ?.then(() => {
+          window.clearTimeout(this.soundVerifyTimer);
+          this.soundVerifyTimer = window.setTimeout(
+            () => void this.verifyRemoteShareAudio(),
+            300,
+          );
+        })
+        .catch(() => {
+          video.muted = true;
+          this.soundUnlockedMedia = "";
+          this.setState({ isAutoPlayable: false, soundPromptMedia: media });
+          void video.play().catch(() => undefined);
+          this.showWarningMessage("Toque novamente para ativar o som.", 4000);
+        });
+      return;
     }
+    if (this.usingYoutube()) {
+      this.YouTubeInterface.setMute(false);
+      this.YouTubeInterface.setVolume(1);
+      void this.YouTubeInterface.playVideo();
+      this.setState({
+        playbackNeedsGesture: false,
+        roomPaused: false,
+        isAutoPlayable: true,
+      });
+      return;
+    }
+    const video = this.HTMLInterface.getVideoEl();
+    if (!video) {
+      return;
+    }
+    video.muted = false;
+    video.volume = 1;
+    const playPromise = video.play();
+    this.setState({
+      isAutoPlayable: true,
+      playbackNeedsGesture: false,
+      roomPaused: false,
+    });
+    void playPromise?.catch(() => {
+      video.muted = true;
+      this.setState({ isAutoPlayable: false });
+      void video.play().catch(() => undefined);
+      this.showWarningMessage("Toque novamente para ativar o som.", 4000);
+    });
+  };
+
+  armShareSoundPrompt = () => {
+    const media = this.state.roomMedia;
+    if (!media || (!this.playingScreenShare() && !this.playingFileShare())) {
+      return;
+    }
+    if (this.localStreamToPublish) {
+      return;
+    }
+    if (this.soundUnlockedMedia === media || this.state.soundPromptMedia === media) {
+      return;
+    }
+    this.setState({ soundPromptMedia: media });
+  };
+
+  publishSeek = (time: number) => {
+    const target = Math.max(time, 0);
+    this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
+    this.suppressSeekPublishUntil = Date.now() + 1500;
+    this.observedMediaTime = target;
+    this.observedAt = Date.now();
+    this.socket.emit("CMD:seek", this.getRoomTSToSet(target));
+  };
+
+  setYouTubeCaptionsEnabled = (enabled: boolean) => {
+    this.setState({ youtubeCaptionsEnabled: enabled }, () => {
+      this.YouTubeInterface.setCaptionsEnabled(enabled);
+    });
   };
 
   recoverRemoteAudio = async () => {
@@ -3082,7 +3278,7 @@ export class App extends React.Component<AppProps, AppState> {
         collectRemoteShareTracks(stream.getTracks(), undefined),
       );
     }
-    await this.activateSound();
+    this.activateSound();
     if (!hasLiveAudio) {
       const sharer = this.state.participants.find((p) => p.isScreenShare);
       if (sharer && sharer.id !== getOrCreateClientId()) {
@@ -3105,28 +3301,39 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomTogglePlay = () => {
-    if (!this.haveLock()) {
-      return;
-    }
-    if (this.isPauseDisabled()) {
+    if (!this.haveLock() || this.isPauseDisabled()) {
       return;
     }
     const shouldPlay = this.Player().shouldPlay();
+    this.suppressYouTubeStateSyncUntil = Date.now() + 1500;
     if (shouldPlay) {
+      if (this.usingYoutube()) {
+        this.YouTubeInterface.setMute(false);
+        if (this.YouTubeInterface.getVolume() === 0) {
+          this.YouTubeInterface.setVolume(1);
+        }
+      }
+      void this.Player().playVideo();
       this.socket.emit("CMD:play");
-      this.localPlay();
+      this.setState({
+        roomPaused: false,
+        playbackNeedsGesture: false,
+        isAutoPlayable: true,
+      });
     } else {
+      this.Player().pauseVideo();
       this.socket.emit("CMD:pause");
-      this.localPause();
+      this.setState({ roomPaused: true });
     }
   };
 
   roomSeek = (time: number) => {
-    let target = time;
-    target = Math.max(target, 0);
+    if (!this.haveLock() || this.isPauseDisabled()) {
+      return;
+    }
+    const target = Math.max(time, 0);
     this.Player().seekVideo(target);
-    const toSend = this.getRoomTSToSet(target);
-    this.socket.emit("CMD:seek", toSend);
+    this.publishSeek(target);
   };
 
   getRoomTSToSet = (time: number) => {
@@ -3635,6 +3842,24 @@ export class App extends React.Component<AppProps, AppState> {
             (this.playingScreenShare() || this.playingFileShare()),
         )}
         onRecoverAudio={this.recoverRemoteAudio}
+        showTransportControls={Boolean(
+          this.state.roomMedia &&
+            this.hasDuration() &&
+            !this.state.isLiveStream &&
+            !this.playingScreenShare() &&
+            !this.playingFileShare(),
+        )}
+        transportDisabled={!this.haveLock()}
+        paused={this.state.roomPaused || this.state.playbackNeedsGesture}
+        onTogglePlay={this.roomTogglePlay}
+        onSeekBy={(seconds) =>
+          this.roomSeek(this.Player().getCurrentTime() + seconds)
+        }
+        captionsEnabled={this.state.youtubeCaptionsEnabled}
+        showCaptionsControl={canAdjustYouTubeQuality}
+        onToggleCaptions={() =>
+          this.setYouTubeCaptionsEnabled(!this.state.youtubeCaptionsEnabled)
+        }
       />
     );
     return (
@@ -3651,6 +3876,10 @@ export class App extends React.Component<AppProps, AppState> {
           <ScreenShareModal
             closeModal={() => this.setState({ isScreenShareModalOpen: false })}
             startScreenShare={this.startScreenShare}
+            mode={getScreenShareMode(readShareCaptureEnv())}
+            unsupportedMessage={screenShareUnsupportedMessage(
+              readShareCaptureEnv(),
+            )}
           />
         )}
         {this.state.isFileShareModalOpen && (
@@ -3740,6 +3969,7 @@ export class App extends React.Component<AppProps, AppState> {
               left: "50%",
               transform: "translate(-50%, 0)",
               zIndex: 1000,
+              width: "min(92vw, 480px)",
             }}
           >
             {this.state.warningMessage}
@@ -4001,32 +4231,38 @@ export class App extends React.Component<AppProps, AppState> {
                         </div>
                       </div>
                     )}
-                    {!this.state.isAutoPlayable && this.state.roomMedia && (
+                    {(this.state.soundPromptMedia === this.state.roomMedia &&
+                      Boolean(this.state.roomMedia)) ||
+                    this.state.playbackNeedsGesture ? (
                       // zIndex below the chat dock (120) so the chat toggle
                       // stays clickable while the sound prompt is shown.
                       <Overlay className={styles.flexCenter} zIndex={100}>
                         <div className={styles.soundPrompt}>
                           <Button
                             className={styles.soundPromptButton}
-                            onClick={() => void this.activateSound()}
+                            onClick={() => this.activateSound()}
                             leftSection={<IconVolume />}
                             size="xl"
                           >
-                            Ativar som
+                            {this.state.soundPromptMedia === this.state.roomMedia
+                              ? "Ativar som"
+                              : "Toque para assistir"}
                           </Button>
                           <div className={styles.soundPromptHint}>
-                            Toque para ouvir a transmissão
+                            {this.state.soundPromptMedia === this.state.roomMedia
+                              ? "Toque para ouvir a transmissão"
+                              : "Toque para acompanhar a sala"}
                           </div>
                         </div>
                       </Overlay>
-                    )}
+                    ) : null}
                     {(this.state.loading ||
                       !this.state.roomMedia ||
                       this.state.nonPlayableMedia) &&
                       !this.state.isLiveStream && (
                         <div
                           id="loader"
-                          className={`${styles.videoContent} ${styles.flexCenter}`}
+                          className={`${styles.videoContent} ${styles.flexCenter} ${styles.emptyStage}`}
                         >
                           {this.state.loading && (
                             <div
@@ -4130,7 +4366,7 @@ export class App extends React.Component<AppProps, AppState> {
                       allowFullScreen
                       frameBorder="0"
                       allow="autoplay"
-                      src="https://www.youtube.com/embed/?enablejsapi=1&controls=0&rel=0&playsinline=1&vq=hd1080"
+                      src="https://www.youtube.com/embed/?enablejsapi=1&controls=0&rel=0&playsinline=1&vq=hd1080&cc_load_policy=0&iv_load_policy=3"
                     />
                     <video
                       style={{
@@ -4328,11 +4564,6 @@ export class App extends React.Component<AppProps, AppState> {
                                         <span className={styles.peopleBadge}>
                                           Host
                                         </span>
-                                      )}
-                                    </div>
-                                    <div className={styles.peopleTimestamp}>
-                                      {formatTimestamp(
-                                        this.state.tsMap[participant.id] || 0,
                                       )}
                                     </div>
                                   </div>

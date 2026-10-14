@@ -34,10 +34,18 @@ function normalizeYouTubeQuality(value: string | undefined): YouTubeQualityMode 
   }
 }
 
+type CaptionPlayer = YT.Player & {
+  unloadModule?: (module: string) => void;
+  loadModule?: (module: string) => void;
+  setOption?: (module: string, option: string, value: unknown) => void;
+  getOption?: (module: string, option: string) => unknown;
+};
+
 export class YouTube implements Player {
   watchPartyYTPlayer: YT.Player | null;
   preferredQuality: YouTubeQualityMode;
   availableQualityLevels: YT.SuggestedVideoQuality[] = [];
+  captionsEnabled = false;
 
   constructor(
     watchPartyYTPlayer: YT.Player | null,
@@ -89,6 +97,44 @@ export class YouTube implements Player {
     player.setPlaybackQuality(quality);
     player.setPlaybackQualityRange?.(quality);
     this.refreshAvailableQualityLevels();
+  };
+
+  private captionPlayer = (): CaptionPlayer | null => {
+    return (this.watchPartyYTPlayer as CaptionPlayer | null) ?? null;
+  };
+
+  setCaptionsEnabled = (enabled: boolean) => {
+    this.captionsEnabled = enabled;
+    this.applyCaptionsPreference();
+  };
+
+  applyCaptionsPreference = () => {
+    const player = this.captionPlayer();
+    if (!player) {
+      return;
+    }
+    try {
+      if (!this.captionsEnabled) {
+        player.unloadModule?.("captions");
+        player.setOption?.("captions", "track", {});
+        return;
+      }
+      player.loadModule?.("captions");
+      const tracks = player.getOption?.("captions", "tracklist");
+      const list = Array.isArray(tracks)
+        ? (tracks as { languageCode?: string; languageName?: string }[])
+        : [];
+      const preferred =
+        list.find((track) => track.languageCode === "pt") ??
+        list.find((track) => track.languageCode === "pt-BR") ??
+        list.find((track) => track.languageCode?.startsWith("pt")) ??
+        list[0];
+      if (preferred) {
+        player.setOption?.("captions", "track", preferred);
+      }
+    } catch {
+      // The captions module is not ready on every state change.
+    }
   };
 
   setPreferredQuality = (quality: string) => {
@@ -148,6 +194,9 @@ export class YouTube implements Player {
       startSeconds: time,
       suggestedQuality: this.toSuggestedQuality(),
     });
+    window.setTimeout(() => this.applyCaptionsPreference(), 0);
+    window.setTimeout(() => this.applyCaptionsPreference(), 400);
+    window.setTimeout(() => this.applyCaptionsPreference(), 1200);
     window.setTimeout(() => {
       this.applyQualityPreference();
     }, 120);
@@ -158,10 +207,8 @@ export class YouTube implements Player {
   };
 
   playVideo = async () => {
-    setTimeout(() => {
-      debugLog("play yt");
-      this.watchPartyYTPlayer?.playVideo();
-    }, 200);
+    debugLog("play yt");
+    this.watchPartyYTPlayer?.playVideo();
   };
 
   pauseVideo = () => {

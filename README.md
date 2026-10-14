@@ -1,149 +1,111 @@
 # WebCineTV
 
-![screenshot](public/screenshot4.webp)
+Assista vídeos em sincronia com amigos, de graça. Não precisa de conta e não precisa pagar: acesse o site, crie uma sala, envie o convite e escolha o que assistir.
 
-Uma plataforma para assistir videos em sincronia com amigos.
+## O que a sala faz
 
-## Description
+- Sincroniza play, pause e seek entre quem está na sala
+- Cria uma sala separada para cada sessão, acessível por link
+- Chat de texto ao lado do vídeo
+- Fila de reprodução
+- Sala com senha e sala permanente (a permanente depende do Postgres)
 
-- Synchronizes the video being watched with the current room
-- Plays, pauses, and seeks are synced to all watchers
-- Supports:
-  - Screen sharing (full screen, browser tab or application)
-  - Launch a shared virtual browser in the cloud (similar to rabb.it)
-  - Stream-your-own-file
-  - Video files on the Internet (anything accessible via HTTP)
-  - YouTube videos
-  - Magnet links (via WebTorrent)
-  - .m3u8 streams (HLS)
-- Create separate rooms for users on demand
-- Text chat
-- Video chat
+Fontes de vídeo:
 
-## Quick Start (Desenvolvimento)
+- YouTube
+- Arquivo do próprio dispositivo
+- Arquivo na internet, por link HTTP
+- Streams `.m3u8` (HLS)
+- Compartilhamento de tela (tela inteira, aba do navegador ou aplicativo)
+- Sugestão “Me surpreenda” (YouTube e filmes), quando as chaves opcionais estão configuradas
 
-1. Entre na pasta do projeto e instale dependencias:
-   - `cd projeto-watch`
-   - `npm install`
-2. Copie `.env.example` para `.env` e preencha as chaves.
-3. Rode backend + frontend em um unico terminal:
-   - `npm run dev:all`
-   - (abre automaticamente `http://localhost:5173` no navegador)
+Magnet links via WebTorrent ficam desligados por padrão. Veja a seção opcional abaixo.
 
-Opcional (sem abrir navegador automaticamente):
+## Desenvolvimento
 
-- `npm run dev:all:no-open`
+1. Na pasta do projeto, instale as dependências: `npm install`
+2. Copie `.env.example` para `.env`
+3. Suba backend e frontend no mesmo terminal: `npm run dev:all`
 
-Observacao: o backend em desenvolvimento observa apenas `server/`, evitando reinicios indesejados quando o Vite atualiza arquivos do frontend.
+O comando abre `http://localhost:5173`. Para subir sem abrir o navegador, use `npm run dev:all:no-open`.
 
-Servidor padrao: `http://localhost:8080`  
-Frontend padrao: `http://localhost:5173`
+Em desenvolvimento o backend observa só `server/`, então o Vite não reinicia o servidor ao atualizar o frontend.
 
-## Seguranca de Origem (CORS)
+- Frontend: `http://localhost:5173`
+- Servidor: `http://localhost:8080`
 
-Para ambientes de producao, configure os domínios oficiais do frontend no backend:
+A aplicação sobe sem as chaves opcionais. Sem elas, busca do YouTube, sugestão de filmes e salas permanentes ficam indisponíveis. Criar sala, chat, YouTube por link, arquivo e compartilhamento de tela continuam funcionando.
 
-- `.env`:
-  - `CORS_ALLOWED_ORIGINS=https://webcinetv.com.br,https://www.webcinetv.com.br`
+## Configuração opcional
 
-Regras atuais:
+### Busca do YouTube
 
-- Origem autorizada recebe `Access-Control-Allow-Origin`.
-- Origem nao autorizada nao recebe `Access-Control-Allow-Origin`.
-- Sem header `Origin` (server-to-server/same-origin) segue permitido.
+A busca usa a YouTube Data API v3. Sem `YOUTUBE_API_KEY`, ainda dá para colar um link do YouTube na sala. A chave é criada no [Google Cloud Console](https://console.developers.google.com). Coloque o valor em `.env` e reinicie o servidor.
 
-Validacao automatica:
+### Me surpreenda
 
-- `npm run test:cors`
+- `TMDB_READ_TOKEN` (ou `TMDB_API_KEY`) habilita sugestão de filmes
+- `YOUTUBE_API_KEY` habilita sugestão de vídeos
+- `WATCHMODE_API_KEY` tenta resolver um link direto do título sugerido
 
-Para adicionar um novo dominio oficial:
+### Salas permanentes
 
-1. Adicione o dominio em `CORS_ALLOWED_ORIGINS` (separado por virgula, sem barra final).
-2. Rode `npm run test:cors`.
-3. Valide manualmente no navegador que a origem nova funciona e uma origem externa continua bloqueada.
+Defina `DATABASE_URL` e aplique o schema em `sql/`. Com Postgres, uma sala permanente sobrevive a reinícios do servidor. Sem isso, as salas são temporárias.
 
-## Setup Avancado (Opcional)
+### Compartilhamento em salas maiores (MediaSoup)
 
-All of these are optional and the application should work without them. Some functionality may be missing.
-
-### YouTube API (busca)
-
-This project uses the YouTube API for video search, which requires an API key. You can get one from Google [here](https://console.developers.google.com).
-
-Without an API key you won't be able to search for videos via the searchbox.
-
-After creating a **YouTube Data API V3** access, you can create an API key which you can add to your environment variables by copying the `.env.example`, renaming it to `.env` and adding the key to the YOUTUBE_API_KEY variable.
-
-After that restart your server to enable the YouTube API access on your server.
-
-### Virtual Browser Setup
-
-This project supports creating virtual browsers (using m1k1o/neko) either on a cloud provider or with Docker containers. For development, Docker is easiest.
-
-- Install Docker: `curl -fsSL https://get.docker.com | sh`
-- Make sure you have an SSH key pair set up on the server (`id_rsa` in `~/.ssh` directory), if not, use `ssh-keygen`.
-- Configure `DOCKER_VM_HOST_SSH_USER` if `root` is not the correct user
-- Note: If your web client is not running on the same physical machine as the server, you will also need to configure `DOCKER_VM_HOST` to a publically-resolvable value (i.e. not localhost)
-- If you want to run managed instance pools (whether on cloud or with Docker), configure `VM_MANAGER_CONFIG` and run the vmWorker service.
-
-### MediaSoup / SFU
-
-Para salas maiores, configure `MEDIASOUP_SERVER` com a URL pública do relay
-compatível com o protocolo MediaSoup usado pelo cliente. Quando configurado, o
-compartilhamento envia uma única cópia ao relay, reduzindo o upload de quem
-transmite. Sem essa variável, o site continua usando P2P.
-
-Links de plataformas com DRM (Netflix, Prime, etc.) podem ser roteados para o
-VBrowser quando essa infraestrutura estiver configurada.
+`MEDIASOUP_SERVER` aponta para um relay compatível com o cliente. Com ele, quem compartilha tela ou arquivo envia uma cópia só. Sem a variável, o compartilhamento segue ponto a ponto: uma cópia por espectador.
 
 ### Transmissão estável em produção
 
-O frontend pode ficar na Vercel, mas o servidor Socket.IO, coturn e o SFU
-precisam rodar em serviços persistentes com IP/DNS público. Vercel não deve ser
-o host do Socket.IO ou da mídia em tempo real.
+O frontend pode ficar na Vercel. Socket.IO, coturn e o SFU precisam de um serviço persistente, com IP ou DNS público. A Vercel não deve hospedar o Socket.IO nem a mídia em tempo real.
 
-1. Execute coturn com `--use-auth-secret` e um `--static-auth-secret` forte.
-2. Defina `TURN_URLS`, `TURN_SHARED_SECRET` e `TURN_TTL_SECONDS` no backend.
-   O endpoint `/webrtc/ice` entrega credenciais temporárias ao navegador.
-3. Libere UDP 3478 e a faixa UDP de relay configurada no coturn; ofereça também
-   TURN/TLS 5349 para redes corporativas.
-4. Para mais de dois espectadores, configure `MEDIASOUP_SERVER` apontando para
-   um SFU compatível. Sem ele, o transmissor envia uma cópia P2P por pessoa.
+1. Rode o coturn com `--use-auth-secret` e um `--static-auth-secret` forte.
+2. Defina `TURN_URLS`, `TURN_SHARED_SECRET` e `TURN_TTL_SECONDS` no backend. O endpoint `/webrtc/ice` entrega credenciais temporárias ao navegador.
+3. Libere UDP 3478 e a faixa UDP de relay do coturn. TURN/TLS na 5349 ajuda em redes corporativas.
+4. Para mais de dois espectadores no compartilhamento, configure `MEDIASOUP_SERVER`.
 
-O botão de recuperar som força uma nova tentativa de reprodução a partir de um
-gesto do espectador, necessária em tablets/iOS.
+O botão de recuperar som pede uma nova tentativa de reprodução a partir de um gesto de quem assiste. Isso é necessário em tablets e no iOS.
+
+### CORS
+
+Em produção, liste os domínios do frontend no backend:
+
+```
+CORS_ALLOWED_ORIGINS=https://webcinetv.com.br,https://www.webcinetv.com.br
+```
+
+Origem autorizada recebe `Access-Control-Allow-Origin`. Origem de fora não recebe. Pedido sem header `Origin` (mesmo domínio ou servidor para servidor) continua permitido.
+
+Para incluir um domínio:
+
+1. Adicione o domínio em `CORS_ALLOWED_ORIGINS`, separado por vírgula, sem barra no final.
+2. Rode `npm run test:cors`.
+3. Confira no navegador que a origem nova funciona e que uma origem externa continua bloqueada.
 
 ### Proxy reverso e rate limit
 
-O site roda atrás de Cloudflare e Render. Defina `TRUST_PROXY_HOPS` (padrão `2`) com o número de proxies na frente do backend para que o rate limit use o IP real do cliente. Use `0` quando o backend for exposto diretamente (ex.: desenvolvimento local). Número maior que o real permite falsificar `X-Forwarded-For`; menor faz todos compartilharem o IP do proxy.
+O site fica atrás de Cloudflare e Render. `TRUST_PROXY_HOPS` (padrão `2`) é o número de proxies na frente do backend, para o rate limit usar o IP real do cliente. Use `0` quando o backend está exposto direto, como no desenvolvimento local. Um número maior que o real permite falsificar `X-Forwarded-For`. Um número menor faz todo mundo compartilhar o IP do proxy.
 
-### Room Persistence
+### WebTorrent
 
-- Configure Postgres by adding DATABASE_URL to your .env file and then setting up the database schema
-- This allows rooms to persist between server restarts
+`webtorrent` ainda tem avisos de segurança transitivos, sem versão corrigida no ecossistema do pacote. A reprodução de magnet fica atrás de `VITE_ENABLE_WEBTORRENT`. O recomendado em produção é `false`.
 
-## Testes automatizados
+### Onde o frontend acha a API
+
+- Não use `VITE_SERVER_HOST=http://localhost:8080` num build de produção.
+- Se frontend e backend estão no mesmo domínio, deixe `VITE_SERVER_HOST` vazio.
+- Se estão em domínios diferentes, use a URL pública da API, por exemplo `https://api.seudominio.com`.
+
+## Testes
 
 - CORS: `npm run test:cors`
+- Unitários: `npm run test:unit`
 - E2E (Playwright): `npm run test:e2e`
 
-Cenarios E2E cobertos:
+Os E2E cobrem criar sala e entrar, abrir e fechar o chat, usar a playlist, e o layout mobile (320px e 390px) da topbar e do modal. No CI, em pull request para `main`, CORS e E2E rodam automaticamente.
 
-- Criar sala e entrar.
-- Abrir e fechar chat.
-- Operar playlist.
-- Mobile (320px e 390px): validacao de topbar e modal sem sobreposicao critica.
-
-No CI (`pull_request` para `main`), os testes E2E rodam automaticamente.
-
-## Dependencias e mitigacoes
-
-- `pm2` possui advisory sem fix upstream no momento.
-  - Mitigacao operacional recomendada: expor apenas via reverse proxy, restringir porta de admin/process manager e monitorar logs/processos.
-- `webtorrent` continua com advisories transitivos sem versao segura oficial no ecossistema atual do pacote.
-  - Mitigacao aplicada: feature isolada por flag `VITE_ENABLE_WEBTORRENT` (recomendado `false` em producao).
-
-## Tech
+## Stack
 
 - React
 - TypeScript
@@ -151,9 +113,3 @@ No CI (`pull_request` para `main`), os testes E2E rodam automaticamente.
 - Redis
 - PostgreSQL
 - Docker
-
-## Dicas de deploy (evitar erro fora do localhost)
-
-- Nao use `VITE_SERVER_HOST=http://localhost:8080` em build de producao.
-- Se frontend e backend estao no mesmo dominio, deixe `VITE_SERVER_HOST` vazio.
-- Se estao em dominios diferentes, configure `VITE_SERVER_HOST` com a URL publica da API (ex.: `https://api.seudominio.com`).

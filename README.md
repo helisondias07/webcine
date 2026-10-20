@@ -1,5 +1,12 @@
 # WebCineTV
 
+[![Node.js CI](https://github.com/helisondias07/webcine/actions/workflows/nodejs.yml/badge.svg)](https://github.com/helisondias07/webcine/actions/workflows/nodejs.yml)
+
+> Projeto derivado do [WatchParty](https://github.com/howardchung/watchparty) (MIT, © Howard Chung), adaptado e estendido por Helison Dias.
+
+<!-- TODO(Helison): gravar um GIF/print da aplicação e salvar em docs/demo.gif, depois descomentar a linha abaixo -->
+<!-- ![Demonstração](./docs/demo.gif) -->
+
 Assista vídeos em sincronia com amigos, de graça. Não precisa de conta e não precisa pagar: acesse o site, crie uma sala, envie o convite e escolha o que assistir.
 
 ## O que a sala faz
@@ -113,3 +120,7 @@ Os E2E cobrem criar sala e entrar, abrir e fechar o chat, usar a playlist, e o l
 - Redis
 - PostgreSQL
 - Docker
+
+## Aprendizados
+
+<!-- TODO(Helison): o que você mudou e aprendeu em relação ao WatchParty original (sincronia, WebRTC/TURN, SSR/prerender, etc.) -->

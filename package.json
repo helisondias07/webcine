@@ -41,7 +41,7 @@
     "lucide-react": "^0.577.0",
     "node-ssh": "^13.2.1",
     "pg": "^8.20.0",
-    "socket.io": "^4.8.3",
+    "socket.io": "^4.8.4",
     "twitch-m3u8": "^1.1.5"
   },
   "overrides": {

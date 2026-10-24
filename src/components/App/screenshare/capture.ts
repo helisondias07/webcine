@@ -27,11 +27,10 @@ export function getScreenShareMode(env: ShareCaptureEnv): ScreenShareMode {
 }
 
 /**
- * Phone and tablet browsers reject the desktop request: `logicalSurface: true`
- * and the numeric audio fields are mandatory constraints, and system-audio
- * capture is not available. Either one fails the call before the system
- * screen-recording dialog. A bare `{ video: true }` is the request those
- * browsers can accept in the same user gesture.
+ * Phone and tablet browsers reject the desktop request. Resolution caps and
+ * audio constraints fail before the system dialog, and those browsers cannot
+ * capture another app's audio. A bare `{ video: true }` is the request they
+ * can accept in the same user gesture.
  */
 export function getDisplayMediaRequest(
   mode: ScreenShareMode,
@@ -39,20 +38,26 @@ export function getDisplayMediaRequest(
   if (mode === "handheld") {
     return { video: true };
   }
+  // Device pixels, capped at 1080p30 on the capturer. `logicalSurface: true`
+  // captured CSS pixels, so a scaled Windows/macOS display produced a soft
+  // ~720p frame that both peers then stretched. Exact sampleRate/sampleSize
+  // constraints bind the audio track to a processing graph that goes silent
+  // on the next renegotiation (the F5 case) until getDisplayMedia runs again.
   return {
     video: {
-      logicalSurface: true,
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
+      // false = device pixels. true captured CSS pixels and looked soft on
+      // scaled displays once both peers stretched it to the player.
+      logicalSurface: false,
+      width: { ideal: 1920, max: 1920 },
+      height: { ideal: 1080, max: 1080 },
       frameRate: { ideal: 30, max: 30 },
     } as MediaTrackConstraints,
     audio: {
       autoGainControl: false,
-      channelCount: 2,
+      channelCount: { ideal: 2 },
       echoCancellation: false,
       noiseSuppression: false,
-      sampleRate: 48000,
-      sampleSize: 16,
+      sampleRate: { ideal: 48000 },
     },
   };
 }

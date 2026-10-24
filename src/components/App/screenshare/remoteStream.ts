@@ -64,3 +64,35 @@ export function remoteAudioLooksStalled(
   }
   return samplesAfter <= samplesBefore;
 }
+
+export type ShareAudioCheck = "ok" | "wait" | "resync";
+
+/**
+ * Decide whether the viewer should ask the sharer to resend.
+ * A live video track with no audio, or audio counters that stop while the
+ * element is actually playing, is a broken sender — not an autoplay block.
+ * A paused element is left alone so the "Ativar som" gesture can run.
+ */
+export function shareAudioNeedsResync(input: {
+  hasLiveVideo: boolean;
+  hasLiveAudio: boolean;
+  paused: boolean;
+  samplesBefore: number | undefined;
+  samplesAfter: number | undefined;
+}): ShareAudioCheck {
+  if (!input.hasLiveVideo) {
+    return "wait";
+  }
+  if (!input.hasLiveAudio) {
+    return "resync";
+  }
+  if (input.paused) {
+    return "wait";
+  }
+  if (
+    remoteAudioLooksStalled(false, input.samplesBefore, input.samplesAfter)
+  ) {
+    return "resync";
+  }
+  return "ok";
+}

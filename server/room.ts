@@ -68,6 +68,8 @@ export class Room {
   private tsMap: NumberDict = {};
   private io: Server;
   private socketIdMap: StringDict = {};
+  // Bumps every time a clientId connects, including an F5 that reuses the id.
+  private connectionEpoch: NumberDict = {};
   private tsInterval: NodeJS.Timeout | undefined = undefined;
   private countdownStartTimeout: NodeJS.Timeout | undefined = undefined;
   public isChatDisabled: boolean | undefined = undefined;
@@ -248,18 +250,24 @@ export class Room {
         return;
       }
 
-      // Replace an existing connection for this client before registering the
-      // new socket, so reconnects cannot leave duplicate roster entries. Do
-      // not clear an ephemeral share here: a transient Socket.IO reconnect
-      // must not stop the broadcaster's active screen capture for the room.
+      // A refresh reuses the clientId. Publish the new socket id before
+      // disconnecting the previous one so that disconnect cannot remove the
+      // viewer from the roster. That one-tick gap used to be lost (the next
+      // roster still contained them), and the sharer kept a dead peer
+      // connection whose renegotiation came back with video and no audio.
+      // Epoch tells the sharer to open a fresh connection for this viewer.
+      // The share itself is not cleared here: a live tab still holds the
+      // capture, and a reloaded sharer tab drops it itself.
       const previousSocketId = this.socketIdMap[clientId];
-      if (previousSocketId) {
+      this.connectionEpoch[clientId] =
+        (this.connectionEpoch[clientId] ?? 0) + 1;
+      const epoch = this.connectionEpoch[clientId];
+      this.socketIdMap[clientId] = socket.id;
+      if (previousSocketId && previousSocketId !== socket.id) {
         io.of(roomId).sockets.get(previousSocketId)?.disconnect(true);
       }
       this.roster = this.roster.filter((member) => member.id !== clientId);
-      // Keep track of the current socketID associated with this client (only used for signaling and kicking)
-      this.socketIdMap[clientId] = socket.id;
-      this.roster.push({ id: clientId });
+      this.roster.push({ id: clientId, epoch });
 
       next();
     });
@@ -1111,7 +1119,10 @@ export class Room {
 
   private leaveScreenSharing = (socket: Socket) => {
     const sharer = this.getRosterForApp().find((user) => user.isScreenShare);
-    if (!sharer || sharer?.id !== socket.clientId) {
+    if (!sharer) {
+      return;
+    }
+    if (sharer.id !== socket.clientId) {
       socket.emit(
         "errorMessage",
         "Voce nao e o usuario que esta compartilhando",
@@ -1364,22 +1375,25 @@ export class Room {
 
   private onDisconnect = (socket: Socket) => {
     const { clientId } = socket;
-    // Disconnecting socket is the current one
-    if (socket.id === this.socketIdMap[clientId]) {
-      this.clearEphemeralShare(clientId);
-      let index = this.roster.findIndex((user) => user.id === clientId);
-      if (index > -1) {
-        this.roster.splice(index, 1);
-      }
-      this.io.of(this.roomId).emit("roster", this.getRosterForApp());
-      delete this.tsMap[clientId];
-      delete this.socketIdMap[clientId];
-      // Cleanup nameMap/pictureMap for users with no chat messages to avoid unbounded growth
-      const hasMessages = this.chat.some((msg) => msg.id === clientId);
-      if (!hasMessages) {
-        delete this.nameMap[clientId];
-        delete this.pictureMap[clientId];
-      }
+    // A newer socket already owns this clientId (refresh or reconnect).
+    // Leave the roster and the capture alone; the new tab rebuilds them.
+    if (socket.id !== this.socketIdMap[clientId]) {
+      return;
+    }
+    this.clearEphemeralShare(clientId);
+    let index = this.roster.findIndex((user) => user.id === clientId);
+    if (index > -1) {
+      this.roster.splice(index, 1);
+    }
+    this.io.of(this.roomId).emit("roster", this.getRosterForApp());
+    delete this.tsMap[clientId];
+    delete this.socketIdMap[clientId];
+    delete this.connectionEpoch[clientId];
+    // Cleanup nameMap/pictureMap for users with no chat messages to avoid unbounded growth
+    const hasMessages = this.chat.some((msg) => msg.id === clientId);
+    if (!hasMessages) {
+      delete this.nameMap[clientId];
+      delete this.pictureMap[clientId];
     }
   };
 

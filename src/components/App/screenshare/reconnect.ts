@@ -13,6 +13,23 @@ export function recreateDelay(attempt: number): number {
   return Math.min(15_000, 1_500 * 2 ** attempt);
 }
 
+/**
+ * The same clientId comes back after F5. When the roster epoch changes, the
+ * sharer must open a new peer connection. Reusing the old one (or only
+ * restarting ICE) renegotiates an m-line that Chrome often answers with
+ * video and an inactive audio section.
+ */
+export function viewerConnectionReplaced(
+  previousEpoch: number | undefined,
+  nextEpoch: number | undefined,
+): boolean {
+  return (
+    typeof previousEpoch === "number" &&
+    typeof nextEpoch === "number" &&
+    nextEpoch !== previousEpoch
+  );
+}
+
 // iOS/Safari cannot handle this attribute, so it is removed from offers.
 export function sanitizeOfferSdp(sdp: string): string {
   return sdp

@@ -3,6 +3,7 @@ import {
   collectRemoteShareTracks,
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
+  shareAudioNeedsResync,
 } from "./remoteStream";
 
 const track = (
@@ -71,5 +72,64 @@ describe("remoteAudioLooksStalled", () => {
 
   it("does not guess when stats are unavailable", () => {
     expect(remoteAudioLooksStalled(false, undefined, undefined)).toBe(false);
+  });
+});
+
+describe("shareAudioNeedsResync", () => {
+  it("waits until a video track exists", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: false,
+        hasLiveAudio: false,
+        paused: false,
+        samplesBefore: undefined,
+        samplesAfter: undefined,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when video is live and audio never arrived", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: false,
+        paused: true,
+        samplesBefore: undefined,
+        samplesAfter: undefined,
+      }),
+    ).toBe("resync");
+  });
+
+  it("does not treat a paused element with an audio track as a dead sender", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: true,
+        samplesBefore: 10,
+        samplesAfter: 10,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when playing audio counters freeze", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: false,
+        samplesBefore: 100,
+        samplesAfter: 100,
+      }),
+    ).toBe("resync");
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: false,
+        samplesBefore: 100,
+        samplesAfter: 500,
+      }),
+    ).toBe("ok");
   });
 });

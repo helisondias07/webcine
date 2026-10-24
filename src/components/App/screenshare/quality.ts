@@ -8,13 +8,12 @@ import type {
 // Single source of truth for screen-share quality. Tune values here instead of
 // scattering numbers through App.tsx.
 //
-// Background: the "stutter less" tweaks (d2ab6719) combined contentHint
-// "motion" with degradationPreference "maintain-framerate", lower bitrate
-// caps and H.264-first. With that combination libwebrtc's quality scaler,
-// initial frame dropper and CPU adaptation are free to shrink the picture
-// (often to 540p or less) even on healthy links, which is what made the
-// received tab look blurry. Now resolution is held while the link is healthy
-// and only traded away when there is real, measured pressure.
+// Background: "maintain-framerate" and later "balanced" (under CPU or loss)
+// let libwebrtc's quality scaler shrink the picture, often to 540p, for
+// every viewer. The scaler does not restore 1080p when the pressure clears,
+// so one F5 or a flickering "cpu" limitation left both peers soft until the
+// share was restarted. Resolution is now always held. A weak link lowers
+// bitrate only. Oversize captures are scaled to the target height explicitly.
 export const SHARE_QUALITY = {
   // Per-viewer bitrate cap in "auto" mode. 1080p30 film content looks clean
   // at ~4-6 Mbps; congestion control still sends less when the link is
@@ -47,14 +46,6 @@ export const SHARE_QUALITY = {
   // Network adaptation (loss/RTT driven, see evaluateNetworkSample).
   adaptiveMinBitrate: 700_000,
   minNetworkScale: 0.4,
-  // Below this network scale "motion" content may also lower resolution
-  // ("balanced"); above it resolution is held ("maintain-resolution").
-  balancedBelowScale: 0.85,
-  // Explicit downscale steps on a clearly weak link (first match wins).
-  networkDownscale: [
-    { belowScale: 0.5, scaleResolutionDownBy: 2 },
-    { belowScale: 0.7, scaleResolutionDownBy: 1.5 },
-  ],
   // Recovery after the link is clean again: +step every N clean 2s samples.
   recoveryStableSamples: 5,
   recoveryStep: 0.1,
@@ -230,37 +221,51 @@ export function getAdaptiveProfile(
   };
 }
 
-// Decides what the encoder may sacrifice under pressure.
-// - "detail": always keep pixels (text must stay readable).
-// - "motion" on a healthy link with spare CPU: keep pixels too. This disables
-//   libwebrtc's quality scaler / CPU-driven downscaling, which is what made
-//   the stream blurry with "maintain-framerate".
-// - "motion" under measured network or CPU pressure: "balanced", so the
-//   encoder can lower resolution a bit instead of freezing frames.
+// The encoder may drop frames under pressure, but it may not shrink the
+// picture. "balanced" and "maintain-framerate" arm libwebrtc's quality
+// scaler, which steps a 1080p share down to 540p for every viewer and does
+// not scale back up when the CPU flag or the loss burst (an F5) goes away.
+// Bitrate still adapts via maxBitrate; resolution is a separate, explicit
+// scale from the captured frame (see scaleResolutionToTarget).
 export function getDegradationPreference(
-  contentHint: ShareContentHint,
-  networkScale: number,
-  cpuConstrained = false,
+  _contentHint: ShareContentHint,
+  _networkScale: number,
+  _cpuConstrained = false,
 ): SenderEncoding["degradationPreference"] {
-  if (contentHint === "detail") {
-    return "maintain-resolution";
-  }
-  if (cpuConstrained || networkScale < SHARE_QUALITY.balancedBelowScale) {
-    return "balanced";
-  }
   return "maintain-resolution";
 }
 
-function getNetworkDownscale(networkScale: number): number {
-  const step = SHARE_QUALITY.networkDownscale.find(
-    (s) => networkScale < s.belowScale,
-  );
-  return step ? step.scaleResolutionDownBy : 1;
+export function targetEncodeHeight(
+  profile: ShareQualityProfile,
+  mode: ShareQualityMode,
+): number {
+  if (mode === "economy") {
+    return Math.min(profile.captureHeight, SHARE_QUALITY.economy.targetHeight);
+  }
+  return Math.min(profile.captureHeight, 1080);
 }
 
-// Final per-sender encoding. When the network is clearly struggling the
-// picture is also shrunk explicitly (1080p -> 720p -> 540p) so the bitrate
-// left per pixel stays reasonable.
+// Encode scale for a capture that is taller than the target. Never upscales.
+// A few pixels of slack avoids 1088-vs-1080 turning into a soft rescale.
+export function scaleResolutionToTarget(
+  captureHeight: number,
+  targetHeight: number,
+): number {
+  if (
+    !Number.isFinite(captureHeight) ||
+    !Number.isFinite(targetHeight) ||
+    captureHeight <= 0 ||
+    targetHeight <= 0 ||
+    captureHeight <= targetHeight + 8
+  ) {
+    return 1;
+  }
+  return Number(Math.min(8, captureHeight / targetHeight).toFixed(2));
+}
+
+// Final per-sender encoding. Resolution is whatever the caller put on the
+// profile (viewer mode, or the capture-to-target scale). A weak link lowers
+// bitrate only.
 export function getSenderEncoding(
   profile: ShareQualityProfile,
   networkScale: number,
@@ -270,10 +275,7 @@ export function getSenderEncoding(
   return {
     maxBitrate: profile.maxBitratePerPeer,
     maxFramerate: profile.maxFramerate,
-    scaleResolutionDownBy: Math.max(
-      profile.scaleResolutionDownBy ?? 1,
-      getNetworkDownscale(networkScale),
-    ),
+    scaleResolutionDownBy: profile.scaleResolutionDownBy ?? 1,
     degradationPreference: getDegradationPreference(
       contentHint,
       networkScale,

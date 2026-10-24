@@ -4426,7 +4426,10 @@ export class App extends React.Component<AppProps, AppState> {
               <div className={styles.leftColumnInner}>
                 {!this.state.fullScreen && (
                   <section className={styles.commandDeck}>
-                    <div className={`${styles.commandRow} ${styles.searchRow}`}>
+                    <div
+                      className={`${styles.commandRow} ${styles.searchRow}`}
+                      data-testid="room-command-row"
+                    >
                       <div className={styles.searchFieldWrap}>
                         <div className={styles.searchField}>
                           <ComboBox

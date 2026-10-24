@@ -76,17 +76,20 @@ import type {
 import {
   applyVideoCodecPreferences,
   evaluateCpuSample,
+  evaluateFragileAuto,
   evaluateNetworkSample,
   getAdaptiveProfile,
   getSenderEncoding,
   getShareContentHint,
   getShareQualityLabel,
   getShareQualityProfile,
+  isTabletWatchLayout,
   getViewerSenderProfile,
   normalizeShareQualityMode,
   qualityFromScale,
   scaleResolutionToTarget,
   targetEncodeHeight,
+  type FragileAutoState,
 } from "./screenshare/quality";
 import {
   DISCONNECTED_VIEWER_GRACE_MS,
@@ -441,8 +444,21 @@ export class App extends React.Component<AppProps, AppState> {
   syncUpdater: number | undefined = undefined;
   rtcStatsUpdater: number | undefined = undefined;
   shareNetworkScale = 1;
+  // Sender updates must not overlap. A stats tick that started in "auto"
+  // can otherwise finish setParameters after a guest preset and put the
+  // higher bitrate back.
+  shareApplyChain: Promise<void> = Promise.resolve();
   stableRtcSamples = 0;
   constrainedRtcSamples = 0;
+  fragileAuto: FragileAutoState = {
+    active: false,
+    weakSamples: 0,
+    cleanSamples: 0,
+  };
+  lastOutboundFramesEncoded = 0;
+  lastInboundFreezeCount = -1;
+  lastInboundPacketsLost = -1;
+  lastInboundPacketsReceived = 0;
   // Sender CPU pressure (qualityLimitationReason "cpu"), see evaluateCpuSample.
   shareCpuConstrained = false;
   cpuLimitedRtcSamples = 0;
@@ -1837,6 +1853,13 @@ export class App extends React.Component<AppProps, AppState> {
     return Array.from(new Set(options));
   };
 
+  effectiveShareQualityMode = (): ShareQualityMode => {
+    if (this.state.screenShareQualityMode === "auto" && this.fragileAuto.active) {
+      return "fragile";
+    }
+    return this.state.screenShareQualityMode;
+  };
+
   emitViewerShareQualityPreference = () => {
     const sharer = this.state.participants.find((p) => p.isScreenShare);
     const selfId = getOrCreateClientId();
@@ -1849,12 +1872,15 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
     this.socket.emit("CMD:setScreenShareQuality", {
-      mode: this.state.screenShareQualityMode,
+      mode: this.effectiveShareQualityMode(),
     });
   };
 
   setScreenShareQualityMode = (mode: ShareQualityMode) => {
     const normalized = normalizeShareQualityMode(mode);
+    if (normalized === "auto") {
+      this.fragileAuto = { active: false, weakSamples: 0, cleanSamples: 0 };
+    }
     this.setState({ screenShareQualityMode: normalized }, () => {
       window.localStorage.setItem("watchparty-ss-quality", normalized);
       this.emitViewerShareQualityPreference();
@@ -2008,6 +2034,28 @@ export class App extends React.Component<AppProps, AppState> {
     };
 
     await this.noteShareCaptureHeight();
+    const framesStalled =
+      this.lastOutboundFramesEncoded > 0 &&
+      summary.outboundFramesEncoded > 0 &&
+      summary.outboundFramesEncoded <= this.lastOutboundFramesEncoded;
+    const freezeRose =
+      this.lastInboundFreezeCount >= 0 &&
+      summary.inboundFreezeCount > this.lastInboundFreezeCount;
+    const frozen = framesStalled || freezeRose;
+    this.lastOutboundFramesEncoded = summary.outboundFramesEncoded;
+    this.lastInboundFreezeCount = summary.inboundFreezeCount;
+    let recentInboundLoss = 0;
+    if (this.lastInboundPacketsLost >= 0) {
+      const lostDelta = summary.inboundPacketsLost - this.lastInboundPacketsLost;
+      const receivedDelta =
+        summary.inboundPacketsReceived - this.lastInboundPacketsReceived;
+      const total = lostDelta + receivedDelta;
+      if (total > 0) {
+        recentInboundLoss = Math.max(0, lostDelta) / total;
+      }
+    }
+    this.lastInboundPacketsLost = summary.inboundPacketsLost;
+    this.lastInboundPacketsReceived = summary.inboundPacketsReceived;
     if (remoteReconnecting) {
       // Keep the byte counters fresh, but do not treat the refresh gap as
       // congestion. Resolution and bitrate stay where they were.
@@ -2015,9 +2063,15 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
 
+    // A tablet guest on Auto asks the host to cap bitrate (same resolution)
+    // after the inbound link actually looks weak. Desktop stays on Auto.
+    this.noteGuestFragileLink(
+      recentInboundLoss > 0.05 || summary.worstRtt > 0.45 || frozen,
+    );
+
     // Browsers report "bandwidth" as a quality limitation even while a stream
     // is healthy. Treating that flag as a failure caused a permanent downscale
-    // to 540p. Adapt bitrate only after measured loss/latency persists.
+    // to 540p. Adapt bitrate only after measured loss, latency or a freeze.
     const result = evaluateNetworkSample(
       {
         scale: this.shareNetworkScale,
@@ -2026,6 +2080,7 @@ export class App extends React.Component<AppProps, AppState> {
       },
       worstLoss,
       worstRtt,
+      frozen,
     );
     this.shareNetworkScale = result.scale;
     this.constrainedRtcSamples = result.constrainedSamples;
@@ -2056,7 +2111,39 @@ export class App extends React.Component<AppProps, AppState> {
     this.setConnectionQuality(qualityFromScale(this.shareNetworkScale));
   };
 
-  applyAdaptiveShareQuality = async () => {
+  noteGuestFragileLink = (weak: boolean) => {
+    if (
+      this.localStreamToPublish ||
+      this.state.screenShareQualityMode !== "auto" ||
+      (!this.playingScreenShare() && !this.playingFileShare())
+    ) {
+      return;
+    }
+    const decision = evaluateFragileAuto(
+      this.fragileAuto,
+      isTabletWatchLayout(window.innerWidth, window.innerHeight),
+      weak,
+    );
+    this.fragileAuto = decision;
+    if (!decision.changed) {
+      return;
+    }
+    this.emitViewerShareQualityPreference();
+    this.forceUpdate();
+  };
+
+  applyAdaptiveShareQuality = () => {
+    const run = this.shareApplyChain.then(() =>
+      this.applyAdaptiveShareQualityNow(),
+    );
+    this.shareApplyChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+
+  applyAdaptiveShareQualityNow = async () => {
     if (!this.localStreamToPublish || this.isLocalStreamAFile) {
       this.lastAppliedShareProfileKey = "";
       return;
@@ -4242,7 +4329,7 @@ export class App extends React.Component<AppProps, AppState> {
         localTogglePictureInPicture={this.localTogglePictureInPicture}
         pictureInPictureSupported={this.isPictureInPictureSupported()}
         pictureInPictureActive={this.isPictureInPictureActive()}
-        screenShareQualityMode={this.state.screenShareQualityMode}
+        screenShareQualityMode={this.effectiveShareQualityMode()}
         setScreenShareQualityMode={this.setScreenShareQualityMode}
         showShareQualityControl={canAdjustScreenShareQuality}
         youtubeQualityMode={this.state.youtubeQualityMode}

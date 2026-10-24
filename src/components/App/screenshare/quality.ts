@@ -43,9 +43,16 @@ export const SHARE_QUALITY = {
     maxFramerate: 24,
     targetHeight: 720,
   },
-  // Network adaptation (loss/RTT driven, see evaluateNetworkSample).
+  // Network adaptation (loss/RTT/freeze driven, see evaluateNetworkSample).
+  // A 5 Mbps share steps down to 0.3, which is 1.5 Mbps. The picture stays
+  // 1080p; only this ceiling moves.
   adaptiveMinBitrate: 700_000,
-  minNetworkScale: 0.4,
+  minNetworkScale: 0.3,
+  fragile: {
+    minBitrate: 1_200_000,
+    maxBitrate: 1_500_000,
+    maxFramerate: 24,
+  },
   // Recovery after the link is clean again: +step every N clean 2s samples.
   recoveryStableSamples: 5,
   recoveryStep: 0.1,
@@ -60,7 +67,7 @@ export const MIN_NETWORK_SCALE = SHARE_QUALITY.minNetworkScale;
 export const MIN_PEER_BITRATE = SHARE_QUALITY.adaptiveMinBitrate;
 
 export function normalizeShareQualityMode(value: unknown): ShareQualityMode {
-  if (value === "economy" || value === "high") {
+  if (value === "economy" || value === "high" || value === "fragile") {
     return value;
   }
   return "auto";
@@ -72,6 +79,9 @@ export function getShareQualityLabel(mode: ShareQualityMode): string {
   }
   if (mode === "high") {
     return "1080p";
+  }
+  if (mode === "fragile") {
+    return "Rede frágil";
   }
   return "Auto";
 }
@@ -134,6 +144,20 @@ export function getViewerSenderProfile(
   baseProfile: ShareQualityProfile,
   mode: ShareQualityMode,
 ): ShareQualityProfile {
+  if (mode === "fragile") {
+    const fragile = SHARE_QUALITY.fragile;
+    return {
+      ...baseProfile,
+      // Same frame size as Auto. The guest is asking for a lower ceiling
+      // and 24 fps, not a smaller picture.
+      maxBitratePerPeer: Math.min(
+        baseProfile.maxBitratePerPeer,
+        fragile.maxBitrate,
+      ),
+      maxFramerate: Math.min(baseProfile.maxFramerate, fragile.maxFramerate),
+      scaleResolutionDownBy: 1,
+    };
+  }
   if (mode === "economy") {
     const economy = SHARE_QUALITY.economy;
     return {
@@ -304,8 +328,9 @@ export function evaluateNetworkSample(
   state: NetworkAdaptState,
   loss: number,
   rttSeconds: number,
+  frozen = false,
 ): NetworkAdaptResult {
-  const severe = loss > 0.1 || rttSeconds > 0.7;
+  const severe = frozen || loss > 0.1 || rttSeconds > 0.7;
   const constrained = severe || loss > 0.05 || rttSeconds > 0.45;
   let { scale, constrainedSamples, stableSamples } = state;
   let changed = false;
@@ -314,7 +339,10 @@ export function evaluateNetworkSample(
     constrainedSamples += 1;
     if (constrainedSamples >= 2) {
       constrainedSamples = 0;
-      scale = Math.max(MIN_NETWORK_SCALE, scale - (severe ? 0.2 : 0.1));
+      scale = Math.max(
+        MIN_NETWORK_SCALE,
+        Number((scale - (severe ? 0.2 : 0.1)).toFixed(2)),
+      );
       changed = true;
     }
     return { scale, constrainedSamples, stableSamples, changed, constrained, severe };
@@ -372,6 +400,65 @@ export type ConnectionQuality =
 
 export function qualityFromScale(scale: number): ConnectionQuality {
   return scale < 0.95 ? "adjusting" : "good";
+}
+
+// Tablet landscape and portrait in the range the room is watched on
+// (about 768–1280 on the long side). Phones and desktop widths stay out,
+// so a weak link there does not flip the preset by itself.
+export function isTabletWatchLayout(width: number, height: number): boolean {
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return false;
+  }
+  const minSide = Math.min(width, height);
+  const maxSide = Math.max(width, height);
+  return minSide >= 700 && maxSide <= 1280;
+}
+
+export type FragileAutoState = {
+  active: boolean;
+  weakSamples: number;
+  cleanSamples: number;
+};
+
+// Guest preference while the saved mode is Auto. A tablet with two weak
+// samples asks the host for "fragile". A desktop, a phone, or a clean
+// stretch stays on Auto. An explicit menu choice is not decided here.
+export function evaluateFragileAuto(
+  state: FragileAutoState,
+  tablet: boolean,
+  weak: boolean,
+): FragileAutoState & { changed: boolean } {
+  if (!tablet) {
+    const changed = state.active || state.weakSamples !== 0 || state.cleanSamples !== 0;
+    return { active: false, weakSamples: 0, cleanSamples: 0, changed };
+  }
+  if (weak) {
+    const weakSamples = state.weakSamples + 1;
+    if (!state.active && weakSamples >= 2) {
+      return { active: true, weakSamples: 0, cleanSamples: 0, changed: true };
+    }
+    return {
+      active: state.active,
+      weakSamples: state.active ? 0 : weakSamples,
+      cleanSamples: 0,
+      changed: false,
+    };
+  }
+  const cleanSamples = state.cleanSamples + 1;
+  if (state.active && cleanSamples >= SHARE_QUALITY.recoveryStableSamples) {
+    return { active: false, weakSamples: 0, cleanSamples: 0, changed: true };
+  }
+  return {
+    active: state.active,
+    weakSamples: 0,
+    cleanSamples: state.active ? cleanSamples : 0,
+    changed: false,
+  };
 }
 
 export type CodecLike = { mimeType: string; sdpFmtpLine?: string };

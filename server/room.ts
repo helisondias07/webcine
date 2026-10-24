@@ -1063,7 +1063,7 @@ export class Room {
   private setScreenShareQualityPreference = (socket: Socket, raw: unknown) => {
     const data = raw as { mode?: string };
     const mode = String(data?.mode ?? "");
-    if (!["economy", "auto", "high"].includes(mode)) {
+    if (!["economy", "auto", "high", "fragile"].includes(mode)) {
       return;
     }
     const sharer = this.getRosterForApp().find((user) => user.isScreenShare);

@@ -2925,7 +2925,11 @@ export class App extends React.Component<AppProps, AppState> {
       framesBefore,
       framesAfter,
     });
+    // Keep watching for the rest of the share. The first sample often lands
+    // while the picture is still healthy; a freeze later in the movie has to
+    // be able to ask for a resend too.
     if (audioDecision === "wait" && videoDecision !== "resync") {
+      this.scheduleAudioCheck(8_000);
       return;
     }
     if (audioDecision === "ok" && videoDecision !== "resync") {
@@ -2933,6 +2937,7 @@ export class App extends React.Component<AppProps, AppState> {
       if (this.state.shareAudioMissing) {
         this.setState({ shareAudioMissing: false });
       }
+      this.scheduleAudioCheck(8_000);
       return;
     }
     if (
@@ -2943,6 +2948,7 @@ export class App extends React.Component<AppProps, AppState> {
       this.setState({ shareAudioMissing: true });
     }
     if (this.audioResyncRequests >= 4) {
+      this.scheduleAudioCheck(8_000);
       return;
     }
     // A frozen picture uses "video" so the sharer still resends when the

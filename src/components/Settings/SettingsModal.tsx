@@ -40,6 +40,7 @@ const nameColorSwatches = [
   "#D6336C",
 ];
 const PHONE_QUERY = "(max-width: 600px)";
+const COMPACT_QUERY = "(max-width: 900px)";
 
 function useMatchMedia(query: string) {
   const [matches, setMatches] = useState(
@@ -88,6 +89,8 @@ interface SettingsModalProps {
   setRoomTitleColor: (color: string) => void;
   mediaPath: string | undefined;
   setMediaPath: (path: string) => void;
+  myName: string;
+  setMyName: (name: string) => void;
   myNameColor: string;
   setMyNameColor: (color: string) => void;
 }
@@ -114,6 +117,8 @@ export const SettingsModal = ({
   roomTitleColor,
   mediaPath,
   setMediaPath,
+  myName,
+  setMyName,
   myNameColor,
   setMyNameColor,
 }: SettingsModalProps) => {
@@ -136,6 +141,7 @@ export const SettingsModal = ({
     undefined,
   );
   const isPhone = useMatchMedia(PHONE_QUERY);
+  const isCompact = useMatchMedia(COMPACT_QUERY);
   const [nameColorDraft, setNameColorDraft] = useState(myNameColor);
   useEffect(() => {
     setNameColorDraft(myNameColor);
@@ -187,8 +193,8 @@ export const SettingsModal = ({
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
         centered
-        fullScreen={isPhone}
-        size={isPhone ? "100%" : "lg"}
+        fullScreen={isPhone || isCompact}
+        size={isPhone || isCompact ? "100%" : "lg"}
         title={"Configurações"}
       >
         <div>
@@ -241,6 +247,20 @@ export const SettingsModal = ({
                 );
                 setUpdateTS(Date.now());
               }}
+            />
+            <SettingRow
+              content={
+                <TextInput
+                  label="Nome no chat"
+                  description="Como você aparece para a outra pessoa na sala."
+                  value={myName}
+                  maxLength={40}
+                  onChange={(event) => setMyName(event.currentTarget.value)}
+                  placeholder="Seu nome"
+                  aria-label="Nome no chat"
+                />
+              }
+              disabled={false}
             />
             <SettingRow
               content={

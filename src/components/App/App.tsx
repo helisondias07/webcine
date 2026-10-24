@@ -40,14 +40,13 @@ import styles from "./App.module.css";
 import config from "../../config";
 import { MetadataContext } from "../../MetadataContext";
 import ChatVideoCard from "../ChatVideoCard/ChatVideoCard";
-import { ActionIcon, Badge, Button, TextInput } from "@mantine/core";
+import { ActionIcon, Badge, Button } from "@mantine/core";
 import {
   IconFile,
   IconList,
   IconMessageCircle,
   IconScreenShare,
   IconSettings,
-  IconUser,
   IconVolume,
   IconX,
 } from "@tabler/icons-react";
@@ -267,6 +266,23 @@ type JoinToast = {
   initials: string;
 };
 
+function readPendingRoomTitle() {
+  try {
+    const raw = window.sessionStorage.getItem("webcine-pending-room-title");
+    if (!raw) {
+      return "";
+    }
+    const parsed = JSON.parse(raw) as { name?: string; title?: string };
+    const name = typeof parsed?.name === "string" ? parsed.name : "";
+    if (!name || !window.location.pathname.endsWith(name)) {
+      return "";
+    }
+    return normalizeDisplayName(parsed.title ?? "").slice(0, 40);
+  } catch {
+    return "";
+  }
+}
+
 export class App extends React.Component<AppProps, AppState> {
   static contextType = MetadataContext;
   declare context: React.ContextType<typeof MetadataContext>;
@@ -338,7 +354,7 @@ export class App extends React.Component<AppProps, AppState> {
     password: undefined,
     hasPassword: false,
     inviteLink: "",
-    roomTitle: "",
+    roomTitle: readPendingRoomTitle(),
     roomDescription: "",
     roomTitleColor: "",
     mediaPath: undefined,
@@ -4328,6 +4344,8 @@ export class App extends React.Component<AppProps, AppState> {
           setRoomTitleColor={this.setRoomTitleColor}
           mediaPath={this.state.mediaPath}
           setMediaPath={this.setMediaPath}
+          myName={this.state.myName}
+          setMyName={this.updateName}
           myNameColor={this.state.myNameColor}
           setMyNameColor={this.updateNameColor}
         />
@@ -4425,7 +4443,12 @@ export class App extends React.Component<AppProps, AppState> {
             >
               <div className={styles.leftColumnInner}>
                 {!this.state.fullScreen && (
-                  <section className={styles.commandDeck}>
+                  <section
+                    className={`${styles.commandDeck} ${
+                      this.state.roomMedia ? styles.commandDeckPlaying : ""
+                    }`}
+                    data-playing={this.state.roomMedia ? "true" : "false"}
+                  >
                     <div
                       className={`${styles.commandRow} ${styles.searchRow}`}
                       data-testid="room-command-row"
@@ -4551,17 +4574,6 @@ export class App extends React.Component<AppProps, AppState> {
                         >
                           Configurações
                         </Button>
-                        <TextInput
-                          className={styles.nameInput}
-                          size="xs"
-                          value={this.state.myName}
-                          onChange={(e) => this.updateName(e.target.value)}
-                          maxLength={40}
-                          placeholder="Seu nome"
-                          aria-label="Nome no chat"
-                          title="Nome no chat"
-                          leftSection={<IconUser size={14} />}
-                        />
                       </div>
                     </div>
                   </section>
@@ -4572,18 +4584,55 @@ export class App extends React.Component<AppProps, AppState> {
                       this.state.roomMedia ? styles.playerContainerHasMedia : ""
                     }`}
                   >
-                    {Boolean(
+                    {(Boolean(
                       sharer &&
                       sharer.id !== selfId &&
                       (this.playingScreenShare() || this.playingFileShare()),
-                    ) && (
-                      <div className={styles.liveShareBadge}>
-                        <span className={styles.liveShareDot} />
-                        <span className={styles.liveShareLabel}>AO VIVO</span>
-                        <span className={styles.liveShareOwner}>
-                          Tela de{" "}
-                          {this.state.nameMap[sharer!.id] || "Participante"}
-                        </span>
+                    ) ||
+                      Boolean(
+                        this.localStreamToPublish &&
+                        !this.isLocalStreamAFile &&
+                        this.playingScreenShare(),
+                      )) && (
+                      <div className={styles.liveCorner} data-testid="live-corner">
+                        {Boolean(
+                          sharer &&
+                          sharer.id !== selfId &&
+                          (this.playingScreenShare() || this.playingFileShare()),
+                        ) && (
+                          <div className={styles.liveShareBadge}>
+                            <span className={styles.liveShareDot} />
+                            <span className={styles.liveShareLabel}>AO VIVO</span>
+                            <span className={styles.liveShareOwner}>
+                              Tela de{" "}
+                              {this.state.nameMap[sharer!.id] || "Participante"}
+                            </span>
+                          </div>
+                        )}
+                        {this.localStreamToPublish &&
+                          !this.isLocalStreamAFile &&
+                          this.playingScreenShare() && (
+                            <div
+                              className={styles.audioMeter}
+                              title={
+                                hasShareAudio
+                                  ? "Nível do áudio transmitido"
+                                  : "A captura não inclui áudio"
+                              }
+                            >
+                              <span className={styles.audioMeterLabel}>
+                                {hasShareAudio ? "Áudio" : "Sem áudio"}
+                              </span>
+                              {hasShareAudio && (
+                                <span className={styles.audioMeterTrack}>
+                                  <span
+                                    ref={this.audioMeterFill}
+                                    className={styles.audioMeterFill}
+                                  />
+                                </span>
+                              )}
+                            </div>
+                          )}
                       </div>
                     )}
                     {this.state.shareAudioMissing &&
@@ -4595,30 +4644,6 @@ export class App extends React.Component<AppProps, AppState> {
                         <div className={styles.shareAudioBanner} role="status">
                           Esta transmissão está sem áudio. Peça para quem
                           compartilha marcar “Compartilhar áudio”.
-                        </div>
-                      )}
-                    {this.localStreamToPublish &&
-                      !this.isLocalStreamAFile &&
-                      this.playingScreenShare() && (
-                        <div
-                          className={styles.audioMeter}
-                          title={
-                            hasShareAudio
-                              ? "Nível do áudio transmitido"
-                              : "A captura não inclui áudio"
-                          }
-                        >
-                          <span className={styles.audioMeterLabel}>
-                            {hasShareAudio ? "Áudio" : "Sem áudio"}
-                          </span>
-                          {hasShareAudio && (
-                            <span className={styles.audioMeterTrack}>
-                              <span
-                                ref={this.audioMeterFill}
-                                className={styles.audioMeterFill}
-                              />
-                            </span>
-                          )}
                         </div>
                       )}
                     {this.state.countdownVisible && (

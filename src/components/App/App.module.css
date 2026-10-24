@@ -137,6 +137,28 @@
   min-height: 0;
 }
 
+.liveCorner {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: 92;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: min(42%, 260px);
+  pointer-events: none;
+}
+
+.liveCorner .liveShareBadge,
+.liveCorner .audioMeter {
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
+  max-width: 100%;
+}
+
 .audioMeter {
   position: absolute;
   top: 12px;
@@ -637,6 +659,11 @@
 .liveShareOwner {
   color: var(--text-muted);
   font-size: 0.72rem;
+  min-width: 0;
+  max-width: 148px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .joinToastStack {
@@ -1133,7 +1160,8 @@
 @media only screen and (max-width: 560px) {
   .topActions {
     display: grid;
-    grid-template-columns: repeat(3, 48px) minmax(0, 1fr);
+    grid-template-columns: repeat(3, 48px);
+    justify-content: start;
     gap: 6px;
   }
 
@@ -1424,5 +1452,125 @@
     width: 168px;
     min-width: 96px;
     max-width: 200px;
+  }
+}
+
+/* While a share or movie is on, the command bar gives height back to the picture. */
+.commandDeckPlaying {
+  padding: 3px 8px;
+  gap: 0;
+}
+
+.commandDeckPlaying .topActionButton,
+.commandDeckPlaying .shareButton {
+  height: 30px;
+  min-height: 30px;
+  padding-inline: 10px;
+  font-size: 0.74rem;
+}
+
+.commandDeckPlaying .searchField :global(.mantine-Input-input) {
+  height: 30px;
+  min-height: 30px;
+}
+
+/* Tablet and small desktop: one command row. Secondary actions become icons
+   so the link field stays readable instead of wrapping under the buttons. */
+@media only screen and (min-width: 700px) and (max-width: 1280px) {
+  .searchRow {
+    flex-wrap: nowrap;
+  }
+
+  .searchFieldWrap,
+  .searchField {
+    flex: 1 1 180px;
+    width: auto;
+    min-width: 120px;
+    max-width: none;
+  }
+
+  .searchField {
+    width: 100%;
+  }
+
+  .topActions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .topActionButton,
+  .shareButton {
+    width: auto;
+  }
+
+  .topActionButton:not(.topActionDanger) {
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+    position: relative;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-label) {
+    display: none;
+  }
+
+  .topActionButton:not(.topActionDanger) :global(.mantine-Button-section) {
+    margin: 0;
+  }
+
+  .shareButton :global(.mantine-Button-section[data-position="right"]) {
+    position: absolute;
+    top: 0;
+    right: 0;
+    pointer-events: none;
+  }
+
+  .commandDeckPlaying .topActionButton,
+  .commandDeckPlaying .shareButton,
+  .commandDeckPlaying .searchField :global(.mantine-Input-input) {
+    height: 40px;
+    min-height: 40px;
+  }
+}
+
+/* Tablet landscape: one screen for the movie, controls clear of the picture. */
+@media only screen and (min-width: 768px) and (max-width: 1280px) and (orientation: landscape) and (max-height: 900px) {
+  .roomShell {
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .fullHeightColumn {
+    height: calc(
+      100svh - var(--topbar-height) - env(safe-area-inset-bottom)
+    );
+  }
+
+  .playerContainer,
+  .playerContainerHasMedia {
+    min-height: 0;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+
+  .commandDeckPlaying .topActionButton,
+  .commandDeckPlaying .shareButton,
+  .commandDeckPlaying .searchField :global(.mantine-Input-input) {
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .chatDock {
+    right: max(8px, env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .chatPanel {
+    width: min(300px, 34vw);
+    height: min(42svh, 320px);
   }
 }

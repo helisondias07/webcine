@@ -77,13 +77,24 @@ describe("getDisplayMediaRequest", () => {
     expect(getDisplayMediaRequest("handheld")).toEqual({ video: true });
   });
 
-  it("keeps the desktop tab-and-audio request", () => {
+  it("asks desktop capture for device pixels at 1080p, without exact audio fields", () => {
     const request = getDisplayMediaRequest("desktop");
     expect(request.audio).toMatchObject({
-      channelCount: 2,
+      channelCount: { ideal: 2 },
       echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
     });
-    expect(request.video).toMatchObject({ logicalSurface: true });
+    expect(request.audio).toMatchObject({
+      sampleRate: { ideal: 48000 },
+    });
+    expect(request.audio).not.toHaveProperty("sampleSize");
+    expect(request.video).toMatchObject({
+      width: { ideal: 1920, max: 1920 },
+      height: { ideal: 1080, max: 1080 },
+      frameRate: { ideal: 30, max: 30 },
+    });
+    expect(request.video).toMatchObject({ logicalSurface: false });
   });
 });
 

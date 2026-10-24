@@ -20,6 +20,9 @@ interface User {
   id: string;
   isVideoChat?: boolean;
   isScreenShare?: boolean;
+  // Increments on every socket connect for this clientId. The sharer uses it
+  // to rebuild that viewer's peer connection after a refresh.
+  epoch?: number;
 }
 
 interface LiveReactionEvent {

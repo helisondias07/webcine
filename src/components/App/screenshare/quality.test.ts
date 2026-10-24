@@ -9,6 +9,8 @@ import {
   getShareQualityProfile,
   getViewerSenderProfile,
   normalizeShareQualityMode,
+  scaleResolutionToTarget,
+  targetEncodeHeight,
   rankVideoCodec,
   sortVideoCodecs,
   type CpuAdaptState,
@@ -160,15 +162,15 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
     );
   });
 
-  it("switches motion to balanced only under network or CPU pressure", () => {
+  it("holds resolution under network or CPU pressure", () => {
     const p = getAdaptiveProfile(base, 1, "motion");
     expect(getSenderEncoding(p, 0.8, "motion").degradationPreference).toBe(
-      "balanced",
+      "maintain-resolution",
     );
     expect(getSenderEncoding(p, 1, "motion", true).degradationPreference).toBe(
-      "balanced",
+      "maintain-resolution",
     );
-    expect(getSenderEncoding(p, 0.5, "detail", true).degradationPreference).toBe(
+    expect(getSenderEncoding(p, 0.4, "motion", true).degradationPreference).toBe(
       "maintain-resolution",
     );
   });
@@ -185,16 +187,40 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
     }
   });
 
-  it("adds a resolution downscale when the network is weak", () => {
+  it("does not shrink the picture when the network is weak", () => {
     const p = { ...base, scaleResolutionDownBy: 1 };
     expect(getSenderEncoding(p, 1, "motion").scaleResolutionDownBy).toBe(1);
-    expect(getSenderEncoding(p, 0.69, "motion").scaleResolutionDownBy).toBe(1.5);
-    expect(getSenderEncoding(p, 0.49, "motion").scaleResolutionDownBy).toBe(2);
+    expect(getSenderEncoding(p, 0.69, "motion").scaleResolutionDownBy).toBe(1);
+    expect(getSenderEncoding(p, 0.49, "motion").scaleResolutionDownBy).toBe(1);
+    // Bitrate still drops with the network scale, via getAdaptiveProfile.
+    expect(getAdaptiveProfile(base, 0.5, "motion").maxBitratePerPeer).toBe(
+      2_500_000,
+    );
   });
 
-  it("never reduces a downscale already requested by the viewer mode", () => {
+  it("keeps a downscale the caller already set on the profile", () => {
     const p = { ...base, scaleResolutionDownBy: 3 };
     expect(getSenderEncoding(p, 0.4, "motion").scaleResolutionDownBy).toBe(3);
+  });
+});
+
+describe("scaleResolutionToTarget", () => {
+  const base = getShareQualityProfile(1);
+
+  it("encodes 1080p in auto and 720p in economy", () => {
+    expect(targetEncodeHeight(base, "auto")).toBe(1080);
+    expect(targetEncodeHeight(base, "high")).toBe(1080);
+    expect(targetEncodeHeight(base, "economy")).toBe(720);
+    expect(targetEncodeHeight(getShareQualityProfile(14), "auto")).toBe(540);
+  });
+
+  it("downscales an oversized capture and never upscales", () => {
+    expect(scaleResolutionToTarget(1080, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(720, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(0, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(1440, 1080)).toBe(1.33);
+    expect(scaleResolutionToTarget(2160, 1080)).toBe(2);
+    expect(scaleResolutionToTarget(2160, 720)).toBe(3);
   });
 });
 

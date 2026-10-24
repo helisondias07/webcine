@@ -1,4 +1,4 @@
-import config from "./config.ts";
+import config, { DEFAULT_TURN_TTL_SECONDS } from "./config.ts";
 import fs from "node:fs";
 import express, { type Request, type Response } from "express";
 import bodyParser from "body-parser";
@@ -981,11 +981,17 @@ app.get("/webrtc/ice", (_req, res) => {
     res.status(204).end();
     return;
   }
-  const ttlSeconds = Math.max(60, Number(config.TURN_TTL_SECONDS) || 3600);
+  const ttlSeconds = Math.max(
+    60,
+    Number(config.TURN_TTL_SECONDS) || DEFAULT_TURN_TTL_SECONDS,
+  );
   const username = `${Math.floor(Date.now() / 1000) + ttlSeconds}:webcine`;
   const credential = createHmac("sha1", secret).update(username).digest("base64");
   res.set("Cache-Control", "private, max-age=300");
-  res.json({ iceServers: [{ urls, username, credential }] });
+  res.json({
+    iceServers: [{ urls, username, credential }],
+    ttlSeconds,
+  });
 });
 
 app.use(compression());

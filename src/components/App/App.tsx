@@ -109,9 +109,11 @@ import {
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
   shareAudioNeedsResync,
+  shareVideoNeedsResync,
 } from "./screenshare/remoteStream";
 import { tracksToPublish } from "./screenshare/publish";
 import {
+  displayMediaConstraintRejected,
   getDisplayMediaRequest,
   getScreenShareMode,
   isHandheldShareDevice,
@@ -119,6 +121,11 @@ import {
   readShareCaptureEnv,
   screenShareUnsupportedMessage,
 } from "./screenshare/capture";
+import { tuneOpusFmtp } from "./screenshare/opus";
+import {
+  shouldRefreshTurnCredential,
+  turnRefreshDelayMs,
+} from "./screenshare/turn";
 
 declare global {
   interface Window {
@@ -425,6 +432,10 @@ export class App extends React.Component<AppProps, AppState> {
   cpuLimitedRtcSamples = 0;
   cpuCleanRtcSamples = 0;
   turnIceServers?: RTCIceServer[];
+  turnCredentialExpiresAt = 0;
+  turnRefreshTimer: number | undefined = undefined;
+  turnCredentialLoading = false;
+  turnEndpointUnavailable = false;
   lastRtcBytesSent = 0;
   lastRtcStatsTimestamp = 0;
   warningMessageTimeout: number | undefined = undefined;
@@ -468,6 +479,7 @@ export class App extends React.Component<AppProps, AppState> {
       "watchparty-profile-updated",
       this.onProfileUpdated as EventListener,
     );
+    document.addEventListener("visibilitychange", this.onDocumentVisible);
 
     // Send heartbeat to the server
     this.heartbeat = window.setInterval(
@@ -509,6 +521,8 @@ export class App extends React.Component<AppProps, AppState> {
       "watchparty-profile-updated",
       this.onProfileUpdated as EventListener,
     );
+    document.removeEventListener("visibilitychange", this.onDocumentVisible);
+    window.clearTimeout(this.turnRefreshTimer);
     window.clearInterval(this.heartbeat);
     window.clearInterval(this.progressUpdater);
     window.clearInterval(this.syncUpdater);
@@ -535,17 +549,54 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  onDocumentVisible = () => {
+    if (
+      document.visibilityState !== "visible" ||
+      this.turnEndpointUnavailable
+    ) {
+      return;
+    }
+    if (
+      shouldRefreshTurnCredential(this.turnCredentialExpiresAt, Date.now())
+    ) {
+      void this.loadTurnCredentials();
+    }
+  };
+
   loadTurnCredentials = async () => {
+    if (this.turnCredentialLoading) {
+      return;
+    }
+    this.turnCredentialLoading = true;
+    window.clearTimeout(this.turnRefreshTimer);
     try {
-      const response = await fetch(`${serverPath}/webrtc/ice`);
-      if (!response.ok || response.status === 204) {
+      const response = await fetch(`${serverPath}/webrtc/ice`, {
+        cache: "no-store",
+      });
+      if (response.status === 204) {
+        this.turnEndpointUnavailable = true;
         return;
       }
-      const data = (await response.json()) as { iceServers?: RTCIceServer[] };
+      if (!response.ok) {
+        throw new Error(`ice ${response.status}`);
+      }
+      const data = (await response.json()) as {
+        iceServers?: RTCIceServer[];
+        ttlSeconds?: number;
+      };
       if (!Array.isArray(data.iceServers) || !data.iceServers.length) {
+        this.turnEndpointUnavailable = true;
         return;
       }
+      this.turnEndpointUnavailable = false;
       this.turnIceServers = data.iceServers;
+      const ttlSeconds = Number(data.ttlSeconds);
+      const ttl =
+        Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds : 21_600;
+      this.turnCredentialExpiresAt = Date.now() + ttl * 1000;
+      this.turnRefreshTimer = window.setTimeout(() => {
+        void this.loadTurnCredentials();
+      }, turnRefreshDelayMs(ttl));
       const connections = [
         ...Object.values(this.publisherConns),
         ...(this.consumerConn ? [this.consumerConn] : []),
@@ -559,6 +610,16 @@ export class App extends React.Component<AppProps, AppState> {
       });
     } catch {
       // TURN is optional. Static VITE_TURN_* settings remain a fallback.
+      // Near expiry, try again so a blip does not end a long relay session.
+      if (
+        shouldRefreshTurnCredential(this.turnCredentialExpiresAt, Date.now())
+      ) {
+        this.turnRefreshTimer = window.setTimeout(() => {
+          void this.loadTurnCredentials();
+        }, turnRefreshDelayMs(0));
+      }
+    } finally {
+      this.turnCredentialLoading = false;
     }
   };
 
@@ -1168,11 +1229,15 @@ export class App extends React.Component<AppProps, AppState> {
             msg.sdp.sdp = _sdp;
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
             await this.flushPendingIceCandidates(pc);
-            // Keep the browser's standards-based Opus negotiation intact.
-            // Rewriting it to multiopus caused intermittent silent playback on
-            // mobile/tablet Chromium clients.
+            // Tune only the fmtp of the already negotiated opus/48000/2
+            // payload (stereo, FEC, DTX off, ~128 kbps). The remote offer is
+            // left alone, and the codec is never renamed to multiopus: that
+            // rewrite muted mobile Chromium.
             const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
+            await pc.setLocalDescription({
+              type: answer.type,
+              sdp: tuneOpusFmtp(answer.sdp ?? ""),
+            });
             this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
           } else if (msg.sdp && msg.sdp.type === "answer") {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
@@ -2047,7 +2112,24 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
     try {
-      const stream = await getDisplayMedia(getDisplayMediaRequest(mode));
+      let stream: MediaStream;
+      if (mode === "desktop") {
+        try {
+          stream = await getDisplayMedia(getDisplayMediaRequest("desktop"));
+        } catch (error) {
+          // A browser that does not understand systemAudio rejects the
+          // request before the picker. Ask again without that hint. A
+          // dismissed dialog is not retried.
+          if (!displayMediaConstraintRejected(error)) {
+            throw error;
+          }
+          stream = await getDisplayMedia(
+            getDisplayMediaRequest("desktop", { systemAudio: false }),
+          );
+        }
+      } else {
+        stream = await getDisplayMedia(getDisplayMediaRequest(mode));
+      }
       this.localStreamToPublish = stream;
       this.isLocalStreamAFile = false;
       this.watchLocalShareTracks(stream);
@@ -2633,7 +2715,13 @@ export class App extends React.Component<AppProps, AppState> {
       }
       this.negotiationQueued.delete(pc);
       const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
-      await pc.setLocalDescription(offer);
+      // Same fmtp-only Opus tune as the answer, so the sender's local
+      // description already asks for stereo music settings. The remote
+      // offer is never rewritten.
+      await pc.setLocalDescription({
+        type: offer.type,
+        sdp: tuneOpusFmtp(offer.sdp ?? ""),
+      });
       this.pendingIceRestart.delete(pc);
       this.sendSignalSS(viewerId, { sdp: pc.localDescription }, true);
     } catch (e) {
@@ -2649,7 +2737,7 @@ export class App extends React.Component<AppProps, AppState> {
 
   requestSharerResync = (
     sharerId: string,
-    reason: "failed" | "audio" | "disconnected",
+    reason: "failed" | "audio" | "video" | "disconnected",
   ) => {
     this.sendSignalSS(sharerId, { resync: true, reason });
   };
@@ -2680,7 +2768,8 @@ export class App extends React.Component<AppProps, AppState> {
       reason === "audio" &&
       !stream.getAudioTracks().some((track) => track.readyState === "live")
     ) {
-      // Nothing to resend: the share genuinely has no audio.
+      // Nothing to resend: the share genuinely has no audio. A frozen
+      // picture uses reason "video" and still rebuilds the connection.
       return;
     }
     const now = Date.now();
@@ -2799,10 +2888,15 @@ export class App extends React.Component<AppProps, AppState> {
     const hasAudio = Boolean(
       stream?.getAudioTracks().some((track) => track.readyState === "live"),
     );
+    const paused = Boolean(video?.paused);
+    const sampleVideo = hasVideo && !paused;
     const samplesBefore = hasAudio
       ? await this.getInboundAudioSamples()
       : undefined;
-    if (hasAudio) {
+    const framesBefore = sampleVideo
+      ? await this.getInboundVideoFrames()
+      : undefined;
+    if (hasAudio || sampleVideo) {
       await new Promise((resolve) => window.setTimeout(resolve, 1_200));
     }
     if (
@@ -2815,33 +2909,49 @@ export class App extends React.Component<AppProps, AppState> {
     const samplesAfter = hasAudio
       ? await this.getInboundAudioSamples()
       : undefined;
-    const decision = shareAudioNeedsResync({
+    const framesAfter = sampleVideo
+      ? await this.getInboundVideoFrames()
+      : undefined;
+    const audioDecision = shareAudioNeedsResync({
       hasLiveVideo: hasVideo,
       hasLiveAudio: hasAudio,
-      paused: Boolean(video?.paused),
+      paused,
       samplesBefore,
       samplesAfter,
     });
-    if (decision === "wait") {
+    const videoDecision = shareVideoNeedsResync({
+      hasLiveVideo: hasVideo,
+      paused,
+      framesBefore,
+      framesAfter,
+    });
+    if (audioDecision === "wait" && videoDecision !== "resync") {
       return;
     }
-    if (decision === "ok") {
+    if (audioDecision === "ok" && videoDecision !== "resync") {
       this.audioResyncRequests = 0;
       if (this.state.shareAudioMissing) {
         this.setState({ shareAudioMissing: false });
       }
       return;
     }
-    if (!hasAudio && !this.state.shareAudioMissing) {
+    if (
+      audioDecision === "resync" &&
+      !hasAudio &&
+      !this.state.shareAudioMissing
+    ) {
       this.setState({ shareAudioMissing: true });
     }
     if (this.audioResyncRequests >= 4) {
       return;
     }
-    // Video is playing but audio is missing or the counters froze. The
-    // sharer ignores this when the capture really has no audio.
+    // A frozen picture uses "video" so the sharer still resends when the
+    // capture has no audio track. Audio-only recovery stays "audio".
     this.audioResyncRequests += 1;
-    this.requestSharerResync(sharer.id, "audio");
+    this.requestSharerResync(
+      sharer.id,
+      videoDecision === "resync" ? "video" : "audio",
+    );
     this.scheduleAudioCheck(8_000);
   };
 
@@ -2936,6 +3046,30 @@ export class App extends React.Component<AppProps, AppState> {
         }
       });
       return samples;
+    } catch {
+      return undefined;
+    }
+  };
+
+  getInboundVideoFrames = async (): Promise<number | undefined> => {
+    const pc = this.consumerConn;
+    if (!pc || pc.connectionState !== "connected") {
+      return undefined;
+    }
+    try {
+      const stats = await pc.getStats();
+      let frames: number | undefined;
+      stats.forEach((report: any) => {
+        if (report.type !== "inbound-rtp" || report.kind !== "video") {
+          return;
+        }
+        const decoded = Number(report.framesDecoded);
+        if (!Number.isFinite(decoded)) {
+          return;
+        }
+        frames = (frames ?? 0) + decoded;
+      });
+      return frames;
     } catch {
       return undefined;
     }

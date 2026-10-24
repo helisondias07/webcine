@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayMediaConstraintRejected,
   getDisplayMediaRequest,
   getScreenShareMode,
   isHandheldShareDevice,
@@ -95,6 +96,32 @@ describe("getDisplayMediaRequest", () => {
       frameRate: { ideal: 30, max: 30 },
     });
     expect(request.video).toMatchObject({ logicalSurface: false });
+    expect(request.systemAudio).toBe("include");
+    expect(request).not.toHaveProperty("suppressLocalAudioPlayback");
+  });
+
+  it("drops the system-audio hint when the browser rejected it", () => {
+    const request = getDisplayMediaRequest("desktop", { systemAudio: false });
+    expect(request).not.toHaveProperty("systemAudio");
+    expect(request).not.toHaveProperty("suppressLocalAudioPlayback");
+    expect(request.audio).toMatchObject({ channelCount: { ideal: 2 } });
+  });
+});
+
+describe("displayMediaConstraintRejected", () => {
+  it("retries only when the request itself was rejected", () => {
+    expect(displayMediaConstraintRejected({ name: "TypeError" })).toBe(true);
+    expect(
+      displayMediaConstraintRejected({ name: "OverconstrainedError" }),
+    ).toBe(true);
+    expect(displayMediaConstraintRejected({ name: "NotSupportedError" })).toBe(
+      true,
+    );
+    expect(displayMediaConstraintRejected({ name: "NotAllowedError" })).toBe(
+      false,
+    );
+    expect(displayMediaConstraintRejected({ name: "AbortError" })).toBe(false);
+    expect(displayMediaConstraintRejected(undefined)).toBe(false);
   });
 });
 

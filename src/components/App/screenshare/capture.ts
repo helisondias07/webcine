@@ -26,6 +26,32 @@ export function getScreenShareMode(env: ShareCaptureEnv): ScreenShareMode {
   return isHandheldShareDevice(env) ? "handheld" : "desktop";
 }
 
+export type ShareDisplayMediaRequest = DisplayMediaStreamOptions & {
+  // Chromium desktop picker. "include" offers system/tab audio in the
+  // dialog. It does not mute the sharer's speakers; suppressLocalAudioPlayback
+  // would, and this request never sets that flag.
+  systemAudio?: "include";
+};
+
+const DISPLAY_MEDIA_CONSTRAINT_REJECTIONS = new Set([
+  "TypeError",
+  "OverconstrainedError",
+  "NotSupportedError",
+]);
+
+/**
+ * True when getDisplayMedia rejected a constraint before the user cancelled.
+ * NotAllowedError and AbortError are a dismissed picker and must not retry.
+ */
+export function displayMediaConstraintRejected(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("name" in error)) {
+    return false;
+  }
+  return DISPLAY_MEDIA_CONSTRAINT_REJECTIONS.has(
+    String((error as { name?: unknown }).name ?? ""),
+  );
+}
+
 /**
  * Phone and tablet browsers reject the desktop request. Resolution caps and
  * audio constraints fail before the system dialog, and those browsers cannot
@@ -34,7 +60,8 @@ export function getScreenShareMode(env: ShareCaptureEnv): ScreenShareMode {
  */
 export function getDisplayMediaRequest(
   mode: ScreenShareMode,
-): DisplayMediaStreamOptions {
+  options?: { systemAudio?: boolean },
+): ShareDisplayMediaRequest {
   if (mode === "handheld") {
     return { video: true };
   }
@@ -43,7 +70,7 @@ export function getDisplayMediaRequest(
   // ~720p frame that both peers then stretched. Exact sampleRate/sampleSize
   // constraints bind the audio track to a processing graph that goes silent
   // on the next renegotiation (the F5 case) until getDisplayMedia runs again.
-  return {
+  const request: ShareDisplayMediaRequest = {
     video: {
       // false = device pixels. true captured CSS pixels and looked soft on
       // scaled displays once both peers stretched it to the player.
@@ -60,6 +87,10 @@ export function getDisplayMediaRequest(
       sampleRate: { ideal: 48000 },
     },
   };
+  if (options?.systemAudio !== false) {
+    request.systemAudio = "include";
+  }
+  return request;
 }
 
 export function screenShareUnsupportedMessage(env: ShareCaptureEnv): string {

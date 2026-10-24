@@ -9,6 +9,9 @@ try {
   console.error("Failed to load .env file:", e);
 }
 
+/** Six hours: a ~2h movie plus a late refresh still fits the relay window. */
+export const DEFAULT_TURN_TTL_SECONDS = 21_600;
+
 const defaults = {
   REDIS_URL: "", // Optional, for metrics
   DATABASE_URL: "", // Optional, for permanent rooms and VBrowser management
@@ -64,7 +67,7 @@ const defaults = {
   MEDIASOUP_SERVER: "", // Optional, URL of the MediaSoup server to broadcast to for larger screen/file shares
   TURN_URLS: "", // Comma-separated coturn URLs used to mint short-lived WebRTC credentials
   TURN_SHARED_SECRET: "", // coturn static-auth-secret; never expose this to the frontend
-  TURN_TTL_SECONDS: 3600, // Lifetime of a generated TURN credential
+  TURN_TTL_SECONDS: DEFAULT_TURN_TTL_SECONDS, // Lifetime of a generated TURN credential
   TWITCH_PROXY_PATH: "", // Optional, URL of the server that can proxy twitch HLS stream playlists and segments
   VBROWSER_ADMIN_KEY: "", // Optional, the key to hit admin endpoints on the vbrowser
   VBROWSER_DISABLED: "false", // Set to "true" to temporarily disable the virtual browser feature

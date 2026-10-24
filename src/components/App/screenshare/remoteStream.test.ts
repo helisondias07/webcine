@@ -4,6 +4,7 @@ import {
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
   shareAudioNeedsResync,
+  shareVideoNeedsResync,
 } from "./remoteStream";
 
 const track = (
@@ -129,6 +130,54 @@ describe("shareAudioNeedsResync", () => {
         paused: false,
         samplesBefore: 100,
         samplesAfter: 500,
+      }),
+    ).toBe("ok");
+  });
+});
+
+describe("shareVideoNeedsResync", () => {
+  it("waits without a live video track, while paused, or without frame stats", () => {
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: false,
+        paused: false,
+        framesBefore: 1,
+        framesAfter: 1,
+      }),
+    ).toBe("wait");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: true,
+        framesBefore: 10,
+        framesAfter: 10,
+      }),
+    ).toBe("wait");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: undefined,
+        framesAfter: 10,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when decoded frames stop advancing", () => {
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: 40,
+        framesAfter: 40,
+      }),
+    ).toBe("resync");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: 40,
+        framesAfter: 70,
       }),
     ).toBe("ok");
   });

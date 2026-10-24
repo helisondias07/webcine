@@ -96,3 +96,26 @@ export function shareAudioNeedsResync(input: {
   }
   return "ok";
 }
+
+/**
+ * Decide whether a playing video track has stopped producing frames.
+ * Missing stats or a paused element are "wait": a disconnected peer and an
+ * autoplay block must not be treated as a frozen sender.
+ */
+export function shareVideoNeedsResync(input: {
+  hasLiveVideo: boolean;
+  paused: boolean;
+  framesBefore: number | undefined;
+  framesAfter: number | undefined;
+}): ShareAudioCheck {
+  if (!input.hasLiveVideo || input.paused) {
+    return "wait";
+  }
+  if (input.framesBefore === undefined || input.framesAfter === undefined) {
+    return "wait";
+  }
+  if (input.framesAfter <= input.framesBefore) {
+    return "resync";
+  }
+  return "ok";
+}

@@ -15,7 +15,7 @@ import {
   IconVolumeOff,
 } from "@tabler/icons-react";
 
-type ShareQualityMode = "economy" | "auto" | "high";
+type ShareQualityMode = "economy" | "auto" | "high" | "fragile";
 type YouTubeQualityMode = "auto" | YT.SuggestedVideoQuality;
 
 interface ControlsProps {
@@ -237,6 +237,17 @@ export const Controls = (props: ControlsProps) => {
               onClick={() => setScreenShareQualityMode("auto")}
             >
               Auto
+            </Menu.Item>
+            <Menu.Item
+              data-testid="share-quality-fragile"
+              leftSection={
+                screenShareQualityMode === "fragile" ? (
+                  <IconCheck size={14} />
+                ) : undefined
+              }
+              onClick={() => setScreenShareQualityMode("fragile")}
+            >
+              Rede frágil
             </Menu.Item>
             <Menu.Item
               leftSection={

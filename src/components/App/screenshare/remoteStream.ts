@@ -64,3 +64,58 @@ export function remoteAudioLooksStalled(
   }
   return samplesAfter <= samplesBefore;
 }
+
+export type ShareAudioCheck = "ok" | "wait" | "resync";
+
+/**
+ * Decide whether the viewer should ask the sharer to resend.
+ * A live video track with no audio, or audio counters that stop while the
+ * element is actually playing, is a broken sender — not an autoplay block.
+ * A paused element is left alone so the "Ativar som" gesture can run.
+ */
+export function shareAudioNeedsResync(input: {
+  hasLiveVideo: boolean;
+  hasLiveAudio: boolean;
+  paused: boolean;
+  samplesBefore: number | undefined;
+  samplesAfter: number | undefined;
+}): ShareAudioCheck {
+  if (!input.hasLiveVideo) {
+    return "wait";
+  }
+  if (!input.hasLiveAudio) {
+    return "resync";
+  }
+  if (input.paused) {
+    return "wait";
+  }
+  if (
+    remoteAudioLooksStalled(false, input.samplesBefore, input.samplesAfter)
+  ) {
+    return "resync";
+  }
+  return "ok";
+}
+
+/**
+ * Decide whether a playing video track has stopped producing frames.
+ * Missing stats or a paused element are "wait": a disconnected peer and an
+ * autoplay block must not be treated as a frozen sender.
+ */
+export function shareVideoNeedsResync(input: {
+  hasLiveVideo: boolean;
+  paused: boolean;
+  framesBefore: number | undefined;
+  framesAfter: number | undefined;
+}): ShareAudioCheck {
+  if (!input.hasLiveVideo || input.paused) {
+    return "wait";
+  }
+  if (input.framesBefore === undefined || input.framesAfter === undefined) {
+    return "wait";
+  }
+  if (input.framesAfter <= input.framesBefore) {
+    return "resync";
+  }
+  return "ok";
+}

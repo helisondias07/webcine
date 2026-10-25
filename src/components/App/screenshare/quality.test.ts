@@ -7,8 +7,12 @@ import {
   getSenderEncoding,
   getShareContentHint,
   getShareQualityProfile,
+  evaluateFragileAuto,
   getViewerSenderProfile,
+  isTabletWatchLayout,
   normalizeShareQualityMode,
+  scaleResolutionToTarget,
+  targetEncodeHeight,
   rankVideoCodec,
   sortVideoCodecs,
   type CpuAdaptState,
@@ -160,15 +164,15 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
     );
   });
 
-  it("switches motion to balanced only under network or CPU pressure", () => {
+  it("holds resolution under network or CPU pressure", () => {
     const p = getAdaptiveProfile(base, 1, "motion");
     expect(getSenderEncoding(p, 0.8, "motion").degradationPreference).toBe(
-      "balanced",
+      "maintain-resolution",
     );
     expect(getSenderEncoding(p, 1, "motion", true).degradationPreference).toBe(
-      "balanced",
+      "maintain-resolution",
     );
-    expect(getSenderEncoding(p, 0.5, "detail", true).degradationPreference).toBe(
+    expect(getSenderEncoding(p, 0.4, "motion", true).degradationPreference).toBe(
       "maintain-resolution",
     );
   });
@@ -185,16 +189,40 @@ describe("getAdaptiveProfile / getSenderEncoding", () => {
     }
   });
 
-  it("adds a resolution downscale when the network is weak", () => {
+  it("does not shrink the picture when the network is weak", () => {
     const p = { ...base, scaleResolutionDownBy: 1 };
     expect(getSenderEncoding(p, 1, "motion").scaleResolutionDownBy).toBe(1);
-    expect(getSenderEncoding(p, 0.69, "motion").scaleResolutionDownBy).toBe(1.5);
-    expect(getSenderEncoding(p, 0.49, "motion").scaleResolutionDownBy).toBe(2);
+    expect(getSenderEncoding(p, 0.69, "motion").scaleResolutionDownBy).toBe(1);
+    expect(getSenderEncoding(p, 0.49, "motion").scaleResolutionDownBy).toBe(1);
+    // Bitrate still drops with the network scale, via getAdaptiveProfile.
+    expect(getAdaptiveProfile(base, 0.5, "motion").maxBitratePerPeer).toBe(
+      2_500_000,
+    );
   });
 
-  it("never reduces a downscale already requested by the viewer mode", () => {
+  it("keeps a downscale the caller already set on the profile", () => {
     const p = { ...base, scaleResolutionDownBy: 3 };
     expect(getSenderEncoding(p, 0.4, "motion").scaleResolutionDownBy).toBe(3);
+  });
+});
+
+describe("scaleResolutionToTarget", () => {
+  const base = getShareQualityProfile(1);
+
+  it("encodes 1080p in auto and 720p in economy", () => {
+    expect(targetEncodeHeight(base, "auto")).toBe(1080);
+    expect(targetEncodeHeight(base, "high")).toBe(1080);
+    expect(targetEncodeHeight(base, "economy")).toBe(720);
+    expect(targetEncodeHeight(getShareQualityProfile(14), "auto")).toBe(540);
+  });
+
+  it("downscales an oversized capture and never upscales", () => {
+    expect(scaleResolutionToTarget(1080, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(720, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(0, 1080)).toBe(1);
+    expect(scaleResolutionToTarget(1440, 1080)).toBe(1.33);
+    expect(scaleResolutionToTarget(2160, 1080)).toBe(2);
+    expect(scaleResolutionToTarget(2160, 720)).toBe(3);
   });
 });
 
@@ -244,7 +272,7 @@ describe("evaluateNetworkSample", () => {
       const r = evaluateNetworkSample(state, 0.5, 0);
       state = r;
     }
-    expect(state.scale).toBeCloseTo(0.4);
+    expect(state.scale).toBeCloseTo(0.3);
   });
 
   it("a good sample resets the constrained streak", () => {
@@ -266,6 +294,29 @@ describe("evaluateNetworkSample", () => {
     expect(r.changed).toBe(true);
     expect(r.scale).toBeCloseTo(0.8);
     expect(r.stableSamples).toBe(0);
+  });
+
+  it("a sustained freeze or loss settles a 5 Mbps share between 1.2 and 1.5 Mbps without shrinking the picture", () => {
+    let state: NetworkAdaptState = { ...fresh };
+    for (let i = 0; i < 12; i += 1) {
+      state = evaluateNetworkSample(state, 0.25, 0.9, true);
+    }
+    const adapted = getAdaptiveProfile(getShareQualityProfile(2), state.scale, "motion");
+    const encoding = getSenderEncoding(adapted, state.scale, "motion");
+    expect(adapted.maxBitratePerPeer).toBeGreaterThanOrEqual(1_200_000);
+    expect(adapted.maxBitratePerPeer).toBeLessThanOrEqual(1_500_000);
+    expect(adapted.captureHeight).toBe(1080);
+    expect(adapted.captureWidth).toBe(1920);
+    expect(encoding.scaleResolutionDownBy).toBe(1);
+    expect(encoding.degradationPreference).toBe("maintain-resolution");
+    expect(encoding.maxBitrate).toBe(adapted.maxBitratePerPeer);
+  });
+
+  it("treats a frozen picture as severe even when loss and RTT are clean", () => {
+    const first = evaluateNetworkSample(fresh, 0, 0.05, true);
+    const second = evaluateNetworkSample(first, 0, 0.05, true);
+    expect(second.severe).toBe(true);
+    expect(second.scale).toBeLessThan(1);
   });
 
   it("does not exceed scale 1 when recovering", () => {
@@ -315,6 +366,54 @@ describe("evaluateCpuSample", () => {
     s = evaluateCpuSample(s, false);
     expect(s.constrained).toBe(false);
     expect(s.changed).toBe(true);
+  });
+});
+
+describe("rede frágil", () => {
+  const base = getShareQualityProfile(2);
+
+  it("keeps 1080p, caps bitrate around 1.5 Mbps and drops to 24 fps", () => {
+    const profile = getViewerSenderProfile(base, "fragile");
+    expect(normalizeShareQualityMode("fragile")).toBe("fragile");
+    expect(profile.captureWidth).toBe(1920);
+    expect(profile.captureHeight).toBe(1080);
+    expect(profile.scaleResolutionDownBy).toBe(1);
+    expect(profile.maxBitratePerPeer).toBeGreaterThanOrEqual(1_200_000);
+    expect(profile.maxBitratePerPeer).toBeLessThanOrEqual(1_500_000);
+    expect(profile.maxFramerate).toBe(24);
+    expect(targetEncodeHeight(base, "fragile")).toBe(1080);
+    const encoding = getSenderEncoding(profile, 1, "motion");
+    expect(encoding.degradationPreference).toBe("maintain-resolution");
+    expect(encoding.scaleResolutionDownBy).toBe(1);
+    expect(encoding.maxFramerate).toBe(24);
+  });
+
+  it("recognizes tablet watch sizes and ignores phones and desktops", () => {
+    expect(isTabletWatchLayout(1180, 820)).toBe(true);
+    expect(isTabletWatchLayout(820, 1180)).toBe(true);
+    expect(isTabletWatchLayout(1024, 768)).toBe(true);
+    expect(isTabletWatchLayout(1920, 1080)).toBe(false);
+    expect(isTabletWatchLayout(1366, 768)).toBe(false);
+    expect(isTabletWatchLayout(390, 844)).toBe(false);
+  });
+
+  it("turns the preset on for a tablet with two weak samples and releases it after a clean stretch", () => {
+    const idle = { active: false, weakSamples: 0, cleanSamples: 0 };
+    const once = evaluateFragileAuto(idle, true, true);
+    expect(once.active).toBe(false);
+    const twice = evaluateFragileAuto(once, true, true);
+    expect(twice.active).toBe(true);
+    expect(twice.changed).toBe(true);
+    expect(evaluateFragileAuto(idle, true, false).active).toBe(false);
+    expect(evaluateFragileAuto(twice, false, true).active).toBe(false);
+    let state = twice;
+    for (let i = 0; i < 4; i += 1) {
+      state = evaluateFragileAuto(state, true, false);
+      expect(state.active).toBe(true);
+    }
+    state = evaluateFragileAuto(state, true, false);
+    expect(state.active).toBe(false);
+    expect(state.changed).toBe(true);
   });
 });
 

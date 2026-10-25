@@ -40,14 +40,13 @@ import styles from "./App.module.css";
 import config from "../../config";
 import { MetadataContext } from "../../MetadataContext";
 import ChatVideoCard from "../ChatVideoCard/ChatVideoCard";
-import { ActionIcon, Badge, Button, TextInput } from "@mantine/core";
+import { ActionIcon, Badge, Button } from "@mantine/core";
 import {
   IconFile,
   IconList,
   IconMessageCircle,
   IconScreenShare,
   IconSettings,
-  IconUser,
   IconVolume,
   IconX,
 } from "@tabler/icons-react";
@@ -77,15 +76,20 @@ import type {
 import {
   applyVideoCodecPreferences,
   evaluateCpuSample,
+  evaluateFragileAuto,
   evaluateNetworkSample,
   getAdaptiveProfile,
   getSenderEncoding,
   getShareContentHint,
   getShareQualityLabel,
   getShareQualityProfile,
+  isTabletWatchLayout,
   getViewerSenderProfile,
   normalizeShareQualityMode,
   qualityFromScale,
+  scaleResolutionToTarget,
+  targetEncodeHeight,
+  type FragileAutoState,
 } from "./screenshare/quality";
 import {
   DISCONNECTED_VIEWER_GRACE_MS,
@@ -94,6 +98,7 @@ import {
   iceRestartDelay,
   recreateDelay,
   sanitizeOfferSdp,
+  viewerConnectionReplaced,
 } from "./screenshare/reconnect";
 import {
   accumulateRtcReport,
@@ -105,8 +110,12 @@ import {
   collectRemoteShareTracks,
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
+  shareAudioNeedsResync,
+  shareVideoNeedsResync,
 } from "./screenshare/remoteStream";
+import { tracksToPublish } from "./screenshare/publish";
 import {
+  displayMediaConstraintRejected,
   getDisplayMediaRequest,
   getScreenShareMode,
   isHandheldShareDevice,
@@ -114,6 +123,11 @@ import {
   readShareCaptureEnv,
   screenShareUnsupportedMessage,
 } from "./screenshare/capture";
+import { tuneOpusFmtp } from "./screenshare/opus";
+import {
+  shouldRefreshTurnCredential,
+  turnRefreshDelayMs,
+} from "./screenshare/turn";
 
 declare global {
   interface Window {
@@ -255,6 +269,23 @@ type JoinToast = {
   initials: string;
 };
 
+function readPendingRoomTitle() {
+  try {
+    const raw = window.sessionStorage.getItem("webcine-pending-room-title");
+    if (!raw) {
+      return "";
+    }
+    const parsed = JSON.parse(raw) as { name?: string; title?: string };
+    const name = typeof parsed?.name === "string" ? parsed.name : "";
+    if (!name || !window.location.pathname.endsWith(name)) {
+      return "";
+    }
+    return normalizeDisplayName(parsed.title ?? "").slice(0, 40);
+  } catch {
+    return "";
+  }
+}
+
 export class App extends React.Component<AppProps, AppState> {
   static contextType = MetadataContext;
   declare context: React.ContextType<typeof MetadataContext>;
@@ -326,7 +357,7 @@ export class App extends React.Component<AppProps, AppState> {
     password: undefined,
     hasPassword: false,
     inviteLink: "",
-    roomTitle: "",
+    roomTitle: readPendingRoomTitle(),
     roomDescription: "",
     roomTitleColor: "",
     mediaPath: undefined,
@@ -398,6 +429,12 @@ export class App extends React.Component<AppProps, AppState> {
   shareReclaimTimes: number[] = [];
   lastAppliedShareProfileKey = "";
   viewerShareQualityMap: Record<string, ShareQualityMode> = {};
+  viewerEpoch: Record<string, number> = {};
+  negotiationQueued = new WeakSet<RTCPeerConnection>();
+  negotiationHooked = new WeakSet<RTCPeerConnection>();
+  shareTrackWatcher?: MediaStream;
+  lastShareCaptureHeight = 0;
+  audioCheckGeneration = 0;
   consumerConn?: RTCPeerConnection;
   remoteShareStream?: MediaStream;
   remoteShareAttachedIds = new Set<string>();
@@ -407,13 +444,30 @@ export class App extends React.Component<AppProps, AppState> {
   syncUpdater: number | undefined = undefined;
   rtcStatsUpdater: number | undefined = undefined;
   shareNetworkScale = 1;
+  // Sender updates must not overlap. A stats tick that started in "auto"
+  // can otherwise finish setParameters after a guest preset and put the
+  // higher bitrate back.
+  shareApplyChain: Promise<void> = Promise.resolve();
   stableRtcSamples = 0;
   constrainedRtcSamples = 0;
+  fragileAuto: FragileAutoState = {
+    active: false,
+    weakSamples: 0,
+    cleanSamples: 0,
+  };
+  lastOutboundFramesEncoded = 0;
+  lastInboundFreezeCount = -1;
+  lastInboundPacketsLost = -1;
+  lastInboundPacketsReceived = 0;
   // Sender CPU pressure (qualityLimitationReason "cpu"), see evaluateCpuSample.
   shareCpuConstrained = false;
   cpuLimitedRtcSamples = 0;
   cpuCleanRtcSamples = 0;
   turnIceServers?: RTCIceServer[];
+  turnCredentialExpiresAt = 0;
+  turnRefreshTimer: number | undefined = undefined;
+  turnCredentialLoading = false;
+  turnEndpointUnavailable = false;
   lastRtcBytesSent = 0;
   lastRtcStatsTimestamp = 0;
   warningMessageTimeout: number | undefined = undefined;
@@ -457,6 +511,7 @@ export class App extends React.Component<AppProps, AppState> {
       "watchparty-profile-updated",
       this.onProfileUpdated as EventListener,
     );
+    document.addEventListener("visibilitychange", this.onDocumentVisible);
 
     // Send heartbeat to the server
     this.heartbeat = window.setInterval(
@@ -498,6 +553,8 @@ export class App extends React.Component<AppProps, AppState> {
       "watchparty-profile-updated",
       this.onProfileUpdated as EventListener,
     );
+    document.removeEventListener("visibilitychange", this.onDocumentVisible);
+    window.clearTimeout(this.turnRefreshTimer);
     window.clearInterval(this.heartbeat);
     window.clearInterval(this.progressUpdater);
     window.clearInterval(this.syncUpdater);
@@ -524,17 +581,54 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  onDocumentVisible = () => {
+    if (
+      document.visibilityState !== "visible" ||
+      this.turnEndpointUnavailable
+    ) {
+      return;
+    }
+    if (
+      shouldRefreshTurnCredential(this.turnCredentialExpiresAt, Date.now())
+    ) {
+      void this.loadTurnCredentials();
+    }
+  };
+
   loadTurnCredentials = async () => {
+    if (this.turnCredentialLoading) {
+      return;
+    }
+    this.turnCredentialLoading = true;
+    window.clearTimeout(this.turnRefreshTimer);
     try {
-      const response = await fetch(`${serverPath}/webrtc/ice`);
-      if (!response.ok || response.status === 204) {
+      const response = await fetch(`${serverPath}/webrtc/ice`, {
+        cache: "no-store",
+      });
+      if (response.status === 204) {
+        this.turnEndpointUnavailable = true;
         return;
       }
-      const data = (await response.json()) as { iceServers?: RTCIceServer[] };
+      if (!response.ok) {
+        throw new Error(`ice ${response.status}`);
+      }
+      const data = (await response.json()) as {
+        iceServers?: RTCIceServer[];
+        ttlSeconds?: number;
+      };
       if (!Array.isArray(data.iceServers) || !data.iceServers.length) {
+        this.turnEndpointUnavailable = true;
         return;
       }
+      this.turnEndpointUnavailable = false;
       this.turnIceServers = data.iceServers;
+      const ttlSeconds = Number(data.ttlSeconds);
+      const ttl =
+        Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds : 21_600;
+      this.turnCredentialExpiresAt = Date.now() + ttl * 1000;
+      this.turnRefreshTimer = window.setTimeout(() => {
+        void this.loadTurnCredentials();
+      }, turnRefreshDelayMs(ttl));
       const connections = [
         ...Object.values(this.publisherConns),
         ...(this.consumerConn ? [this.consumerConn] : []),
@@ -548,6 +642,16 @@ export class App extends React.Component<AppProps, AppState> {
       });
     } catch {
       // TURN is optional. Static VITE_TURN_* settings remain a fallback.
+      // Near expiry, try again so a blip does not end a long relay session.
+      if (
+        shouldRefreshTurnCredential(this.turnCredentialExpiresAt, Date.now())
+      ) {
+        this.turnRefreshTimer = window.setTimeout(() => {
+          void this.loadTurnCredentials();
+        }, turnRefreshDelayMs(0));
+      }
+    } finally {
+      this.turnCredentialLoading = false;
     }
   };
 
@@ -782,6 +886,22 @@ export class App extends React.Component<AppProps, AppState> {
               "exiting REC:host since we are using webRTC (fileshare or screenshare). Check setupRTCConnections()",
             );
             this.setLoadingFalse();
+            // F5 destroys the capture. If this tab still owns the room share
+            // but has nothing to publish, drop it so viewers are not stuck
+            // on a silent, empty connection. A live tab still has the stream
+            // and keeps the share across a Socket.IO reconnect.
+            if (
+              !this.localStreamToPublish &&
+              currentMedia.includes(getOrCreateClientId())
+            ) {
+              this.socket.emit("CMD:leaveScreenShare");
+              this.setState({
+                roomMedia: "",
+                loading: false,
+                soundPromptMedia: "",
+              });
+              return;
+            }
             if (this.playingScreenShare() || this.playingFileShare()) {
               await this.setupRTCConnections();
             }
@@ -1141,11 +1261,15 @@ export class App extends React.Component<AppProps, AppState> {
             msg.sdp.sdp = _sdp;
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
             await this.flushPendingIceCandidates(pc);
-            // Keep the browser's standards-based Opus negotiation intact.
-            // Rewriting it to multiopus caused intermittent silent playback on
-            // mobile/tablet Chromium clients.
+            // Tune only the fmtp of the already negotiated opus/48000/2
+            // payload (stereo, FEC, DTX off, ~128 kbps). The remote offer is
+            // left alone, and the codec is never renamed to multiopus: that
+            // rewrite muted mobile Chromium.
             const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
+            await pc.setLocalDescription({
+              type: answer.type,
+              sdp: tuneOpusFmtp(answer.sdp ?? ""),
+            });
             this.sendSignalSS(from, { sdp: pc.localDescription }, !data.sharer);
           } else if (msg.sdp && msg.sdp.type === "answer") {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
@@ -1648,15 +1772,11 @@ export class App extends React.Component<AppProps, AppState> {
     }
     this.shareReclaimTimes.push(now);
     Object.entries(this.publisherConns).forEach(([id, pc]) => {
-      pc.onconnectionstatechange = null;
-      try {
-        pc.close();
-      } catch {
-        // already closed
-      }
+      this.releasePublisher(pc);
       this.publisherNeedsReset.add(id);
     });
     this.publisherConns = {};
+    this.viewerEpoch = {};
     if (this.consumerConn) {
       this.consumerConn.onconnectionstatechange = null;
       try {
@@ -1733,6 +1853,13 @@ export class App extends React.Component<AppProps, AppState> {
     return Array.from(new Set(options));
   };
 
+  effectiveShareQualityMode = (): ShareQualityMode => {
+    if (this.state.screenShareQualityMode === "auto" && this.fragileAuto.active) {
+      return "fragile";
+    }
+    return this.state.screenShareQualityMode;
+  };
+
   emitViewerShareQualityPreference = () => {
     const sharer = this.state.participants.find((p) => p.isScreenShare);
     const selfId = getOrCreateClientId();
@@ -1745,34 +1872,19 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
     this.socket.emit("CMD:setScreenShareQuality", {
-      mode: this.state.screenShareQualityMode,
+      mode: this.effectiveShareQualityMode(),
     });
   };
 
   setScreenShareQualityMode = (mode: ShareQualityMode) => {
     const normalized = normalizeShareQualityMode(mode);
+    if (normalized === "auto") {
+      this.fragileAuto = { active: false, weakSamples: 0, cleanSamples: 0 };
+    }
     this.setState({ screenShareQualityMode: normalized }, () => {
       window.localStorage.setItem("watchparty-ss-quality", normalized);
       this.emitViewerShareQualityPreference();
     });
-  };
-
-  applyShareTrackConstraints = async (
-    track: MediaStreamTrack,
-    profile: ShareQualityProfile,
-  ) => {
-    try {
-      await track.applyConstraints({
-        width: { ideal: profile.captureWidth, max: profile.captureWidth },
-        height: { ideal: profile.captureHeight, max: profile.captureHeight },
-        frameRate: {
-          ideal: profile.maxFramerate,
-          max: profile.maxFramerate,
-        },
-      });
-    } catch (e) {
-      console.warn("screenshare: failed to apply track constraints", e);
-    }
   };
 
   applyShareSenderQuality = async (
@@ -1803,11 +1915,27 @@ export class App extends React.Component<AppProps, AppState> {
         contentHint,
         this.shareCpuConstrained,
       );
+      const senderHeight = Number(sender.track.getSettings?.().height) || 0;
+      const sourceHeight =
+        Number(
+          this.localStreamToPublish?.getVideoTracks()[0]?.getSettings?.()
+            .height,
+        ) || 0;
+      // The sender track is a clone. Some browsers only report the real
+      // frame size on the original capture track.
+      const captureHeight = senderHeight || sourceHeight;
+      const targetHeight = targetEncodeHeight(baseProfile, mode);
       encodings[0] = {
         ...encodings[0],
         maxBitrate: encoding.maxBitrate,
         maxFramerate: encoding.maxFramerate,
-        scaleResolutionDownBy: encoding.scaleResolutionDownBy,
+        // Scale the real captured frame down to the target. A 1440p/4K
+        // surface encoded at the 1080p bitrate cap is what looked blurry
+        // on both sides. Never stack this on top of a network downscale.
+        scaleResolutionDownBy: scaleResolutionToTarget(
+          captureHeight || targetHeight,
+          targetHeight,
+        ),
       };
       params.encodings = encodings;
       // Hold resolution while the link/CPU are healthy; "balanced" only under
@@ -1840,28 +1968,40 @@ export class App extends React.Component<AppProps, AppState> {
     }
 
     const summary = emptyRtcStatsSummary();
+    // Loss/RTT from a viewer who just hit F5 is a dead receiver, not a
+    // weak link. Counting it used to ratchet every peer down to a soft
+    // picture. Only connected remote publishers vote on bitrate.
+    const remoteLoss = emptyRtcStatsSummary();
+    const selfId = getOrCreateClientId();
+    let remoteReconnecting = false;
     for (const pc of connections) {
+      const remotePublisher = Object.entries(this.publisherConns).some(
+        ([id, candidate]) => candidate === pc && id !== selfId,
+      );
       if (
         pc.connectionState === "failed" ||
-        pc.connectionState === "disconnected"
+        pc.connectionState === "disconnected" ||
+        pc.connectionState === "connecting"
       ) {
         // Recovery (ICE restart / recreation) is driven by
         // watchPeerConnection, which owns the backoff timers.
         this.setConnectionQuality("reconnecting");
+        if (remotePublisher) {
+          remoteReconnecting = true;
+        }
       }
       const stats = await pc.getStats();
-      stats.forEach((report: any) => accumulateRtcReport(summary, report));
+      stats.forEach((report: any) => {
+        accumulateRtcReport(summary, report);
+        if (remotePublisher && pc.connectionState === "connected") {
+          accumulateRtcReport(remoteLoss, report);
+        }
+      });
     }
-    const {
-      worstLoss,
-      worstRtt,
-      totalBytesSent,
-      videoWidth,
-      videoHeight,
-      framesPerSecond,
-      transport,
-      cpuLimited,
-    } = summary;
+    const { totalBytesSent, videoWidth, videoHeight, framesPerSecond, transport, cpuLimited } =
+      summary;
+    const worstLoss = remoteLoss.worstLoss;
+    const worstRtt = remoteLoss.worstRtt;
 
     const now = Date.now();
     const elapsedSeconds = (now - this.lastRtcStatsTimestamp) / 1000;
@@ -1893,9 +2033,45 @@ export class App extends React.Component<AppProps, AppState> {
           : "blocked",
     };
 
+    await this.noteShareCaptureHeight();
+    const framesStalled =
+      this.lastOutboundFramesEncoded > 0 &&
+      summary.outboundFramesEncoded > 0 &&
+      summary.outboundFramesEncoded <= this.lastOutboundFramesEncoded;
+    const freezeRose =
+      this.lastInboundFreezeCount >= 0 &&
+      summary.inboundFreezeCount > this.lastInboundFreezeCount;
+    const frozen = framesStalled || freezeRose;
+    this.lastOutboundFramesEncoded = summary.outboundFramesEncoded;
+    this.lastInboundFreezeCount = summary.inboundFreezeCount;
+    let recentInboundLoss = 0;
+    if (this.lastInboundPacketsLost >= 0) {
+      const lostDelta = summary.inboundPacketsLost - this.lastInboundPacketsLost;
+      const receivedDelta =
+        summary.inboundPacketsReceived - this.lastInboundPacketsReceived;
+      const total = lostDelta + receivedDelta;
+      if (total > 0) {
+        recentInboundLoss = Math.max(0, lostDelta) / total;
+      }
+    }
+    this.lastInboundPacketsLost = summary.inboundPacketsLost;
+    this.lastInboundPacketsReceived = summary.inboundPacketsReceived;
+    if (remoteReconnecting) {
+      // Keep the byte counters fresh, but do not treat the refresh gap as
+      // congestion. Resolution and bitrate stay where they were.
+      this.setConnectionQuality("reconnecting");
+      return;
+    }
+
+    // A tablet guest on Auto asks the host to cap bitrate (same resolution)
+    // after the inbound link actually looks weak. Desktop stays on Auto.
+    this.noteGuestFragileLink(
+      recentInboundLoss > 0.05 || summary.worstRtt > 0.45 || frozen,
+    );
+
     // Browsers report "bandwidth" as a quality limitation even while a stream
     // is healthy. Treating that flag as a failure caused a permanent downscale
-    // to 540p. Adapt only after measured loss/latency persists for a few polls.
+    // to 540p. Adapt bitrate only after measured loss, latency or a freeze.
     const result = evaluateNetworkSample(
       {
         scale: this.shareNetworkScale,
@@ -1904,12 +2080,13 @@ export class App extends React.Component<AppProps, AppState> {
       },
       worstLoss,
       worstRtt,
+      frozen,
     );
     this.shareNetworkScale = result.scale;
     this.constrainedRtcSamples = result.constrainedSamples;
     this.stableRtcSamples = result.stableSamples;
-    // Encoder CPU pressure: let it trade pixels for frames ("balanced") only
-    // while the sender machine really cannot keep up.
+    // Record CPU pressure, but do not let it change the encode. Switching to
+    // "balanced" shrunk the picture for both peers and it stayed shrunk.
     const cpu = evaluateCpuSample(
       {
         constrained: this.shareCpuConstrained,
@@ -1921,12 +2098,6 @@ export class App extends React.Component<AppProps, AppState> {
     this.shareCpuConstrained = cpu.constrained;
     this.cpuLimitedRtcSamples = cpu.limitedSamples;
     this.cpuCleanRtcSamples = cpu.cleanSamples;
-    if (cpu.changed && !result.changed) {
-      debugLog(
-        `[screenshare] cpu ${cpu.constrained ? "limited: balanced" : "ok: maintain-resolution"}`,
-      );
-      await this.applyAdaptiveShareQuality();
-    }
     if (result.constrained) {
       if (result.changed) {
         this.setConnectionQuality(result.severe ? "poor" : "adjusting");
@@ -1940,7 +2111,39 @@ export class App extends React.Component<AppProps, AppState> {
     this.setConnectionQuality(qualityFromScale(this.shareNetworkScale));
   };
 
-  applyAdaptiveShareQuality = async () => {
+  noteGuestFragileLink = (weak: boolean) => {
+    if (
+      this.localStreamToPublish ||
+      this.state.screenShareQualityMode !== "auto" ||
+      (!this.playingScreenShare() && !this.playingFileShare())
+    ) {
+      return;
+    }
+    const decision = evaluateFragileAuto(
+      this.fragileAuto,
+      isTabletWatchLayout(window.innerWidth, window.innerHeight),
+      weak,
+    );
+    this.fragileAuto = decision;
+    if (!decision.changed) {
+      return;
+    }
+    this.emitViewerShareQualityPreference();
+    this.forceUpdate();
+  };
+
+  applyAdaptiveShareQuality = () => {
+    const run = this.shareApplyChain.then(() =>
+      this.applyAdaptiveShareQualityNow(),
+    );
+    this.shareApplyChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+
+  applyAdaptiveShareQualityNow = async () => {
     if (!this.localStreamToPublish || this.isLocalStreamAFile) {
       this.lastAppliedShareProfileKey = "";
       return;
@@ -1966,12 +2169,23 @@ export class App extends React.Component<AppProps, AppState> {
       this.shareNetworkScale,
       contentHint,
     );
-    // Reconfiguring the capture track for every bitrate adjustment is expensive
-    // and can interrupt sharing in Chromium. Keep the capture source stable;
-    // only the sender encoding (bitrate, downscale, degradation) adapts.
+    // Do not call applyConstraints on the capture. That restarts the
+    // capturer, which drops the audio track on the next renegotiation and
+    // can lock in a smaller frame than getDisplayMedia already produced.
+    // Sender parameters (bitrate + an explicit scale to the target height)
+    // are what adapts.
+    Object.values(this.publisherConns).forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (
+          sender.track?.kind === "video" &&
+          sender.track.contentHint !== contentHint
+        ) {
+          sender.track.contentHint = contentHint;
+        }
+      });
+    });
     const profileKey = `${profile.captureWidth}x${profile.captureHeight}@${profile.maxFramerate}`;
     if (profileKey !== this.lastAppliedShareProfileKey) {
-      await this.applyShareTrackConstraints(videoTrack, profile);
       this.lastAppliedShareProfileKey = profileKey;
       debugLog(
         `[screenshare] quality profile ${profile.captureWidth}x${profile.captureHeight}@${profile.maxFramerate} ${Math.round(profile.maxBitratePerPeer / 1000)}kbps/peer peers=${peerCount}`,
@@ -2001,9 +2215,27 @@ export class App extends React.Component<AppProps, AppState> {
       return;
     }
     try {
-      const stream = await getDisplayMedia(getDisplayMediaRequest(mode));
+      let stream: MediaStream;
+      if (mode === "desktop") {
+        try {
+          stream = await getDisplayMedia(getDisplayMediaRequest("desktop"));
+        } catch (error) {
+          // A browser that does not understand systemAudio rejects the
+          // request before the picker. Ask again without that hint. A
+          // dismissed dialog is not retried.
+          if (!displayMediaConstraintRejected(error)) {
+            throw error;
+          }
+          stream = await getDisplayMedia(
+            getDisplayMediaRequest("desktop", { systemAudio: false }),
+          );
+        }
+      } else {
+        stream = await getDisplayMedia(getDisplayMediaRequest(mode));
+      }
       this.localStreamToPublish = stream;
       this.isLocalStreamAFile = false;
+      this.watchLocalShareTracks(stream);
       if (stream.getAudioTracks().length === 0) {
         this.showWarningMessage(
           mode === "handheld"
@@ -2410,9 +2642,12 @@ export class App extends React.Component<AppProps, AppState> {
       this.consumerConn = undefined;
     }
     Object.values(this.publisherConns).forEach((pc) => {
-      pc.close();
+      this.releasePublisher(pc);
     });
     this.publisherConns = {};
+    this.viewerEpoch = {};
+    this.shareTrackWatcher = undefined;
+    this.lastShareCaptureHeight = 0;
     this.lastAppliedShareProfileKey = "";
     this.lastRtcBytesSent = 0;
     this.lastRtcStatsTimestamp = 0;
@@ -2543,6 +2778,26 @@ export class App extends React.Component<AppProps, AppState> {
     this.audioMeter.stop();
   };
 
+  // Dropping negotiationneeded while an offer is in flight used to lose the
+  // audio m-line: Chrome does not fire the event again, so the viewer kept
+  // video from the first offer and never got sound back.
+  queuePublisherNegotiation = (viewerId: string, pc: RTCPeerConnection) => {
+    this.negotiationQueued.add(pc);
+    if (this.negotiationHooked.has(pc)) {
+      return;
+    }
+    this.negotiationHooked.add(pc);
+    pc.addEventListener("signalingstatechange", () => {
+      if (pc.signalingState !== "stable" || !this.negotiationQueued.has(pc)) {
+        return;
+      }
+      if (this.publisherConns[viewerId] !== pc) {
+        return;
+      }
+      void this.negotiatePublisher(viewerId, pc);
+    });
+  };
+
   negotiatePublisher = async (
     viewerId: string,
     pc: RTCPeerConnection,
@@ -2558,11 +2813,18 @@ export class App extends React.Component<AppProps, AppState> {
         await pc.setLocalDescription({ type: "rollback" });
       }
       if (pc.signalingState !== "stable") {
-        // negotiationneeded fires again once the pending answer arrives.
+        this.queuePublisherNegotiation(viewerId, pc);
         return;
       }
+      this.negotiationQueued.delete(pc);
       const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
-      await pc.setLocalDescription(offer);
+      // Same fmtp-only Opus tune as the answer, so the sender's local
+      // description already asks for stereo music settings. The remote
+      // offer is never rewritten.
+      await pc.setLocalDescription({
+        type: offer.type,
+        sdp: tuneOpusFmtp(offer.sdp ?? ""),
+      });
       this.pendingIceRestart.delete(pc);
       this.sendSignalSS(viewerId, { sdp: pc.localDescription }, true);
     } catch (e) {
@@ -2578,7 +2840,7 @@ export class App extends React.Component<AppProps, AppState> {
 
   requestSharerResync = (
     sharerId: string,
-    reason: "failed" | "audio" | "disconnected",
+    reason: "failed" | "audio" | "video" | "disconnected",
   ) => {
     this.sendSignalSS(sharerId, { resync: true, reason });
   };
@@ -2609,7 +2871,8 @@ export class App extends React.Component<AppProps, AppState> {
       reason === "audio" &&
       !stream.getAudioTracks().some((track) => track.readyState === "live")
     ) {
-      // Nothing to resend: the share genuinely has no audio.
+      // Nothing to resend: the share genuinely has no audio. A frozen
+      // picture uses reason "video" and still rebuilds the connection.
       return;
     }
     const now = Date.now();
@@ -2619,12 +2882,7 @@ export class App extends React.Component<AppProps, AppState> {
     this.lastResyncByViewer[viewerId] = now;
     const old = this.publisherConns[viewerId];
     if (old) {
-      old.onconnectionstatechange = null;
-      try {
-        old.close();
-      } catch {
-        // already closed
-      }
+      this.releasePublisher(old);
       delete this.publisherConns[viewerId];
     }
     this.publisherNeedsReset.add(viewerId);
@@ -2679,17 +2937,7 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   recreatePublisherConnection = (viewerId: string, pc: RTCPeerConnection) => {
-    const state = this.rtcRecovery.get(pc);
-    if (state?.timer !== undefined) {
-      window.clearTimeout(state.timer);
-      state.timer = undefined;
-    }
-    pc.onconnectionstatechange = null;
-    try {
-      pc.close();
-    } catch {
-      // already closed
-    }
+    this.releasePublisher(pc);
     if (this.publisherConns[viewerId] !== pc) {
       return;
     }
@@ -2716,43 +2964,104 @@ export class App extends React.Component<AppProps, AppState> {
 
   scheduleAudioCheck = (delayMs = 4_000) => {
     window.clearTimeout(this.audioCheckTimer);
+    const generation = ++this.audioCheckGeneration;
     this.audioCheckTimer = window.setTimeout(() => {
-      const sharer = this.state.participants.find((p) => p.isScreenShare);
-      const pc = this.consumerConn;
-      if (
-        !sharer ||
-        sharer.id === getOrCreateClientId() ||
-        !pc ||
-        pc.connectionState !== "connected" ||
-        (!this.playingScreenShare() && !this.playingFileShare())
-      ) {
-        return;
-      }
-      const stream = this.remoteShareStream;
-      const hasVideo = stream
-        ?.getVideoTracks()
-        .some((track) => track.readyState === "live");
-      const hasAudio = stream
-        ?.getAudioTracks()
-        .some((track) => track.readyState === "live");
-      if (!hasVideo || hasAudio) {
-        if (hasAudio && this.state.shareAudioMissing) {
-          this.setState({ shareAudioMissing: false });
-        }
-        return;
-      }
-      if (!this.state.shareAudioMissing) {
-        this.setState({ shareAudioMissing: true });
-      }
-      if (this.audioResyncRequests >= 2) {
-        return;
-      }
-      // Video arrived but audio did not. The sharer ignores this request when
-      // its capture really has no audio, so it is safe to ask.
-      this.audioResyncRequests += 1;
-      this.requestSharerResync(sharer.id, "audio");
-      this.scheduleAudioCheck(8_000);
+      void this.runAudioCheck(generation);
     }, delayMs);
+  };
+
+  runAudioCheck = async (generation: number) => {
+    const sharer = this.state.participants.find((p) => p.isScreenShare);
+    const pc = this.consumerConn;
+    if (
+      generation !== this.audioCheckGeneration ||
+      !sharer ||
+      sharer.id === getOrCreateClientId() ||
+      !pc ||
+      pc.connectionState !== "connected" ||
+      (!this.playingScreenShare() && !this.playingFileShare())
+    ) {
+      return;
+    }
+    const video = this.HTMLInterface.getVideoEl();
+    const stream = this.remoteShareStream;
+    const hasVideo = Boolean(
+      stream?.getVideoTracks().some((track) => track.readyState === "live"),
+    );
+    const hasAudio = Boolean(
+      stream?.getAudioTracks().some((track) => track.readyState === "live"),
+    );
+    const paused = Boolean(video?.paused);
+    const sampleVideo = hasVideo && !paused;
+    const samplesBefore = hasAudio
+      ? await this.getInboundAudioSamples()
+      : undefined;
+    const framesBefore = sampleVideo
+      ? await this.getInboundVideoFrames()
+      : undefined;
+    if (hasAudio || sampleVideo) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1_200));
+    }
+    if (
+      generation !== this.audioCheckGeneration ||
+      this.consumerConn !== pc ||
+      pc.connectionState !== "connected"
+    ) {
+      return;
+    }
+    const samplesAfter = hasAudio
+      ? await this.getInboundAudioSamples()
+      : undefined;
+    const framesAfter = sampleVideo
+      ? await this.getInboundVideoFrames()
+      : undefined;
+    const audioDecision = shareAudioNeedsResync({
+      hasLiveVideo: hasVideo,
+      hasLiveAudio: hasAudio,
+      paused,
+      samplesBefore,
+      samplesAfter,
+    });
+    const videoDecision = shareVideoNeedsResync({
+      hasLiveVideo: hasVideo,
+      paused,
+      framesBefore,
+      framesAfter,
+    });
+    // Keep watching for the rest of the share. The first sample often lands
+    // while the picture is still healthy; a freeze later in the movie has to
+    // be able to ask for a resend too.
+    if (audioDecision === "wait" && videoDecision !== "resync") {
+      this.scheduleAudioCheck(8_000);
+      return;
+    }
+    if (audioDecision === "ok" && videoDecision !== "resync") {
+      this.audioResyncRequests = 0;
+      if (this.state.shareAudioMissing) {
+        this.setState({ shareAudioMissing: false });
+      }
+      this.scheduleAudioCheck(8_000);
+      return;
+    }
+    if (
+      audioDecision === "resync" &&
+      !hasAudio &&
+      !this.state.shareAudioMissing
+    ) {
+      this.setState({ shareAudioMissing: true });
+    }
+    if (this.audioResyncRequests >= 4) {
+      this.scheduleAudioCheck(8_000);
+      return;
+    }
+    // A frozen picture uses "video" so the sharer still resends when the
+    // capture has no audio track. Audio-only recovery stays "audio".
+    this.audioResyncRequests += 1;
+    this.requestSharerResync(
+      sharer.id,
+      videoDecision === "resync" ? "video" : "audio",
+    );
+    this.scheduleAudioCheck(8_000);
   };
 
   ensureConsumerConnection = (sharerId: string) => {
@@ -2851,6 +3160,30 @@ export class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  getInboundVideoFrames = async (): Promise<number | undefined> => {
+    const pc = this.consumerConn;
+    if (!pc || pc.connectionState !== "connected") {
+      return undefined;
+    }
+    try {
+      const stats = await pc.getStats();
+      let frames: number | undefined;
+      stats.forEach((report: any) => {
+        if (report.type !== "inbound-rtp" || report.kind !== "video") {
+          return;
+        }
+        const decoded = Number(report.framesDecoded);
+        if (!Number.isFinite(decoded)) {
+          return;
+        }
+        frames = (frames ?? 0) + decoded;
+      });
+      return frames;
+    } catch {
+      return undefined;
+    }
+  };
+
   // After "Ativar som"/"Recuperar som": if audio tracks exist but playback
   // still looks stalled, reattach a fresh stream and play once more.
   verifyRemoteShareAudio = async () => {
@@ -2883,7 +3216,19 @@ export class App extends React.Component<AppProps, AppState> {
         this.localSetMute(true);
         this.setState({ isAutoPlayable: false });
         void video.play().catch(() => undefined);
+        return;
       }
+    }
+    // A fresh srcObject cannot revive a sender that stopped after F5.
+    // Ask the sharer to open a new connection for us.
+    const sharer = this.state.participants.find((p) => p.isScreenShare);
+    if (
+      sharer &&
+      sharer.id !== getOrCreateClientId() &&
+      this.audioResyncRequests < 4
+    ) {
+      this.audioResyncRequests += 1;
+      this.requestSharerResync(sharer.id, "audio");
     }
   };
 
@@ -2953,6 +3298,76 @@ export class App extends React.Component<AppProps, AppState> {
     };
   };
 
+  releasePublisher = (pc: RTCPeerConnection) => {
+    pc.onconnectionstatechange = null;
+    pc.onnegotiationneeded = null;
+    const recovery = this.rtcRecovery.get(pc);
+    if (recovery?.timer !== undefined) {
+      window.clearTimeout(recovery.timer);
+      recovery.timer = undefined;
+    }
+    this.pendingIceRestart.delete(pc);
+    this.negotiationQueued.delete(pc);
+    // Do not stop the cloned tracks. Chrome can end the whole getDisplayMedia
+    // audio source when any clone is stopped, which mutes every viewer who
+    // is still connected. Closing the peer connection is enough: it detaches
+    // the sender and leaves the capture running.
+    try {
+      pc.close();
+    } catch {
+      // already closed
+    }
+  };
+
+  attachShareTracks = (pc: RTCPeerConnection) => {
+    const stream = this.localStreamToPublish;
+    if (!stream) {
+      return;
+    }
+    const existing = new Set(
+      pc
+        .getSenders()
+        .map((sender) => sender.track?.kind)
+        .filter((kind): kind is string => Boolean(kind)),
+    );
+    const missing = stream
+      .getTracks()
+      .filter(
+        (track) => track.readyState === "live" && !existing.has(track.kind),
+      );
+    tracksToPublish(missing).forEach(({ track }) => {
+      pc.addTrack(track, stream);
+    });
+  };
+
+  watchLocalShareTracks = (stream: MediaStream) => {
+    if (this.shareTrackWatcher === stream) {
+      return;
+    }
+    this.shareTrackWatcher = stream;
+    stream.addEventListener("addtrack", () => {
+      Object.values(this.publisherConns).forEach((pc) => {
+        if (pc.connectionState !== "closed") {
+          this.attachShareTracks(pc);
+        }
+      });
+    });
+  };
+
+  noteShareCaptureHeight = async () => {
+    if (!this.localStreamToPublish || this.isLocalStreamAFile) {
+      return;
+    }
+    const captureHeight = Number(
+      this.localStreamToPublish.getVideoTracks()[0]?.getSettings?.().height ??
+        0,
+    );
+    if (captureHeight > 0 && captureHeight !== this.lastShareCaptureHeight) {
+      this.lastShareCaptureHeight = captureHeight;
+      await this.applyAdaptiveShareQuality();
+    }
+  };
+
   setupRTCConnections = async () => {
     if (!this.playingScreenShare() && !this.playingFileShare()) {
       return;
@@ -2992,8 +3407,9 @@ export class App extends React.Component<AppProps, AppState> {
       const clientIds = new Set(this.state.participants.map((p) => p.id));
       Object.entries(this.publisherConns).forEach(([key, value]) => {
         if (!clientIds.has(key)) {
-          value.close();
+          this.releasePublisher(value);
           delete this.publisherConns[key];
+          delete this.viewerEpoch[key];
         }
       });
       Object.keys(this.viewerShareQualityMap).forEach((viewerId) => {
@@ -3008,6 +3424,20 @@ export class App extends React.Component<AppProps, AppState> {
           // Don't set up a connection to ourselves if sharing file
           return;
         }
+        const nextEpoch = user.epoch;
+        if (
+          this.publisherConns[id] &&
+          viewerConnectionReplaced(this.viewerEpoch[id], nextEpoch)
+        ) {
+          // Same person, new page. The old connection's ICE restart keeps
+          // video and drops audio. Tear it down and offer again from scratch.
+          this.releasePublisher(this.publisherConns[id]);
+          delete this.publisherConns[id];
+          this.publisherNeedsReset.add(id);
+        }
+        if (typeof nextEpoch === "number") {
+          this.viewerEpoch[id] = nextEpoch;
+        }
         if (!this.publisherConns[id]) {
           if (this.publisherNeedsReset.delete(id)) {
             // Tell the viewer to drop its stale consumer connection first;
@@ -3018,11 +3448,7 @@ export class App extends React.Component<AppProps, AppState> {
           const pc = new RTCPeerConnection(this.getRtcConfiguration());
           this.publisherConns[id] = pc;
           this.watchPeerConnection(pc, false, id);
-          this.localStreamToPublish?.getTracks().forEach((track) => {
-            if (this.localStreamToPublish != null) {
-              pc.addTrack(track, this.localStreamToPublish);
-            }
-          });
+          this.attachShareTracks(pc);
           if (!this.isLocalStreamAFile) {
             applyVideoCodecPreferences(pc);
           }
@@ -3903,7 +4329,7 @@ export class App extends React.Component<AppProps, AppState> {
         localTogglePictureInPicture={this.localTogglePictureInPicture}
         pictureInPictureSupported={this.isPictureInPictureSupported()}
         pictureInPictureActive={this.isPictureInPictureActive()}
-        screenShareQualityMode={this.state.screenShareQualityMode}
+        screenShareQualityMode={this.effectiveShareQualityMode()}
         setScreenShareQualityMode={this.setScreenShareQualityMode}
         showShareQualityControl={canAdjustScreenShareQuality}
         youtubeQualityMode={this.state.youtubeQualityMode}
@@ -4005,6 +4431,8 @@ export class App extends React.Component<AppProps, AppState> {
           setRoomTitleColor={this.setRoomTitleColor}
           mediaPath={this.state.mediaPath}
           setMediaPath={this.setMediaPath}
+          myName={this.state.myName}
+          setMyName={this.updateName}
           myNameColor={this.state.myNameColor}
           setMyNameColor={this.updateNameColor}
         />
@@ -4102,8 +4530,16 @@ export class App extends React.Component<AppProps, AppState> {
             >
               <div className={styles.leftColumnInner}>
                 {!this.state.fullScreen && (
-                  <section className={styles.commandDeck}>
-                    <div className={`${styles.commandRow} ${styles.searchRow}`}>
+                  <section
+                    className={`${styles.commandDeck} ${
+                      this.state.roomMedia ? styles.commandDeckPlaying : ""
+                    }`}
+                    data-playing={this.state.roomMedia ? "true" : "false"}
+                  >
+                    <div
+                      className={`${styles.commandRow} ${styles.searchRow}`}
+                      data-testid="room-command-row"
+                    >
                       <div className={styles.searchFieldWrap}>
                         <div className={styles.searchField}>
                           <ComboBox
@@ -4225,17 +4661,6 @@ export class App extends React.Component<AppProps, AppState> {
                         >
                           Configurações
                         </Button>
-                        <TextInput
-                          className={styles.nameInput}
-                          size="xs"
-                          value={this.state.myName}
-                          onChange={(e) => this.updateName(e.target.value)}
-                          maxLength={40}
-                          placeholder="Seu nome"
-                          aria-label="Nome no chat"
-                          title="Nome no chat"
-                          leftSection={<IconUser size={14} />}
-                        />
                       </div>
                     </div>
                   </section>
@@ -4246,18 +4671,55 @@ export class App extends React.Component<AppProps, AppState> {
                       this.state.roomMedia ? styles.playerContainerHasMedia : ""
                     }`}
                   >
-                    {Boolean(
+                    {(Boolean(
                       sharer &&
                       sharer.id !== selfId &&
                       (this.playingScreenShare() || this.playingFileShare()),
-                    ) && (
-                      <div className={styles.liveShareBadge}>
-                        <span className={styles.liveShareDot} />
-                        <span className={styles.liveShareLabel}>AO VIVO</span>
-                        <span className={styles.liveShareOwner}>
-                          Tela de{" "}
-                          {this.state.nameMap[sharer!.id] || "Participante"}
-                        </span>
+                    ) ||
+                      Boolean(
+                        this.localStreamToPublish &&
+                        !this.isLocalStreamAFile &&
+                        this.playingScreenShare(),
+                      )) && (
+                      <div className={styles.liveCorner} data-testid="live-corner">
+                        {Boolean(
+                          sharer &&
+                          sharer.id !== selfId &&
+                          (this.playingScreenShare() || this.playingFileShare()),
+                        ) && (
+                          <div className={styles.liveShareBadge}>
+                            <span className={styles.liveShareDot} />
+                            <span className={styles.liveShareLabel}>AO VIVO</span>
+                            <span className={styles.liveShareOwner}>
+                              Tela de{" "}
+                              {this.state.nameMap[sharer!.id] || "Participante"}
+                            </span>
+                          </div>
+                        )}
+                        {this.localStreamToPublish &&
+                          !this.isLocalStreamAFile &&
+                          this.playingScreenShare() && (
+                            <div
+                              className={styles.audioMeter}
+                              title={
+                                hasShareAudio
+                                  ? "Nível do áudio transmitido"
+                                  : "A captura não inclui áudio"
+                              }
+                            >
+                              <span className={styles.audioMeterLabel}>
+                                {hasShareAudio ? "Áudio" : "Sem áudio"}
+                              </span>
+                              {hasShareAudio && (
+                                <span className={styles.audioMeterTrack}>
+                                  <span
+                                    ref={this.audioMeterFill}
+                                    className={styles.audioMeterFill}
+                                  />
+                                </span>
+                              )}
+                            </div>
+                          )}
                       </div>
                     )}
                     {this.state.shareAudioMissing &&
@@ -4269,30 +4731,6 @@ export class App extends React.Component<AppProps, AppState> {
                         <div className={styles.shareAudioBanner} role="status">
                           Esta transmissão está sem áudio. Peça para quem
                           compartilha marcar “Compartilhar áudio”.
-                        </div>
-                      )}
-                    {this.localStreamToPublish &&
-                      !this.isLocalStreamAFile &&
-                      this.playingScreenShare() && (
-                        <div
-                          className={styles.audioMeter}
-                          title={
-                            hasShareAudio
-                              ? "Nível do áudio transmitido"
-                              : "A captura não inclui áudio"
-                          }
-                        >
-                          <span className={styles.audioMeterLabel}>
-                            {hasShareAudio ? "Áudio" : "Sem áudio"}
-                          </span>
-                          {hasShareAudio && (
-                            <span className={styles.audioMeterTrack}>
-                              <span
-                                ref={this.audioMeterFill}
-                                className={styles.audioMeterFill}
-                              />
-                            </span>
-                          )}
                         </div>
                       )}
                     {this.state.countdownVisible && (

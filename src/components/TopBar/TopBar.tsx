@@ -70,6 +70,18 @@ export async function createRoom(
     );
   }
   const { name } = data;
+  const username = normalizeDisplayName(options?.username ?? "").slice(0, 40);
+  const effectiveTitle =
+    roomTitle ||
+    (username ? `Sala de ${username}`.slice(0, 40) : "Sala compartilhada");
+  try {
+    window.sessionStorage.setItem(
+      "webcine-pending-room-title",
+      JSON.stringify({ name, title: effectiveTitle }),
+    );
+  } catch {
+    // Private mode can block session storage; the server title still applies.
+  }
   if (openNewTab) {
     window.open("/watch" + name);
   } else {
@@ -206,19 +218,15 @@ export const TopBar = (props: {
         <div className={styles.leftControls}>
           <ThemeToggle />
         </div>
-        <a href="/" className={styles.brandLink} aria-label="WebCineTV">
-          <div className={styles.brandText}>
-            <span className={styles.brandWord}>WEBCINE</span>
-            <span className={styles.brandTv}>tv</span>
-          </div>
-        </a>
-        <div className={styles.actionsWrap}>
-          <div className={styles.actions}>
-            {!props.hideNewRoom && <NewRoomButton openNewTab />}
-          </div>
-        </div>
-        {titleText && (
-          <div className={styles.roomTitleWrap}>
+        <div className={styles.centerCluster}>
+          <a href="/" className={styles.brandLink} aria-label="WebCineTV">
+            <div className={styles.brandText}>
+              <span className={styles.brandWord}>WEBCINE</span>
+              <span className={styles.brandTv}>tv</span>
+            </div>
+          </a>
+          {titleText && (
+          <div className={styles.roomTitleWrap} data-testid="room-title">
             {isEditingTitle ? (
               <input
                 className={styles.roomTitleInput}
@@ -262,7 +270,13 @@ export const TopBar = (props: {
               </button>
             )}
           </div>
-        )}
+          )}
+        </div>
+        <div className={styles.actionsWrap}>
+          <div className={styles.actions}>
+            {!props.hideNewRoom && <NewRoomButton openNewTab />}
+          </div>
+        </div>
       </div>
     </div>
   );

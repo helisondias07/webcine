@@ -135,6 +135,21 @@
   box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-warm) 18%, transparent);
 }
 
+.heroSecondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.heroSecondary:hover,
+.heroSecondary:focus-visible {
+  color: var(--text-main);
+}
+
 .carouselSection {
   display: flex;
   flex-direction: column;
@@ -184,7 +199,8 @@
     background 180ms ease;
 }
 
-.featureCard:hover {
+.featureCard:hover,
+.featureCard:focus-within {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--text-main) 18%, transparent);
   background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
@@ -427,6 +443,10 @@
     align-items: stretch;
     flex-direction: column;
     margin-top: var(--space-2);
+  }
+
+  .heroSecondary {
+    justify-content: center;
   }
 
   .heroActions :global(.mantine-Button-root) {

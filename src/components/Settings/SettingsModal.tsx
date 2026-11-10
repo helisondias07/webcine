@@ -186,10 +186,12 @@ export const SettingsModal = ({
       <Modal
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
-        centered
+        centered={!isPhone}
         fullScreen={isPhone}
         size={isPhone ? "100%" : "lg"}
         title={"Configurações"}
+        transitionProps={{ duration: 0 }}
+        classNames={{ inner: styles.modalInner, content: styles.modalContent }}
       >
         <div>
           <div className={styles.sectionHeader}>Configurações da sala</div>

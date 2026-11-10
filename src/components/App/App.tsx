@@ -4089,7 +4089,10 @@ export class App extends React.Component<AppProps, AppState> {
           </div>
         )}
         {
-          <main className={`${styles.roomShell} ${styles.mobileStack}`}>
+          <main
+            id="conteudo"
+            className={`${styles.roomShell} ${styles.mobileStack}`}
+          >
             <h1 className={styles.srOnly}>Sala de cinema WebCineTV</h1>
             <div
               className={
@@ -4347,8 +4350,8 @@ export class App extends React.Component<AppProps, AppState> {
                                   Inicie uma transmissão
                                 </div>
                                 <div className={styles.emptyStateSubtitle}>
-                                  Compartilhe sua tela ou envie um arquivo para
-                                  a sala.
+                                  Cole um link do YouTube, compartilhe a tela ou
+                                  envie um arquivo.
                                 </div>
                                 <div className={styles.emptyActions}>
                                   <Button
@@ -4530,6 +4533,7 @@ export class App extends React.Component<AppProps, AppState> {
                                 ? styles.chatPanelTabActive
                                 : ""
                             }`}
+                            aria-pressed={!this.state.showPeopleColumn}
                             onClick={() =>
                               this.setState({
                                 showPeopleColumn: false,
@@ -4546,6 +4550,7 @@ export class App extends React.Component<AppProps, AppState> {
                                 ? styles.chatPanelTabActive
                                 : ""
                             }`}
+                            aria-pressed={this.state.showPeopleColumn}
                             onClick={() =>
                               this.setState({
                                 showPeopleColumn: true,

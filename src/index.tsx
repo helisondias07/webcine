@@ -153,7 +153,7 @@ type SeoConfig = {
 const DEFAULT_SEO: SeoConfig = {
   title: "WebCineTV - Sua sala de cinema online",
   description:
-    "Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e gratis.",
+    "Crie uma sala de cinema online, convide seus amigos e assistam juntos em tempo real. Sem instalar nada, sem criar conta e grátis.",
   path: "/",
 };
 
@@ -162,25 +162,25 @@ const routeSeo: Record<string, SeoConfig> = {
   "/terms": {
     title: "Termos de uso - WebCineTV",
     description:
-      "Leia os termos de uso do WebCineTV para criar salas, assistir videos com amigos e usar os recursos da plataforma.",
+      "Leia os termos de uso do WebCineTV para criar salas, assistir vídeos com amigos e usar os recursos da plataforma.",
     path: "/terms",
   },
   "/privacy": {
-    title: "Politica de privacidade - WebCineTV",
+    title: "Política de privacidade - WebCineTV",
     description:
-      "Entenda como o WebCineTV lida com contas, salas, cookies, pagamentos e dados relacionados ao uso da plataforma.",
+      "Entenda como o WebCineTV lida com contas, salas, cookies e dados relacionados ao uso da plataforma.",
     path: "/privacy",
   },
   "/faq": {
     title: "Perguntas frequentes - WebCineTV",
     description:
-      "Tire duvidas sobre audio no compartilhamento de tela, limite de pessoas nas salas e links para criar salas no WebCineTV.",
+      "Tire dúvidas sobre áudio no compartilhamento de tela, limite de pessoas nas salas e links para criar salas no WebCineTV.",
     path: "/faq",
   },
   "/create": {
     title: "Criando sala - WebCineTV",
     description:
-      "Crie uma sala no WebCineTV para assistir videos com amigos em tempo real.",
+      "Crie uma sala no WebCineTV para assistir vídeos com amigos em tempo real.",
     noIndex: true,
     path: "/create",
   },
@@ -201,7 +201,7 @@ function getSeoForPath(pathname: string): SeoConfig {
     return {
       title: "Sala compartilhada - WebCineTV",
       description:
-        "Sala compartilhada do WebCineTV para assistir videos com amigos em tempo real.",
+        "Sala compartilhada do WebCineTV para assistir vídeos com amigos em tempo real.",
       noIndex: true,
       path: pathname,
     };
@@ -530,6 +530,9 @@ const RootApp = () => {
   return (
     <MantineProvider theme={theme} forceColorScheme={mode}>
       <ThemeModeContext.Provider value={value}>
+        <a className="skipLink" href="#conteudo">
+          Pular para o conteúdo
+        </a>
         <WebCineTVApp />
       </ThemeModeContext.Provider>
     </MantineProvider>

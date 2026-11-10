@@ -9,6 +9,10 @@ import {
 import ChatVideoCard from "../ChatVideoCard/ChatVideoCard";
 import { IconLink, IconX } from "@tabler/icons-react";
 import {
+  immediateSearchResultsForQuery,
+  isPlayableMediaUrl,
+} from "./mediaInput";
+import {
   ActionIcon,
   Autocomplete,
   Loader,
@@ -52,28 +56,11 @@ export class ComboBox extends React.Component<ComboBoxProps, ComboBoxState> {
     this.setState({ loading: true });
     try {
       let items: SearchResult[] = [];
-      if (isHttp(query)) {
-        let type: SearchResult["type"] | null = null;
-        if (isYouTube(query)) {
-          type = "youtube";
-        }
-        if (isTwitchLive(query)) {
-          type = "file";
-        }
-        if (type == null) {
-          items = [];
-        } else {
-          items = [
-            {
-              name: query,
-              type,
-              url: query,
-              duration: 0,
-            },
-          ];
-        }
-      } else {
+      const immediate = immediateSearchResultsForQuery(query);
+      if (immediate === "youtube-search") {
         items = (await getYouTubeResults(query)).slice(0, 40);
+      } else {
+        items = immediate;
       }
       this.setState({ items });
     } finally {
@@ -142,7 +129,7 @@ export class ComboBox extends React.Component<ComboBoxProps, ComboBoxState> {
             if (!input) {
               return;
             }
-            if (isYouTube(input) || isTwitchLive(input)) {
+            if (isPlayableMediaUrl(input)) {
               this.setMediaAndClose(input);
               e.target.blur();
               return;
@@ -165,7 +152,8 @@ export class ComboBox extends React.Component<ComboBoxProps, ComboBoxState> {
           )
         }
         leftSection={this.state.loading ? <Loader size="sm" /> : <IconLink />}
-        placeholder="Cole o link do YouTube ou Twitch (live), ou pesquise no YouTube"
+        placeholder="Cole um link ou pesquise no YouTube"
+        aria-label="Vídeo da sala"
         name="watchparty-media-search"
         autoComplete="new-password"
         value={

@@ -1,3 +1,23 @@
+.modalInner {
+  align-items: flex-start;
+  padding: 12px;
+}
+
+.modalContent {
+  max-height: min(100dvh, 100%);
+  overflow: auto;
+}
+
+@media (max-width: 600px) {
+  .modalInner {
+    padding: 0;
+  }
+
+  .modalContent {
+    max-height: 100dvh;
+  }
+}
+
 .sectionHeader {
   font-weight: 700;
   margin-top: 10px;

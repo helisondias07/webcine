@@ -215,6 +215,9 @@ export class Chat extends React.Component<ChatProps, ChatState> {
           className={styles.chatContainer}
           ref={this.messagesRef}
           style={{ position: "relative" }}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
         >
           <div className={styles.chatList}>
             {this.props.chat.map((msg) => (
@@ -249,7 +252,13 @@ export class Chat extends React.Component<ChatProps, ChatState> {
         </div>
         <TextInput
           className={styles.chatInput}
-          onKeyDown={(e: any) => e.key === "Enter" && this.sendChatMsg()}
+          aria-label="Mensagem do chat"
+          onKeyDown={(e: any) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              this.sendChatMsg();
+            }
+          }}
           onChange={this.updateChatMsg}
           value={this.state.chatMsg}
           error={this.chatTooLong()}
@@ -424,7 +433,9 @@ export const renderImageString = (
   let regex =
     /^https?:\/\/.*\/.*\.(png|gif|webp|jpeg|jpg|heic|heif|jfif)\??.*$/gim;
   if (String(input)?.match(regex)) {
-    return <img style={{ maxWidth: "100%" }} src={input} />;
+    return (
+      <img style={{ maxWidth: "100%" }} src={input} alt="Imagem enviada no chat" />
+    );
   }
   return null;
 };

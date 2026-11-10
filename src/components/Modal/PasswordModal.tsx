@@ -23,9 +23,19 @@ export const PasswordModal = ({ roomId }: { roomId: string }) => {
       <PasswordInput
         id="roomPassword"
         placeholder="Digite a senha da sala"
-        onKeyDown={(e: any) => e.key === "Enter" && setPassword()}
+        aria-label="Senha da sala"
+        onKeyDown={(e: any) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            setPassword();
+          }
+        }}
         rightSection={
-          <ActionIcon onClick={setPassword}>
+          <ActionIcon
+            onClick={setPassword}
+            aria-label="Entrar na sala"
+            title="Entrar"
+          >
             <IconKey size={16} />
           </ActionIcon>
         }

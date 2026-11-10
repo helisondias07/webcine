@@ -33,7 +33,7 @@ const features = [
 ];
 
 export const Home = () => (
-  <main className={styles.container}>
+  <main id="conteudo" className={styles.container}>
     <div className={styles.layout}>
       <section id="inicio" className={styles.primaryCards}>
         <div className={`${styles.hero} ${styles.heroMega}`}>
@@ -49,6 +49,9 @@ export const Home = () => (
               </p>
               <div className={styles.heroActions}>
                 <NewRoomButton size="xl" roomTitle="" />
+                <a className={styles.heroSecondary} href="#como-funciona">
+                  Como funciona
+                </a>
               </div>
             </div>
           </div>

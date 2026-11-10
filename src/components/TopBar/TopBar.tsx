@@ -130,8 +130,11 @@ export const NewRoomButton = (props: {
         onClick={() => void submitCreateRoom()}
         leftSection={<IconCirclePlusFilled />}
         disabled={isCreating}
+        loading={isCreating}
+        aria-busy={isCreating}
+        aria-label={t("newRoom")}
       >
-        {t("newRoom")}
+        {isCreating ? t("createRoomLoading") : t("newRoom")}
       </Button>
       {errorMessage && (
         <div className={styles.createRoomToast} role="alert">
@@ -149,6 +152,7 @@ const ThemeToggle = () => {
     <button
       type="button"
       aria-label={isLight ? "Ativar modo escuro" : "Ativar modo claro"}
+      aria-pressed={!isLight}
       title={isLight ? "Modo claro" : "Modo escuro"}
       onClick={toggleMode}
       className={styles.themeSwitch}
@@ -225,6 +229,7 @@ export const TopBar = (props: {
                 value={titleDraft}
                 maxLength={40}
                 autoFocus
+                aria-label="Nome da sala"
                 onChange={(event) => setTitleDraft(event.target.value)}
                 onBlur={commitRoomTitle}
                 onKeyDown={(event) => {
@@ -238,28 +243,28 @@ export const TopBar = (props: {
                   }
                 }}
               />
-            ) : (
+            ) : props.roomTitleEditable ? (
               <button
                 type="button"
-                className={`${styles.roomTitleText} ${
-                  props.roomTitleEditable ? styles.roomTitleEditable : ""
-                }`}
+                className={`${styles.roomTitleText} ${styles.roomTitleEditable}`}
                 style={{ color: props.roomTitleColor || undefined }}
-                title={
-                  props.roomTitleEditable
-                    ? "Clique para editar o nome da sala"
-                    : titleText
-                }
+                title="Clique para editar o nome da sala"
+                aria-label={`Nome da sala: ${titleText}`}
                 onClick={() => {
-                  if (!props.roomTitleEditable) {
-                    return;
-                  }
                   setTitleDraft(titleText);
                   setIsEditingTitle(true);
                 }}
               >
                 {titleText}
               </button>
+            ) : (
+              <p
+                className={styles.roomTitleText}
+                style={{ color: props.roomTitleColor || undefined }}
+                title={titleText}
+              >
+                {titleText}
+              </p>
             )}
           </div>
         )}

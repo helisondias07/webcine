@@ -159,7 +159,8 @@ test("espectador que entra depois recebe track de audio da transmissao", async (
 
   const activateSound = viewer.getByRole("button", { name: "Ativar som" });
   if (await activateSound.isVisible()) {
-    await activateSound.click();
+    // The prompt pulses (scale), so the actionability check never settles.
+    await activateSound.click({ force: true });
   }
   await expect
     .poll(() =>
@@ -184,6 +185,46 @@ test("espectador que entra depois recebe track de audio da transmissao", async (
       ),
     )
     .toBe(false);
+
+  await hostContext.close();
+  await viewerContext.close();
+});
+
+test("espectador mantém a faixa de áudio depois de vários F5", async ({
+  browser,
+}) => {
+  const hostContext = await browser.newContext();
+  const viewerContext = await browser.newContext();
+  const host = await hostContext.newPage();
+  const viewer = await viewerContext.newPage();
+
+  await prepareIdentity(host, "Host Refresh");
+  await installSyntheticScreenShare(host);
+  const roomUrl = await createRoom(host);
+  await startSyntheticShare(host);
+
+  await prepareIdentity(viewer, "Guest Refresh");
+  await viewer.goto(roomUrl);
+  await expect(viewer.locator("#watchPlayerShell")).toBeVisible();
+
+  const audioTracks = () =>
+    viewer.evaluate(() => {
+      const video = document.querySelector<HTMLVideoElement>("#leftVideo");
+      const stream = video?.srcObject as MediaStream | null;
+      return (
+        stream
+          ?.getAudioTracks()
+          .filter((track) => track.readyState === "live").length ?? 0
+      );
+    });
+
+  await expect.poll(audioTracks, { timeout: 15_000 }).toBe(1);
+
+  for (let reload = 0; reload < 2; reload += 1) {
+    await viewer.reload();
+    await expect(viewer.locator("#watchPlayerShell")).toBeVisible();
+    await expect.poll(audioTracks, { timeout: 15_000 }).toBe(1);
+  }
 
   await hostContext.close();
   await viewerContext.close();

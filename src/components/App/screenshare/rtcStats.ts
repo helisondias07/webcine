@@ -10,6 +10,10 @@ export type RtcStatsSummary = {
   transport: RtcTransport;
   // True when an outbound video encoder reports qualityLimitationReason "cpu".
   cpuLimited: boolean;
+  outboundFramesEncoded: number;
+  inboundFreezeCount: number;
+  inboundPacketsLost: number;
+  inboundPacketsReceived: number;
 };
 
 export function emptyRtcStatsSummary(): RtcStatsSummary {
@@ -22,6 +26,10 @@ export function emptyRtcStatsSummary(): RtcStatsSummary {
     framesPerSecond: 0,
     transport: "unknown",
     cpuLimited: false,
+    outboundFramesEncoded: 0,
+    inboundFreezeCount: 0,
+    inboundPacketsLost: 0,
+    inboundPacketsReceived: 0,
   };
 }
 
@@ -46,9 +54,18 @@ export function accumulateRtcReport(
   ) {
     if (report.type === "outbound-rtp") {
       summary.totalBytesSent += Number(report.bytesSent ?? 0);
+      summary.outboundFramesEncoded += Number(report.framesEncoded ?? 0);
       if (report.qualityLimitationReason === "cpu") {
         summary.cpuLimited = true;
       }
+    }
+    if (report.type === "inbound-rtp") {
+      summary.inboundFreezeCount = Math.max(
+        summary.inboundFreezeCount,
+        Number(report.freezeCount ?? 0),
+      );
+      summary.inboundPacketsLost += Number(report.packetsLost ?? 0);
+      summary.inboundPacketsReceived += Number(report.packetsReceived ?? 0);
     }
     summary.videoWidth = Math.max(
       summary.videoWidth,
@@ -69,6 +86,10 @@ export function accumulateRtcReport(
     (report.nominated || report.selected)
   ) {
     summary.transport = report.localCandidateType === "relay" ? "relay" : "p2p";
+    summary.worstRtt = Math.max(
+      summary.worstRtt,
+      Number(report.currentRoundTripTime ?? 0),
+    );
   }
   return summary;
 }

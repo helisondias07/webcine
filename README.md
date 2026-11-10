@@ -1,5 +1,15 @@
 # WebCineTV
 
+[![Node.js CI](https://github.com/helisondias07/webcine/actions/workflows/nodejs.yml/badge.svg)](https://github.com/helisondias07/webcine/actions/workflows/nodejs.yml)
+
+> Projeto derivado do [WatchParty](https://github.com/howardchung/watchparty) (MIT, © Howard Chung), adaptado e estendido por Helison Dias.
+
+<div align="center">
+  <img src="./docs/demo.gif" alt="Demonstração" width="800" />
+</div>
+
+<!-- Print estático: ./docs/screenshot.png -->
+
 Assista vídeos em sincronia com amigos, de graça. Não precisa de conta e não precisa pagar: acesse o site, crie uma sala, envie o convite e escolha o que assistir.
 
 ## O que a sala faz
@@ -113,3 +123,10 @@ Os E2E cobrem criar sala e entrar, abrir e fechar o chat, usar a playlist, e o l
 - Redis
 - PostgreSQL
 - Docker
+
+## Aprendizados
+
+- Partindo do WatchParty, aprendi a sincronizar play, pause e seek entre participantes em tempo real com Socket.IO, e a lidar com o player do YouTube de quem entra no meio da sessão.
+- Trabalhei com compartilhamento de tela via WebRTC: qualidade adaptativa, reconexão, recuperação de áudio em espectadores Android e servidor TURN com credenciais temporárias. Extraí essa lógica em helpers cobertos por testes no Vitest.
+- Melhorei a segurança e a infraestrutura: rate limit atrás de proxy reverso, CSP e Permissions-Policy, build Docker multi-stage e prerender das páginas públicas com Playwright para SEO.
+- Deixei o app instalável (PWA) e responsivo do celular à TV, e criei testes E2E de layout mobile com Playwright.

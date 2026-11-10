@@ -3,6 +3,8 @@ import {
   collectRemoteShareTracks,
   needsRemoteShareReattach,
   remoteAudioLooksStalled,
+  shareAudioNeedsResync,
+  shareVideoNeedsResync,
 } from "./remoteStream";
 
 const track = (
@@ -71,5 +73,112 @@ describe("remoteAudioLooksStalled", () => {
 
   it("does not guess when stats are unavailable", () => {
     expect(remoteAudioLooksStalled(false, undefined, undefined)).toBe(false);
+  });
+});
+
+describe("shareAudioNeedsResync", () => {
+  it("waits until a video track exists", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: false,
+        hasLiveAudio: false,
+        paused: false,
+        samplesBefore: undefined,
+        samplesAfter: undefined,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when video is live and audio never arrived", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: false,
+        paused: true,
+        samplesBefore: undefined,
+        samplesAfter: undefined,
+      }),
+    ).toBe("resync");
+  });
+
+  it("does not treat a paused element with an audio track as a dead sender", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: true,
+        samplesBefore: 10,
+        samplesAfter: 10,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when playing audio counters freeze", () => {
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: false,
+        samplesBefore: 100,
+        samplesAfter: 100,
+      }),
+    ).toBe("resync");
+    expect(
+      shareAudioNeedsResync({
+        hasLiveVideo: true,
+        hasLiveAudio: true,
+        paused: false,
+        samplesBefore: 100,
+        samplesAfter: 500,
+      }),
+    ).toBe("ok");
+  });
+});
+
+describe("shareVideoNeedsResync", () => {
+  it("waits without a live video track, while paused, or without frame stats", () => {
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: false,
+        paused: false,
+        framesBefore: 1,
+        framesAfter: 1,
+      }),
+    ).toBe("wait");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: true,
+        framesBefore: 10,
+        framesAfter: 10,
+      }),
+    ).toBe("wait");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: undefined,
+        framesAfter: 10,
+      }),
+    ).toBe("wait");
+  });
+
+  it("asks for a resend when decoded frames stop advancing", () => {
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: 40,
+        framesAfter: 40,
+      }),
+    ).toBe("resync");
+    expect(
+      shareVideoNeedsResync({
+        hasLiveVideo: true,
+        paused: false,
+        framesBefore: 40,
+        framesAfter: 70,
+      }),
+    ).toBe("ok");
   });
 });

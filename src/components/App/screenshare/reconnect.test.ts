@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { iceRestartDelay, recreateDelay, sanitizeOfferSdp } from "./reconnect";
+import {
+  iceRestartDelay,
+  recreateDelay,
+  sanitizeOfferSdp,
+  viewerConnectionReplaced,
+} from "./reconnect";
 
 describe("reconnect backoff", () => {
   it("restarts ICE after 4s, 8s, then 15s", () => {
@@ -12,6 +17,16 @@ describe("reconnect backoff", () => {
     expect([0, 1, 2, 3, 4, 5, 6].map(recreateDelay)).toEqual([
       1_500, 3_000, 6_000, 12_000, 15_000, 15_000, 15_000,
     ]);
+  });
+});
+
+describe("viewerConnectionReplaced", () => {
+  it("is a new page only when both epochs are known and different", () => {
+    expect(viewerConnectionReplaced(undefined, 1)).toBe(false);
+    expect(viewerConnectionReplaced(1, undefined)).toBe(false);
+    expect(viewerConnectionReplaced(1, 1)).toBe(false);
+    expect(viewerConnectionReplaced(1, 2)).toBe(true);
+    expect(viewerConnectionReplaced(4, 1)).toBe(true);
   });
 });
 

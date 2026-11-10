@@ -10,7 +10,11 @@
 }
 
 .topbar[data-has-room-title="true"] {
-  padding-bottom: 16px;
+  padding-bottom: 8px;
+}
+
+.centerCluster {
+  display: contents;
 }
 
 .topbarInner {
@@ -79,21 +83,37 @@
   flex-wrap: nowrap;
 }
 
-.roomTitleWrap {
-  position: absolute;
-  left: 50%;
-  top: calc(100% - 4px);
-  transform: translateX(-50%);
-  width: min(62vw, 420px);
+.topbar[data-has-room-title="true"] .centerCluster {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.topbar[data-has-room-title="true"] .brandLink {
+  position: static;
+  transform: none;
+  flex: 0 0 auto;
+}
+
+.roomTitleWrap {
+  position: static;
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+  max-width: min(42vw, 420px);
+  flex: 0 1 auto;
   z-index: 1;
 }
 
 .roomTitleText {
+  display: block;
   border: none;
   background: transparent;
   max-width: 100%;
+  min-width: 0;
   padding: 0;
   margin: 0;
   font-size: 13px;
@@ -103,6 +123,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
+  text-align: left;
 }
 
 .roomTitleEditable {
@@ -115,7 +136,7 @@
 }
 
 .roomTitleInput {
-  width: min(62vw, 420px);
+  width: min(100%, 280px);
   height: 28px;
   border-radius: 999px;
   border: 0.5px solid var(--border-soft);
@@ -232,9 +253,24 @@
   text-align: center;
 }
 
+@media only screen and (max-width: 1180px) {
+  .topbar {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .topbar[data-has-room-title="true"] .brandText {
+    font-size: 1.12rem;
+  }
+
+  .topbar[data-has-room-title="true"] .brandWord {
+    letter-spacing: 0.1em;
+  }
+}
+
 @media only screen and (max-width: 900px) {
   .topbar {
-    padding: 8px 0;
+    padding: 8px env(safe-area-inset-right) 8px env(safe-area-inset-left);
   }
 
   .topbarInner {
@@ -254,7 +290,7 @@
 @media only screen and (max-width: 700px) {
   .topbar {
     min-height: var(--topbar-height);
-    padding: 7px 0;
+    padding: 7px env(safe-area-inset-right) 7px env(safe-area-inset-left);
   }
 
   .topbarInner {
@@ -279,13 +315,17 @@
     letter-spacing: 0.12em;
   }
 
-  .roomTitleWrap {
-    width: min(74vw, 340px);
+  .topbar[data-has-room-title="true"] .brandText {
+    font-size: 0.98rem;
   }
 
-  .roomTitleInput {
-    width: min(74vw, 340px);
-    min-height: 44px;
+  .topbar[data-has-room-title="true"] .roomTitleWrap {
+    max-width: 34vw;
+  }
+
+  .topbar[data-has-room-title="true"] .roomTitleInput {
+    width: 100%;
+    min-height: 36px;
   }
 }
 

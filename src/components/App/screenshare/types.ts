@@ -1,4 +1,4 @@
-export type ShareQualityMode = "economy" | "auto" | "high";
+export type ShareQualityMode = "economy" | "auto" | "high" | "fragile";
 
 export type ShareContentHint = "motion" | "detail";
 

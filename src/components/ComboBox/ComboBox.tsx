@@ -42,6 +42,9 @@ export class ComboBox extends React.Component<ComboBoxProps, ComboBoxState> {
   };
 
   setMediaAndClose = (value: string) => {
+    if (!isPlayableMediaUrl(value) && !isYouTube(value) && value !== "") {
+      return;
+    }
     this.props.roomSetMedia(value);
     this.setState({ inputMedia: undefined, items: [] });
   };

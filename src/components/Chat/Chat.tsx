@@ -12,6 +12,10 @@ import {
 } from "../../utils/utils";
 import { UserMenu } from "../UserMenu/UserMenu";
 import { getReadableNameColor } from "../App/helpers";
+import {
+  isAllowedChatImageUrl,
+  resolvedPictureUrl,
+} from "../../../shared/safeUrls";
 import { Socket } from "socket.io-client";
 import { IconSend } from "@tabler/icons-react";
 
@@ -345,10 +349,10 @@ const ChatMessage = ({
     >
       {id ? (
         <Avatar
-          src={
-            pictureMap[id] ||
-            getDefaultPicture(nameMap[id], getColorForStringHex(id))
-          }
+          src={resolvedPictureUrl(
+            pictureMap[id],
+            getDefaultPicture(nameMap[id], getColorForStringHex(id)),
+          )}
         />
       ) : null}
       <div>
@@ -430,12 +434,11 @@ const ChatMessage = ({
 export const renderImageString = (
   input: string | undefined,
 ): React.ReactNode | null => {
-  let regex =
-    /^https?:\/\/.*\/.*\.(png|gif|webp|jpeg|jpg|heic|heif|jfif)\??.*$/gim;
-  if (String(input)?.match(regex)) {
-    return (
-      <img style={{ maxWidth: "100%" }} src={input} alt="Imagem enviada no chat" />
-    );
+  const url = String(input ?? "").trim();
+  if (!isAllowedChatImageUrl(url)) {
+    return null;
   }
-  return null;
+  return (
+    <img style={{ maxWidth: "100%" }} src={url} alt="Imagem enviada no chat" />
+  );
 };

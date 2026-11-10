@@ -43,4 +43,9 @@ describe("htmlPlayback", () => {
     expect(initialSeekTime(0, false)).toBe(0);
     expect(initialSeekTime(-2, true)).toBe(-2);
   });
+
+  it("does not invent 0 when the host timestamp is missing", () => {
+    expect(initialSeekTime(Number.NaN, false)).toBeUndefined();
+    expect(initialSeekTime(Number.NEGATIVE_INFINITY, false)).toBeUndefined();
+  });
 });

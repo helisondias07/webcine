@@ -1,0 +1,189 @@
+{
+  "measuredAt": "2026-11-10T00:23:20.145Z",
+  "buildDir": "/workspace/build",
+  "git": "e8007275750ba607f14f3f1c12d74f23c4ee3429",
+  "label": "round3-baseline-e800727",
+  "note": "gzip is zlib level 9 of the file on disk, not a CDN encoding. initial = referenced from index.html (script, stylesheet, modulepreload).",
+  "initialHtmlBytes": 30761,
+  "initialHtmlGzipBytes": 6824,
+  "hrefs": [
+    "/favicon.ico",
+    "/favicon-webcine.svg",
+    "/apple-touch-icon.png",
+    "/manifest.webmanifest",
+    "https://webcinetv.com.br/",
+    "/assets/index-w4xFEbRo.js",
+    "/assets/react-vendor-BmAXHYQU.js",
+    "/assets/ui-vendor-BoZIjUTa.js",
+    "/assets/ui-vendor-DJIbK2Oo.css",
+    "/assets/index-CIa98wY2.css"
+  ],
+  "assets": [
+    {
+      "file": "assets/dash-vendor-D_hFuBFJ.js",
+      "kind": "js",
+      "bytes": 991954,
+      "gzipBytes": 305333,
+      "initial": false
+    },
+    {
+      "file": "assets/hls-vendor-D02re3bK.js",
+      "kind": "js",
+      "bytes": 521929,
+      "gzipBytes": 161245,
+      "initial": false
+    },
+    {
+      "file": "assets/Debug-SLv75ZLh.js",
+      "kind": "js",
+      "bytes": 401453,
+      "gzipBytes": 110660,
+      "initial": false
+    },
+    {
+      "file": "assets/mediasoup-vendor-B7h5Kw41.js",
+      "kind": "js",
+      "bytes": 229390,
+      "gzipBytes": 39341,
+      "initial": false
+    },
+    {
+      "file": "assets/ui-vendor-BoZIjUTa.js",
+      "kind": "js",
+      "bytes": 216610,
+      "gzipBytes": 64300,
+      "initial": true
+    },
+    {
+      "file": "assets/ui-vendor-DJIbK2Oo.css",
+      "kind": "css",
+      "bytes": 203168,
+      "gzipBytes": 29482,
+      "initial": true
+    },
+    {
+      "file": "assets/react-vendor-BmAXHYQU.js",
+      "kind": "js",
+      "bytes": 197842,
+      "gzipBytes": 65277,
+      "initial": true
+    },
+    {
+      "file": "assets/App-CXgTb5ZD.js",
+      "kind": "js",
+      "bytes": 153653,
+      "gzipBytes": 49154,
+      "initial": false
+    },
+    {
+      "file": "assets/socket-vendor-ruy0MFop.js",
+      "kind": "js",
+      "bytes": 41540,
+      "gzipBytes": 12969,
+      "initial": false
+    },
+    {
+      "file": "assets/App-D-N5geGu.css",
+      "kind": "css",
+      "bytes": 30707,
+      "gzipBytes": 6432,
+      "initial": false
+    },
+    {
+      "file": "assets/index-w4xFEbRo.js",
+      "kind": "js",
+      "bytes": 27882,
+      "gzipBytes": 10532,
+      "initial": true
+    },
+    {
+      "file": "assets/index-CIa98wY2.css",
+      "kind": "css",
+      "bytes": 21584,
+      "gzipBytes": 5163,
+      "initial": true
+    },
+    {
+      "file": "assets/SurpriseModal-2O_1-wCW.js",
+      "kind": "js",
+      "bytes": 20542,
+      "gzipBytes": 6760,
+      "initial": false
+    },
+    {
+      "file": "assets/SettingsModal-PMm4l67W.js",
+      "kind": "js",
+      "bytes": 15533,
+      "gzipBytes": 6236,
+      "initial": false
+    },
+    {
+      "file": "assets/SurpriseModal-C7GxjTOn.css",
+      "kind": "css",
+      "bytes": 12182,
+      "gzipBytes": 3078,
+      "initial": false
+    },
+    {
+      "file": "assets/can-autoplay.es-CA6MJ9-f.js",
+      "kind": "js",
+      "bytes": 5250,
+      "gzipBytes": 1302,
+      "initial": false
+    },
+    {
+      "file": "assets/Create-BEa4rr1-.js",
+      "kind": "js",
+      "bytes": 1286,
+      "gzipBytes": 776,
+      "initial": false
+    },
+    {
+      "file": "assets/SettingsModal-DJ9Cwq9R.css",
+      "kind": "css",
+      "bytes": 894,
+      "gzipBytes": 467,
+      "initial": false
+    },
+    {
+      "file": "assets/MultiStreamModal-B8I7i2S0.js",
+      "kind": "js",
+      "bytes": 725,
+      "gzipBytes": 484,
+      "initial": false
+    },
+    {
+      "file": "assets/Create-C2F2Miq0.css",
+      "kind": "css",
+      "bytes": 418,
+      "gzipBytes": 278,
+      "initial": false
+    }
+  ],
+  "chunksOver500kB": [
+    {
+      "file": "assets/dash-vendor-D_hFuBFJ.js",
+      "bytes": 991954,
+      "gzipBytes": 305333,
+      "initial": false
+    },
+    {
+      "file": "assets/hls-vendor-D02re3bK.js",
+      "bytes": 521929,
+      "gzipBytes": 161245,
+      "initial": false
+    }
+  ],
+  "totals": {
+    "allJsBytes": 2825589,
+    "allJsGzipBytes": 834369,
+    "initialJsBytes": 442334,
+    "initialJsGzipBytes": 140109,
+    "initialCssBytes": 224752,
+    "initialCssGzipBytes": 34645,
+    "lazyJsBytes": 2383255,
+    "lazyJsGzipBytes": 694260,
+    "firstNavJsCssHtmlBytes": 697847,
+    "firstNavJsCssHtmlGzipBytes": 181578
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "environment": {
+    "node": "v22.23.4",
+    "playwright": "1.61.0",
+    "vite": "7.3.1",
+    "os": "linux 6.12.113+",
+    "cpus": 4,
+    "gzipDisk": 9,
+    "gzipHttp": 6
+  },
+  "shas": {
+    "main_youtube_play": "6586408cf1c128a9ff7cc032e7bc271b904672de",
+    "round3_baseline": "e8007275750ba607f14f3f1c12d74f23c4ee3429",
+    "round3_after_note": "working tree of round 3 on the same branch; commit SHA recorded after git commit"
+  },
+  "bundle": {
+    "baseline": {
+      "allJsBytes": 2825589,
+      "allJsGzipBytes": 834369,
+      "initialJsBytes": 442334,
+      "initialJsGzipBytes": 140109,
+      "initialCssBytes": 224752,
+      "initialCssGzipBytes": 34645,
+      "lazyJsBytes": 2383255,
+      "lazyJsGzipBytes": 694260,
+      "firstNavJsCssHtmlBytes": 697847,
+      "firstNavJsCssHtmlGzipBytes": 181578
+    },
+    "after": {
+      "allJsBytes": 2826639,
+      "allJsGzipBytes": 834639,
+      "initialJsBytes": 442334,
+      "initialJsGzipBytes": 140105,
+      "initialCssBytes": 224752,
+      "initialCssGzipBytes": 34645,
+      "lazyJsBytes": 2384305,
+      "lazyJsGzipBytes": 694534,
+      "firstNavJsCssHtmlBytes": 697847,
+      "firstNavJsCssHtmlGzipBytes": 181574
+    },
+    "deltaInitialJsGzipBytes": -4,
+    "deltaLazyJsGzipBytes": 274,
+    "deltaFirstNavGzipBytes": -4
+  },
+  "firstNav": {
+    "baseline": [
+      {
+        "route": "/",
+        "medianTransferEncodedBytes": 189261,
+        "medianJsEncodedBytes": 140335,
+        "medianCssEncodedBytes": 35108,
+        "repeats": 3
+      },
+      {
+        "route": "/watch/measure-room",
+        "medianTransferEncodedBytes": 279866,
+        "medianJsEncodedBytes": 210196,
+        "medianCssEncodedBytes": 42034,
+        "repeats": 3
+      }
+    ],
+    "after": [
+      {
+        "route": "/",
+        "medianTransferEncodedBytes": 189256,
+        "medianJsEncodedBytes": 140332,
+        "medianCssEncodedBytes": 35108,
+        "repeats": 3
+      },
+      {
+        "route": "/watch/measure-room",
+        "medianTransferEncodedBytes": 280137,
+        "medianJsEncodedBytes": 210471,
+        "medianCssEncodedBytes": 42034,
+        "repeats": 3
+      }
+    ]
+  },
+  "chunksOver500kB_unchanged": [
+    {
+      "file": "assets/dash-vendor-D_hFuBFJ.js",
+      "bytes": 991954,
+      "gzipBytes": 305333,
+      "initial": false
+    },
+    {
+      "file": "assets/hls-vendor-D02re3bK.js",
+      "bytes": 521929,
+      "gzipBytes": 161245,
+      "initial": false
+    }
+  ]
+}

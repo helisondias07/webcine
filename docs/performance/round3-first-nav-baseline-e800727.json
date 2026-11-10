@@ -1,0 +1,248 @@
+{
+  "measuredAt": "2026-11-10T00:23:34.484Z",
+  "git": "e8007275750ba607f14f3f1c12d74f23c4ee3429",
+  "label": "round3-baseline-e800727",
+  "environment": {
+    "node": "v22.23.4",
+    "platform": "linux",
+    "gzipLevel": 6,
+    "waitUntil": "networkidle",
+    "notes": "Local static gzip of build/. Room route has no Socket.IO backend here, so this is asset transfer only, not a full session. External CDNs (if any) are ignored. Not Core Web Vitals of real users."
+  },
+  "runs": [
+    {
+      "route": "/",
+      "repeats": 3,
+      "medianTransferEncodedBytes": 189261,
+      "medianJsEncodedBytes": 140335,
+      "medianCssEncodedBytes": 35108,
+      "samples": [
+        {
+          "transferEncodedBytes": 189261,
+          "jsEncodedBytes": 140335,
+          "cssEncodedBytes": 35108,
+          "resourceCount": 7
+        },
+        {
+          "transferEncodedBytes": 189261,
+          "jsEncodedBytes": 140335,
+          "cssEncodedBytes": 35108,
+          "resourceCount": 7
+        },
+        {
+          "transferEncodedBytes": 189261,
+          "jsEncodedBytes": 140335,
+          "cssEncodedBytes": 35108,
+          "resourceCount": 7
+        }
+      ],
+      "lastResources": [
+        {
+          "url": "/assets/react-vendor-BmAXHYQU.js",
+          "status": 200,
+          "encoded": 65344,
+          "uncompressed": 197842,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/ui-vendor-BoZIjUTa.js",
+          "status": 200,
+          "encoded": 64450,
+          "uncompressed": 216610,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/ui-vendor-DJIbK2Oo.css",
+          "status": 200,
+          "encoded": 29926,
+          "uncompressed": 203168,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        },
+        {
+          "url": "/assets/index-w4xFEbRo.js",
+          "status": 200,
+          "encoded": 10541,
+          "uncompressed": 27882,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/metadata",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/assets/index-CIa98wY2.css",
+          "status": 200,
+          "encoded": 5182,
+          "uncompressed": 21584,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "route": "/watch/measure-room",
+      "repeats": 3,
+      "medianTransferEncodedBytes": 279866,
+      "medianJsEncodedBytes": 210196,
+      "medianCssEncodedBytes": 42034,
+      "samples": [
+        {
+          "transferEncodedBytes": 279866,
+          "jsEncodedBytes": 210196,
+          "cssEncodedBytes": 42034,
+          "resourceCount": 15
+        },
+        {
+          "transferEncodedBytes": 279866,
+          "jsEncodedBytes": 210196,
+          "cssEncodedBytes": 42034,
+          "resourceCount": 15
+        },
+        {
+          "transferEncodedBytes": 279866,
+          "jsEncodedBytes": 210196,
+          "cssEncodedBytes": 42034,
+          "resourceCount": 15
+        }
+      ],
+      "lastResources": [
+        {
+          "url": "/assets/react-vendor-BmAXHYQU.js",
+          "status": 200,
+          "encoded": 65344,
+          "uncompressed": 197842,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/ui-vendor-BoZIjUTa.js",
+          "status": 200,
+          "encoded": 64450,
+          "uncompressed": 216610,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/App-CXgTb5ZD.js",
+          "status": 200,
+          "encoded": 49286,
+          "uncompressed": 153653,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/ui-vendor-DJIbK2Oo.css",
+          "status": 200,
+          "encoded": 29926,
+          "uncompressed": 203168,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        },
+        {
+          "url": "/assets/socket-vendor-ruy0MFop.js",
+          "status": 200,
+          "encoded": 13013,
+          "uncompressed": 41540,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/index-w4xFEbRo.js",
+          "status": 200,
+          "encoded": 10541,
+          "uncompressed": 27882,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/watch/measure-room",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/metadata",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/webrtc/ice",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/resolveShard/measure-room",
+          "status": 200,
+          "encoded": 6909,
+          "uncompressed": 30761,
+          "encoding": "gzip",
+          "mime": "text/html; charset=utf-8"
+        },
+        {
+          "url": "/assets/App-D-N5geGu.css",
+          "status": 200,
+          "encoded": 6459,
+          "uncompressed": 30707,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        },
+        {
+          "url": "/assets/SettingsModal-PMm4l67W.js",
+          "status": 200,
+          "encoded": 6246,
+          "uncompressed": 15533,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/index-CIa98wY2.css",
+          "status": 200,
+          "encoded": 5182,
+          "uncompressed": 21584,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        },
+        {
+          "url": "/assets/can-autoplay.es-CA6MJ9-f.js",
+          "status": 200,
+          "encoded": 1316,
+          "uncompressed": 5250,
+          "encoding": "gzip",
+          "mime": "text/javascript; charset=utf-8"
+        },
+        {
+          "url": "/assets/SettingsModal-DJ9Cwq9R.css",
+          "status": 200,
+          "encoded": 467,
+          "uncompressed": 894,
+          "encoding": "gzip",
+          "mime": "text/css; charset=utf-8"
+        }
+      ]
+    }
+  ]
+}

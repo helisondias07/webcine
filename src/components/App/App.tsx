@@ -13,7 +13,6 @@ import {
   getDefaultPicture,
   getOrCreateClientId,
   getOrCreateSessionId,
-  calculateMedian,
   isYouTube,
   isMagnet,
   isHttp,
@@ -116,6 +115,12 @@ import {
 } from "./screenshare/capture";
 import { releaseAdaptivePlayers } from "./adaptivePlayers";
 import { initialSeekTime } from "./htmlPlayback";
+import { leaderTimeFromMap } from "./leaderTime";
+import { isAllowedRoomMedia } from "../../utils/roomMedia";
+import {
+  isAllowedUserPicture,
+  resolvedPictureUrl,
+} from "../../../shared/safeUrls";
 
 declare global {
   interface Window {
@@ -640,6 +645,9 @@ export class App extends React.Component<AppProps, AppState> {
         forceFallback: true,
       });
       this.updateNameColor(this.state.myNameColor);
+      if (this.state.myPicture && isAllowedUserPicture(this.state.myPicture)) {
+        this.updatePicture(this.state.myPicture);
+      }
       this.emitViewerShareQualityPreference();
     });
     socket.on("connect_error", (err: any) => {
@@ -1061,6 +1069,9 @@ export class App extends React.Component<AppProps, AppState> {
           this.state.roomPlaybackRate === 0
         ) {
           const leader = this.getLeaderTime();
+          if (!Number.isFinite(leader) || !Number.isFinite(data[clientId])) {
+            return;
+          }
           const delta = leader - data[clientId];
           // Set leader pbr to 1
           let pbr = 1;
@@ -3574,6 +3585,10 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomSetMedia = (value: string) => {
+    if (!isAllowedRoomMedia(value)) {
+      this.showWarningMessage("Este link não pode ser reproduzido na sala.");
+      return;
+    }
     if (isYouTube(value)) {
       this.youtubeStartByMe = true;
       this.youtubeStartUrl = value;
@@ -3592,6 +3607,10 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomPlaylistAdd = (value: string) => {
+    if (!isAllowedRoomMedia(value)) {
+      this.showWarningMessage("Este link não pode ser reproduzido na sala.");
+      return;
+    }
     this.socket.emit("CMD:playlistAdd", value);
   };
 
@@ -3631,6 +3650,9 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   updatePicture = (url: string) => {
+    if (!isAllowedUserPicture(url)) {
+      return;
+    }
     this.setState({ myPicture: url });
     this.socket.emit("CMD:picture", url);
   };
@@ -3686,10 +3708,7 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   getLeaderTime = () => {
-    if (this.state.participants.length > 2) {
-      return calculateMedian(Object.values(this.state.tsMap));
-    }
-    return Math.max(...Object.values(this.state.tsMap));
+    return leaderTimeFromMap(this.state.tsMap, this.state.participants.length);
   };
 
   onVideoEnded = (url: string) => {
@@ -4613,12 +4632,13 @@ export class App extends React.Component<AppProps, AppState> {
                                 getReadableNameColor(
                                   `#${getColorForStringHex(participant.id)}`,
                                 );
-                              const picture =
-                                this.state.pictureMap[participant.id] ||
+                              const picture = resolvedPictureUrl(
+                                this.state.pictureMap[participant.id],
                                 getDefaultPicture(
                                   name,
                                   getColorForStringHex(participant.id),
-                                );
+                                ),
+                              );
                               const isSelf = participant.id === selfId;
                               const isOwner =
                                 participant.id === this.state.owner;

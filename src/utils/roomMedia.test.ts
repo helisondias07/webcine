@@ -19,3 +19,4 @@ describe("isAllowedRoomMedia", () => {
     expect(isAllowedRoomMedia("not a url")).toBe(false);
   });
 });
+

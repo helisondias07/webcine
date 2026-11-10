@@ -33,7 +33,7 @@ Três classes de risco no produto real (não cosmética):
 
 ## Métricas (esta VM, não produção)
 
-Baseline `e800727` vs after, mesmo `npm run build`:
+Baseline `e8007275750ba607f14f3f1c12d74f23c4ee3429` vs after `5b291c397f3bf729ef865149b5254f2a7a1d0112`, mesmo `npm run build`:
 
 - JS inicial gzip disco: 140109 → 140105 bytes (−4 B).
 - First-nav `/` mediana gzip HTTP (n=3): 189261 → 189256 bytes.

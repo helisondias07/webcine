@@ -12,7 +12,7 @@
 | Playwright | 1.61.0, Chromium para first-nav |
 | Build | `CI=true NODE_ENV=production npm run build` |
 | Baseline SHA | `e8007275750ba607f14f3f1c12d74f23c4ee3429` (HEAD da rodada 2, medido **antes** das mudanças desta rodada) |
-| After | working tree da rodada 3 no mesmo `build/` recém-gerado |
+| After | `5b291c397f3bf729ef865149b5254f2a7a1d0112` (build medido no working tree imediatamente antes deste commit) |
 | main (referência, não re-buildado aqui) | `6586408cf1c128a9ff7cc032e7bc271b904672de` |
 
 ## O que é “inicial” vs “lazy”

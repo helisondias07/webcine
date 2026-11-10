@@ -1,7 +1,7 @@
 {
   "measuredAt": "2026-11-10T00:24:07.563Z",
   "buildDir": "/workspace/build",
-  "git": "working-tree-round3-on-e800727",
+  "git": "5b291c397f3bf729ef865149b5254f2a7a1d0112",
   "label": "round3-after",
   "note": "gzip is zlib level 9 of the file on disk, not a CDN encoding. initial = referenced from index.html (script, stylesheet, modulepreload).",
   "initialHtmlBytes": 30761,

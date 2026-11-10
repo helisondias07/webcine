@@ -11,7 +11,7 @@
   "shas": {
     "main_youtube_play": "6586408cf1c128a9ff7cc032e7bc271b904672de",
     "round3_baseline": "e8007275750ba607f14f3f1c12d74f23c4ee3429",
-    "round3_after_note": "working tree of round 3 on the same branch; commit SHA recorded after git commit"
+    "round3_after": "5b291c397f3bf729ef865149b5254f2a7a1d0112"
   },
   "bundle": {
     "baseline": {

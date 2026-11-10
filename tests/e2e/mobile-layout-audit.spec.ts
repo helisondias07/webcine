@@ -28,7 +28,6 @@ async function createRoom(page: Page) {
   await expectNoHorizontalOverflow(page);
   await page.getByRole("button", { name: "Nova sala" }).first().click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
-  await page.getByPlaceholder("Seu nome").fill("Mobile QA");
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 }

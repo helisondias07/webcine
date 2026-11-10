@@ -1,3 +1,4 @@
+import { applyHtmlSrcAndTime } from "./htmlPlayback";
 import { Player } from "./Player";
 
 export class HTML implements Player {
@@ -35,8 +36,7 @@ export class HTML implements Player {
   setSrcAndTime = async (src: string, time: number) => {
     const leftVideo = this.getVideoEl();
     if (leftVideo) {
-      leftVideo.currentTime = time;
-      leftVideo.src = src;
+      applyHtmlSrcAndTime(leftVideo, src, time);
     }
   };
 

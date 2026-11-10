@@ -12,6 +12,7 @@ describe("mediaInput", () => {
     expect(isPlayableMediaUrl("http://cdn.example.com/live.m3u8")).toBe(true);
     expect(isPlayableMediaUrl("  https://youtu.be/dQw4w9wgGcQ  ")).toBe(true);
     expect(isPlayableMediaUrl("filme da semana")).toBe(false);
+    expect(isPlayableMediaUrl("javascript:alert(1)")).toBe(false);
   });
 
   it("builds a YouTube search result for YouTube hosts", () => {

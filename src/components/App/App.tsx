@@ -114,6 +114,8 @@ import {
   readShareCaptureEnv,
   screenShareUnsupportedMessage,
 } from "./screenshare/capture";
+import { releaseAdaptivePlayers } from "./adaptivePlayers";
+import { initialSeekTime } from "./htmlPlayback";
 
 declare global {
   interface Window {
@@ -511,6 +513,14 @@ export class App extends React.Component<AppProps, AppState> {
     });
     this.joinToastTimeouts.clear();
     this.clearCountdownTimers();
+    window.clearTimeout(this.errorMessageTimeout);
+    window.clearTimeout(this.successMessageTimeout);
+    window.clearTimeout(this.soundVerifyTimer);
+    window.clearTimeout(this.audioCheckTimer);
+    releaseAdaptivePlayers({
+      hls: window.watchparty.hls,
+      dash: window.watchparty.dash,
+    });
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     window.watchparty.socket = undefined;
@@ -763,6 +773,11 @@ export class App extends React.Component<AppProps, AppState> {
           this.soundUnlockedMedia = "";
           const leftVideo = this.HTMLInterface.getVideoEl();
 
+          releaseAdaptivePlayers({
+            hls: window.watchparty.hls,
+            dash: window.watchparty.dash,
+          });
+
           // Stop all players
           // Unless the user is sharing a file, because we play it in leftVideo and capture stream
           if (!this.isLocalStreamAFile) {
@@ -948,17 +963,9 @@ export class App extends React.Component<AppProps, AppState> {
             "canplay",
             () => {
               this.setLoadingFalse();
-              let ts = undefined;
-              // WebTorrent and Hls and Dash reset position back to 0 so set it back here
-              if (
-                isMagnet(src) ||
-                isHls(src) ||
-                isDash(src) ||
-                this.state.isLiveStream
-              ) {
-                ts = time;
-              }
-              // Resync to leader since the loading might have taken some time
+              // Use the host timestamp on first canplay. tsMap can still be
+              // empty for a late joiner, which used to leave HTTP files at 0.
+              const ts = initialSeekTime(time, this.state.isLiveStream);
               this.localSeek(ts);
               if (this.state.uploadController) {
                 // Jump back to the start of the video
@@ -4441,11 +4448,17 @@ export class App extends React.Component<AppProps, AppState> {
                     {((this.state.soundPromptMedia === this.state.roomMedia &&
                       Boolean(this.state.roomMedia)) ||
                       this.state.playbackNeedsGesture) && (
-                      <div className={styles.watchPrompt}>
+                      <div
+                        className={styles.watchPrompt}
+                        onClick={() => this.activateSound()}
+                      >
                         <div className={styles.soundPrompt}>
                           <Button
                             className={styles.soundPromptButton}
-                            onClick={() => this.activateSound()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              this.activateSound();
+                            }}
                             leftSection={<IconVolume />}
                             size="xl"
                           >

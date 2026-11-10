@@ -11,6 +11,7 @@ import {
   getYoutubeVideoID,
   isYouTube,
 } from "./utils/youtube.ts";
+import { isAllowedRoomMedia } from "./utils/roomMedia.ts";
 //@ts-expect-error
 import twitch from "twitch-m3u8";
 import { type QueryResult } from "pg";
@@ -742,6 +743,13 @@ export class Room {
   };
 
   private startHosting = async (socket: Socket, data: string) => {
+    if (!isAllowedRoomMedia(data)) {
+      socket.emit(
+        "errorMessage",
+        "Este link não pode ser reproduzido na sala.",
+      );
+      return;
+    }
     if (this.vBrowser) {
       socket.emit(
         "errorMessage",
@@ -855,6 +863,13 @@ export class Room {
 
   public playlistAdd = async (socket: Socket | null, data: string) => {
     if (data && data.length > 20000) {
+      return;
+    }
+    if (!isAllowedRoomMedia(data)) {
+      socket?.emit(
+        "errorMessage",
+        "Este link não pode ser reproduzido na sala.",
+      );
       return;
     }
     redisCount("playlistAdds");

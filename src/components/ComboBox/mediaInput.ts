@@ -1,3 +1,4 @@
+import { isAllowedRoomMedia } from "../../utils/roomMedia";
 import { isHttp, isYouTube } from "../../utils/utils";
 
 export function displayNameForMediaUrl(url: string): string {
@@ -24,7 +25,8 @@ export function searchResultForMediaUrl(url: string): SearchResult {
 }
 
 export function isPlayableMediaUrl(value: string): boolean {
-  return isHttp(value.trim());
+  const trimmed = value.trim();
+  return isHttp(trimmed) && isAllowedRoomMedia(trimmed);
 }
 
 export function immediateSearchResultsForQuery(

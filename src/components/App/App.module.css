@@ -219,6 +219,7 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .playerContainer {
@@ -1060,6 +1061,8 @@
   box-shadow:
     0 0 0 6px rgba(255, 255, 255, 0.18),
     0 8px 30px rgba(0, 0, 0, 0.6);
+  /* Opacity/glow only: transform made Playwright clicks "unstable" and
+     shifted the tap target on tablets. */
   animation: soundPromptPulse 1.6s ease-in-out infinite;
 }
 
@@ -1073,10 +1076,16 @@
 @keyframes soundPromptPulse {
   0%,
   100% {
-    transform: scale(1);
+    opacity: 1;
+    box-shadow:
+      0 0 0 6px rgba(255, 255, 255, 0.18),
+      0 8px 30px rgba(0, 0, 0, 0.6);
   }
   50% {
-    transform: scale(1.05);
+    opacity: 0.92;
+    box-shadow:
+      0 0 0 10px rgba(255, 255, 255, 0.28),
+      0 8px 30px rgba(0, 0, 0, 0.6);
   }
 }
 

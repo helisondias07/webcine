@@ -221,6 +221,17 @@
   z-index: 1;
 }
 
+.emptyStage {
+  z-index: 2;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  overflow: auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
 .watchPrompt {
   position: absolute;
   inset: 0;
@@ -230,6 +241,7 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.55);
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .playerContainer {
@@ -271,8 +283,9 @@
 }
 
 .emptyStateCard {
-  min-width: min(580px, calc(100vw - 34px));
-  max-width: 560px;
+  min-width: 0;
+  width: min(560px, 100%);
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -339,14 +352,21 @@
   justify-content: center;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .emptyActionButton {
-  min-width: 170px;
+  min-width: 0;
+  flex: 1 1 140px;
 }
 
 .emptySurpriseButton {
   margin-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
   border: 1px solid
     color-mix(in srgb, var(--accent-warm) 46%, var(--border-soft));
   background: color-mix(in srgb, var(--bg-surface) 86%, transparent);
@@ -938,7 +958,7 @@
 
   .emptyStateCard {
     min-width: 0;
-    width: calc(100vw - 28px);
+    width: 100%;
     max-width: 100%;
     padding: 22px 16px;
     gap: 12px;
@@ -956,9 +976,15 @@
     height: 44px;
   }
 
+  .emptyActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .emptyActionButton {
     width: 100%;
     min-width: 0;
+    flex: none;
     min-height: 42px;
   }
 
@@ -1032,7 +1058,7 @@
   }
 
   .emptyStateCard {
-    width: calc(100vw - 20px);
+    width: 100%;
     padding: 20px 14px;
   }
 
@@ -1062,6 +1088,8 @@
   box-shadow:
     0 0 0 6px rgba(255, 255, 255, 0.18),
     0 8px 30px rgba(0, 0, 0, 0.6);
+  /* Opacity/glow only: transform made Playwright clicks "unstable" and
+     shifted the tap target on tablets. */
   animation: soundPromptPulse 1.6s ease-in-out infinite;
 }
 
@@ -1075,10 +1103,16 @@
 @keyframes soundPromptPulse {
   0%,
   100% {
-    transform: scale(1);
+    opacity: 1;
+    box-shadow:
+      0 0 0 6px rgba(255, 255, 255, 0.18),
+      0 8px 30px rgba(0, 0, 0, 0.6);
   }
   50% {
-    transform: scale(1.05);
+    opacity: 0.92;
+    box-shadow:
+      0 0 0 10px rgba(255, 255, 255, 0.28),
+      0 8px 30px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -1097,25 +1131,23 @@
 
 /* Touch targets: >= 44px on touch devices and tablets, desktop stays compact. */
 @media (pointer: coarse), (max-width: 1024px) {
-  /* The empty state is absolutely positioned. On a short tablet or phone it
-     was clipped, so "Compartilhar tela" sat outside the tap area. */
+  /* Keep the empty state inside the player box so it cannot overflow the
+     viewport. Scroll inside the overlay if the card is taller than the player. */
   .playerContainer:has(.emptyStage) {
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .emptyStage {
-    position: relative;
-    inset: auto;
-    width: 100%;
+    position: absolute;
+    inset: 0;
+    width: auto;
     height: auto;
-    min-height: 100%;
-    overflow: visible;
-    padding-block: 12px;
+    overflow: auto;
+    padding: 16px;
   }
 
   .emptyStateCard {
-    width: min(560px, calc(100% - 24px));
+    width: 100%;
     min-width: 0;
     margin-inline: auto;
   }

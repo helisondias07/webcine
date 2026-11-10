@@ -11,6 +11,16 @@ import {
   getYoutubeVideoID,
   isYouTube,
 } from "./utils/youtube.ts";
+import { isAllowedRoomMedia } from "./utils/roomMedia.ts";
+import {
+  REDDIT_FETCH_TIMEOUT_MS,
+  REDDIT_JSON_MAX_BYTES,
+  isAllowedUserPicture,
+  isRedditPostUrl,
+  isRedditVideoUrl,
+  isTwitchUrl,
+  redditJsonUrl,
+} from "../shared/safeUrls.ts";
 //@ts-expect-error
 import twitch from "twitch-m3u8";
 import { type QueryResult } from "pg";
@@ -742,14 +752,21 @@ export class Room {
   };
 
   private changeUserPicture = (socket: Socket, data: string) => {
-    if (data && data.length > 10000) {
+    if (!isAllowedUserPicture(data)) {
       return;
     }
-    this.pictureMap[socket.clientId] = data;
+    this.pictureMap[socket.clientId] = data.trim();
     this.io.of(this.roomId).emit("REC:pictureMap", this.pictureMap);
   };
 
   private startHosting = async (socket: Socket, data: string) => {
+    if (!isAllowedRoomMedia(data)) {
+      socket.emit(
+        "errorMessage",
+        "Este link não pode ser reproduzido na sala.",
+      );
+      return;
+    }
     if (this.vBrowser) {
       socket.emit(
         "errorMessage",
@@ -764,21 +781,26 @@ export class Room {
     if (config.CONVERT_PATH && data?.startsWith(config.CONVERT_PATH)) {
       redisCount("convertStarts");
     }
-    // If a reddit URL, extract video URL
-    if (
-      data?.startsWith("https://www.reddit.com") ||
-      data?.startsWith("https://old.reddit.com") ||
-      data?.startsWith("https://reddit.com")
-    ) {
-      if (data.endsWith("/")) {
-        // Remove trailing slash
-        data = data.slice(0, -1);
+    // If a reddit URL, extract video URL. Hostname allowlist, not prefix match.
+    if (isRedditPostUrl(data)) {
+      const jsonUrl = redditJsonUrl(data);
+      if (!jsonUrl) {
+        socket?.emit(
+          "errorMessage",
+          "Não foi possível carregar este link do Reddit.",
+        );
+        return;
       }
-      data = data + ".json";
-      // Extract fallback_url
       let json: any;
       try {
-        const resp = await axios.get(data);
+        const resp = await axios.get(jsonUrl, {
+          timeout: REDDIT_FETCH_TIMEOUT_MS,
+          maxContentLength: REDDIT_JSON_MAX_BYTES,
+          maxBodyLength: REDDIT_JSON_MAX_BYTES,
+          maxRedirects: 0,
+          validateStatus: (status) => status === 200,
+          headers: { Accept: "application/json" },
+        });
         json = resp.data;
       } catch (e) {
         console.warn("[cmdHost] Reddit fetch failed", e);
@@ -794,12 +816,16 @@ export class Room {
       let reddit_mp4 =
         json?.[0]?.data?.children?.[0]?.data?.secure_media?.reddit_video
           ?.fallback_url;
-      // prefer reddit m3u8 streams over the mp4 links as the m3u8 streams contain audio.
-      data = reddit_m3u8 || reddit_mp4 || data;
-    } else if (
-      data?.startsWith("https://www.twitch.tv") ||
-      data?.startsWith("https://twitch.tv")
-    ) {
+      const extracted = reddit_m3u8 || reddit_mp4;
+      if (!extracted || !isRedditVideoUrl(String(extracted))) {
+        socket?.emit(
+          "errorMessage",
+          "Não foi possível carregar este link do Reddit.",
+        );
+        return;
+      }
+      data = String(extracted);
+    } else if (isTwitchUrl(data)) {
       try {
         if (!config.TWITCH_PROXY_PATH) {
           socket.emit(
@@ -863,6 +889,13 @@ export class Room {
 
   public playlistAdd = async (socket: Socket | null, data: string) => {
     if (data && data.length > 20000) {
+      return;
+    }
+    if (!isAllowedRoomMedia(data)) {
+      socket?.emit(
+        "errorMessage",
+        "Este link não pode ser reproduzido na sala.",
+      );
       return;
     }
     redisCount("playlistAdds");

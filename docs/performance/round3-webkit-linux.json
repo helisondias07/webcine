@@ -1,0 +1,13 @@
+{
+  "measuredAt": "2026-11-10T00:25:00Z",
+  "label": "tablet-webkit room entry",
+  "command": "npx playwright test tests/e2e/watchparty.spec.ts --project=tablet-webkit --reporter=list",
+  "playwright": "1.61.0",
+  "node": "v22.23.4",
+  "os": "linux 6.12.113+ x86_64",
+  "result": "failed",
+  "error": "locator.fill: Target page, context or browser has been closed",
+  "failedAt": "createRoom: getByPlaceholder('Seu nome').fill after URL matched /watch/",
+  "samePathChromium": "passed (desktop-chromium, mobile-320, mobile-390)",
+  "conclusion": "Page/browser closed on Playwright WebKit in this Linux VM while entering the room. Chromium on the same tests and same app build passed. Treated as environment/engine limitation of Playwright WebKit on Linux, not as a confirmed iPad Safari product crash. Not skipped to force green; CI does not install WebKit and now runs Chromium projects only."
+}

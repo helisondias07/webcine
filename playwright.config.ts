@@ -44,6 +44,9 @@ export default defineConfig({
       },
     },
     {
+      // Optional local project. CI installs Chromium only (npm run test:e2e:ci).
+      // Playwright WebKit on this Linux VM has crashed on room entry; do not
+      // skip the failure — document it. Not a required gate.
       name: "tablet-webkit",
       use: {
         browserName: "webkit",

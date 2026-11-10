@@ -28,7 +28,6 @@ async function createRoom(page: Page) {
   await expectNoHorizontalOverflow(page);
   await page.getByRole("button", { name: "Nova sala" }).first().click();
   await expect(page).toHaveURL(/\/watch\/[a-z0-9-]+/);
-  await page.getByPlaceholder("Seu nome").fill("Mobile QA");
   await expect(page.locator("#watchPlayerShell")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 }
@@ -66,6 +65,16 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
 
   await createRoom(page);
 
+  await expectInViewport(
+    page,
+    page.getByText("Inicie uma transmissão"),
+    8,
+  );
+  await expectInViewport(page, page.getByTestId("empty-screenshare-button"), 8);
+  await expect(
+    page.getByText("Cole um link do YouTube, compartilhe a tela"),
+  ).toBeVisible();
+
   const topbar = page.getByTestId("topbar");
   await expectInViewport(page, topbar, 6);
 
@@ -93,6 +102,7 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   }
   const chatPanel = page.getByTestId("chat-panel");
   await expect(chatPanel).toBeVisible();
+  await chatPanel.scrollIntoViewIfNeeded();
   await expectInViewport(page, chatPanel, 8);
   await expectInViewport(page, page.getByPlaceholder("Digite uma mensagem..."), 8);
 
@@ -113,6 +123,7 @@ test("auditoria mobile: telas principais sem quebra critica", async ({ page }) =
   const settingsModal = page.locator("[role='dialog']").filter({
     hasText: "Trancar sala",
   });
+  await expect(settingsModal).toBeVisible();
   await expectInViewport(page, settingsModal, 8);
   await settingsModal.getByText("Trancar sala").waitFor();
   await page.keyboard.press("Escape");

@@ -12,6 +12,10 @@ import {
 } from "../../utils/utils";
 import { UserMenu } from "../UserMenu/UserMenu";
 import { getReadableNameColor } from "../App/helpers";
+import {
+  isAllowedChatImageUrl,
+  resolvedPictureUrl,
+} from "../../../shared/safeUrls";
 import { Socket } from "socket.io-client";
 import { IconSend } from "@tabler/icons-react";
 
@@ -215,6 +219,9 @@ export class Chat extends React.Component<ChatProps, ChatState> {
           className={styles.chatContainer}
           ref={this.messagesRef}
           style={{ position: "relative" }}
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
         >
           <div className={styles.chatList}>
             {this.props.chat.map((msg) => (
@@ -249,7 +256,13 @@ export class Chat extends React.Component<ChatProps, ChatState> {
         </div>
         <TextInput
           className={styles.chatInput}
-          onKeyDown={(e: any) => e.key === "Enter" && this.sendChatMsg()}
+          aria-label="Mensagem do chat"
+          onKeyDown={(e: any) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              this.sendChatMsg();
+            }
+          }}
           onChange={this.updateChatMsg}
           value={this.state.chatMsg}
           error={this.chatTooLong()}
@@ -336,10 +349,10 @@ const ChatMessage = ({
     >
       {id ? (
         <Avatar
-          src={
-            pictureMap[id] ||
-            getDefaultPicture(nameMap[id], getColorForStringHex(id))
-          }
+          src={resolvedPictureUrl(
+            pictureMap[id],
+            getDefaultPicture(nameMap[id], getColorForStringHex(id)),
+          )}
         />
       ) : null}
       <div>
@@ -421,10 +434,11 @@ const ChatMessage = ({
 export const renderImageString = (
   input: string | undefined,
 ): React.ReactNode | null => {
-  let regex =
-    /^https?:\/\/.*\/.*\.(png|gif|webp|jpeg|jpg|heic|heif|jfif)\??.*$/gim;
-  if (String(input)?.match(regex)) {
-    return <img style={{ maxWidth: "100%" }} src={input} />;
+  const url = String(input ?? "").trim();
+  if (!isAllowedChatImageUrl(url)) {
+    return null;
   }
-  return null;
+  return (
+    <img style={{ maxWidth: "100%" }} src={url} alt="Imagem enviada no chat" />
+  );
 };

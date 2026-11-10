@@ -28,7 +28,7 @@ const Page = ({
   description: string;
   title: string;
 }) => (
-  <main style={pageStyle}>
+  <main id="conteudo" style={pageStyle}>
     <h1>{title}</h1>
     <p style={mutedStyle}>{description}</p>
     {children}
@@ -38,29 +38,31 @@ const Page = ({
 export const Privacy = () => {
   return (
     <Page
-      title="Politica de privacidade"
+      title="Política de privacidade"
       description="Como o WebCineTV lida com contas, salas, cookies e dados de uso."
     >
       <section style={sectionStyle}>
         <h2>Salas</h2>
         <ul style={listStyle}>
           <li>
-            Por padrao, salas sao temporarias e expiram apos um dia de
+            Por padrão, salas são temporárias e expiram após um dia de
             inatividade.
           </li>
           <li>
-            Usuarios podem tornar uma sala permanente e desfazer essa escolha a
+            Usuários podem tornar uma sala permanente e desfazer essa escolha a
             qualquer momento.
           </li>
-          <li>Nao mantemos registros do conteudo assistido pelos usuarios.</li>
+          <li>Não mantemos registros do conteúdo assistido pelos usuários.</li>
         </ul>
       </section>
 
       <section style={sectionStyle}>
-        <h2>Informacoes pessoais</h2>
+        <h2>Informações pessoais</h2>
         <ul style={listStyle}>
-          <li>Voce nao precisa criar conta para usar o servico.</li>
-          <li>Nao vendemos ou compartilhamos informacoes pessoais com terceiros.</li>
+          <li>Você não precisa criar conta para usar o serviço.</li>
+          <li>
+            Não vendemos ou compartilhamos informações pessoais com terceiros.
+          </li>
         </ul>
       </section>
 
@@ -68,14 +70,14 @@ export const Privacy = () => {
         <h2>Cookies e YouTube</h2>
         <ul style={listStyle}>
           <li>
-            Usamos servicos como Google Analytics para medir uso; eles podem
+            Usamos serviços como Google Analytics para medir uso; eles podem
             armazenar cookies ou dados locais no dispositivo.
           </li>
           <li>
-            Ao usar busca e reproducao do YouTube, dados podem ser tratados
+            Ao usar busca e reprodução do YouTube, dados podem ser tratados
             conforme a{" "}
             <a href="https://policies.google.com/privacy">
-              Politica de Privacidade do Google
+              Política de Privacidade do Google
             </a>
             .
           </li>
@@ -89,20 +91,20 @@ export const Terms = () => {
   return (
     <Page
       title="Termos de uso"
-      description="Condicoes para usar o WebCineTV e criar salas para assistir videos com outras pessoas."
+      description="Condições para usar o WebCineTV e criar salas para assistir vídeos com outras pessoas."
     >
       <section style={sectionStyle}>
-        <h2>Uso do servico</h2>
+        <h2>Uso do serviço</h2>
         <ul style={listStyle}>
-          <li>Voce declara ter mais de 13 anos de idade.</li>
+          <li>Você declara ter mais de 13 anos de idade.</li>
           <li>
-            O uso pode ser encerrado em caso de compartilhamento de conteudo
+            O uso pode ser encerrado em caso de compartilhamento de conteúdo
             ilegal ou infrator.
           </li>
-          <li>O servico nao oferece garantia de disponibilidade continua.</li>
+          <li>O serviço não oferece garantia de disponibilidade contínua.</li>
           <li>
-            Voce usa o servico por sua propria conta e risco, inclusive quanto a
-            conteudos criados ou compartilhados por terceiros.
+            Você usa o serviço por sua própria conta e risco, inclusive quanto a
+            conteúdos criados ou compartilhados por terceiros.
           </li>
         </ul>
       </section>
@@ -111,9 +113,9 @@ export const Terms = () => {
         <h2>YouTube</h2>
         <ul style={listStyle}>
           <li>
-            Ao usar a busca do YouTube, voce tambem concorda com os{" "}
+            Ao usar a busca do YouTube, você também concorda com os{" "}
             <a href="https://www.youtube.com/t/terms">
-              Termos de Servico do YouTube
+              Termos de Serviço do YouTube
             </a>
             .
           </li>
@@ -127,31 +129,31 @@ export const FAQ = () => {
   return (
     <Page
       title="Perguntas frequentes"
-      description="Duvidas comuns sobre audio, tamanho de salas e links para criar salas no WebCineTV."
+      description="Dúvidas comuns sobre áudio, tamanho de salas e links para criar salas no WebCineTV."
     >
       <section style={sectionStyle}>
-        <h2>Por que nao sai audio no compartilhamento de tela?</h2>
+        <h2>Por que não sai áudio no compartilhamento de tela?</h2>
         <p>
-          Para compartilhar audio, use Chrome ou Edge e compartilhe uma aba ou a
-          area de trabalho.
+          Para compartilhar áudio, use Chrome ou Edge e compartilhe uma aba ou a
+          área de trabalho.
         </p>
       </section>
 
       <section style={sectionStyle}>
         <h2>Existe limite de pessoas em uma sala?</h2>
         <p>
-          Atualmente nao existe um limite fixo, mas o servico ainda nao foi
+          Atualmente não existe um limite fixo, mas o serviço ainda não foi
           testado com salas muito grandes. Compartilhamento de tela e arquivos
-          dependem do envio de uma pessoa para as outras, entao podem perder
+          dependem do envio de uma pessoa para as outras, então podem perder
           qualidade em grupos maiores.
         </p>
       </section>
 
       <section style={sectionStyle}>
-        <h2>Posso criar uma sala com video predefinido?</h2>
+        <h2>Posso criar uma sala com vídeo predefinido?</h2>
         <p>
           Sim. Use um link no formato <code>/create?video=URL_DO_VIDEO</code>{" "}
-          para abrir uma sala com o video informado.
+          para abrir uma sala com o vídeo informado.
         </p>
       </section>
     </Page>

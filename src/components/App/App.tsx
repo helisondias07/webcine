@@ -13,7 +13,6 @@ import {
   getDefaultPicture,
   getOrCreateClientId,
   getOrCreateSessionId,
-  calculateMedian,
   isYouTube,
   isMagnet,
   isHttp,
@@ -128,6 +127,14 @@ import {
   shouldRefreshTurnCredential,
   turnRefreshDelayMs,
 } from "./screenshare/turn";
+import { releaseAdaptivePlayers } from "./adaptivePlayers";
+import { initialSeekTime } from "./htmlPlayback";
+import { leaderTimeFromMap } from "./leaderTime";
+import { isAllowedRoomMedia } from "../../utils/roomMedia";
+import {
+  isAllowedUserPicture,
+  resolvedPictureUrl,
+} from "../../../shared/safeUrls";
 
 declare global {
   interface Window {
@@ -568,6 +575,14 @@ export class App extends React.Component<AppProps, AppState> {
     });
     this.joinToastTimeouts.clear();
     this.clearCountdownTimers();
+    window.clearTimeout(this.errorMessageTimeout);
+    window.clearTimeout(this.successMessageTimeout);
+    window.clearTimeout(this.soundVerifyTimer);
+    window.clearTimeout(this.audioCheckTimer);
+    releaseAdaptivePlayers({
+      hls: window.watchparty.hls,
+      dash: window.watchparty.dash,
+    });
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     window.watchparty.socket = undefined;
@@ -734,6 +749,9 @@ export class App extends React.Component<AppProps, AppState> {
         forceFallback: true,
       });
       this.updateNameColor(this.state.myNameColor);
+      if (this.state.myPicture && isAllowedUserPicture(this.state.myPicture)) {
+        this.updatePicture(this.state.myPicture);
+      }
       this.emitViewerShareQualityPreference();
     });
     socket.on("connect_error", (err: any) => {
@@ -866,6 +884,11 @@ export class App extends React.Component<AppProps, AppState> {
         async () => {
           this.soundUnlockedMedia = "";
           const leftVideo = this.HTMLInterface.getVideoEl();
+
+          releaseAdaptivePlayers({
+            hls: window.watchparty.hls,
+            dash: window.watchparty.dash,
+          });
 
           // Stop all players
           // Unless the user is sharing a file, because we play it in leftVideo and capture stream
@@ -1068,17 +1091,9 @@ export class App extends React.Component<AppProps, AppState> {
             "canplay",
             () => {
               this.setLoadingFalse();
-              let ts = undefined;
-              // WebTorrent and Hls and Dash reset position back to 0 so set it back here
-              if (
-                isMagnet(src) ||
-                isHls(src) ||
-                isDash(src) ||
-                this.state.isLiveStream
-              ) {
-                ts = time;
-              }
-              // Resync to leader since the loading might have taken some time
+              // Use the host timestamp on first canplay. tsMap can still be
+              // empty for a late joiner, which used to leave HTTP files at 0.
+              const ts = initialSeekTime(time, this.state.isLiveStream);
               this.localSeek(ts);
               if (this.state.uploadController) {
                 // Jump back to the start of the video
@@ -1174,6 +1189,9 @@ export class App extends React.Component<AppProps, AppState> {
           this.state.roomPlaybackRate === 0
         ) {
           const leader = this.getLeaderTime();
+          if (!Number.isFinite(leader) || !Number.isFinite(data[clientId])) {
+            return;
+          }
           const delta = leader - data[clientId];
           // Set leader pbr to 1
           let pbr = 1;
@@ -3993,6 +4011,10 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomSetMedia = (value: string) => {
+    if (!isAllowedRoomMedia(value)) {
+      this.showWarningMessage("Este link não pode ser reproduzido na sala.");
+      return;
+    }
     if (isYouTube(value)) {
       this.youtubeStartByMe = true;
       this.youtubeStartUrl = value;
@@ -4011,6 +4033,10 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   roomPlaylistAdd = (value: string) => {
+    if (!isAllowedRoomMedia(value)) {
+      this.showWarningMessage("Este link não pode ser reproduzido na sala.");
+      return;
+    }
     this.socket.emit("CMD:playlistAdd", value);
   };
 
@@ -4050,6 +4076,9 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   updatePicture = (url: string) => {
+    if (!isAllowedUserPicture(url)) {
+      return;
+    }
     this.setState({ myPicture: url });
     this.socket.emit("CMD:picture", url);
   };
@@ -4105,10 +4134,7 @@ export class App extends React.Component<AppProps, AppState> {
   };
 
   getLeaderTime = () => {
-    if (this.state.participants.length > 2) {
-      return calculateMedian(Object.values(this.state.tsMap));
-    }
-    return Math.max(...Object.values(this.state.tsMap));
+    return leaderTimeFromMap(this.state.tsMap, this.state.participants.length);
   };
 
   onVideoEnded = (url: string) => {
@@ -4517,7 +4543,10 @@ export class App extends React.Component<AppProps, AppState> {
           </div>
         )}
         {
-          <main className={`${styles.roomShell} ${styles.mobileStack}`}>
+          <main
+            id="conteudo"
+            className={`${styles.roomShell} ${styles.mobileStack}`}
+          >
             <h1 className={styles.srOnly}>Sala de cinema WebCineTV</h1>
             <div
               className={
@@ -4785,8 +4814,8 @@ export class App extends React.Component<AppProps, AppState> {
                                   Inicie uma transmissão
                                 </div>
                                 <div className={styles.emptyStateSubtitle}>
-                                  Compartilhe sua tela ou envie um arquivo para
-                                  a sala.
+                                  Cole um link do YouTube, compartilhe a tela ou
+                                  envie um arquivo.
                                 </div>
                                 <div className={styles.emptyActions}>
                                   <Button
@@ -4876,11 +4905,17 @@ export class App extends React.Component<AppProps, AppState> {
                     {((this.state.soundPromptMedia === this.state.roomMedia &&
                       Boolean(this.state.roomMedia)) ||
                       this.state.playbackNeedsGesture) && (
-                      <div className={styles.watchPrompt}>
+                      <div
+                        className={styles.watchPrompt}
+                        onClick={() => this.activateSound()}
+                      >
                         <div className={styles.soundPrompt}>
                           <Button
                             className={styles.soundPromptButton}
-                            onClick={() => this.activateSound()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              this.activateSound();
+                            }}
                             leftSection={<IconVolume />}
                             size="xl"
                           >
@@ -4968,6 +5003,7 @@ export class App extends React.Component<AppProps, AppState> {
                                 ? styles.chatPanelTabActive
                                 : ""
                             }`}
+                            aria-pressed={!this.state.showPeopleColumn}
                             onClick={() =>
                               this.setState({
                                 showPeopleColumn: false,
@@ -4984,6 +5020,7 @@ export class App extends React.Component<AppProps, AppState> {
                                 ? styles.chatPanelTabActive
                                 : ""
                             }`}
+                            aria-pressed={this.state.showPeopleColumn}
                             onClick={() =>
                               this.setState({
                                 showPeopleColumn: true,
@@ -5033,12 +5070,13 @@ export class App extends React.Component<AppProps, AppState> {
                                 getReadableNameColor(
                                   `#${getColorForStringHex(participant.id)}`,
                                 );
-                              const picture =
-                                this.state.pictureMap[participant.id] ||
+                              const picture = resolvedPictureUrl(
+                                this.state.pictureMap[participant.id],
                                 getDefaultPicture(
                                   name,
                                   getColorForStringHex(participant.id),
-                                );
+                                ),
+                              );
                               const isSelf = participant.id === selfId;
                               const isOwner =
                                 participant.id === this.state.owner;

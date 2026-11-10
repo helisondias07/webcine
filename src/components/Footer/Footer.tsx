@@ -30,10 +30,21 @@ export const Footer = () => {
       <div aria-hidden className={styles.footerSpacer} />
       <footer ref={ref} className={styles.footer}>
         <span>Criado por Helison Dias</span>
+        <nav className={styles.legal} aria-label="Informações do site">
+          <a href="/faq" className={styles.link}>
+            FAQ
+          </a>
+          <a href="/terms" className={styles.link}>
+            Termos
+          </a>
+          <a href="/privacy" className={styles.link}>
+            Privacidade
+          </a>
+        </nav>
         <a
           href="https://github.com/helisondias07"
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className={styles.link}
           aria-label="GitHub Helison Dias"
         >
@@ -48,7 +59,7 @@ export const Footer = () => {
         <a
           href="https://www.linkedin.com/in/helisondias/"
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           className={styles.link}
           aria-label="LinkedIn Helison Dias"
         >

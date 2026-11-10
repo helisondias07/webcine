@@ -12,5 +12,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "youtube"]
   },
-  "include": ["./**/*", "../global.d.ts"]
+  "include": ["./**/*", "../shared/**/*.ts", "../global.d.ts"]
 }
